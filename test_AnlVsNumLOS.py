@@ -1,65 +1,28 @@
-# to run to test generate_particle_lens
+"""
+Compare fit LOS effects with "a posteriori" implementation obtained from interpolation of alpha map
+"""
+import dill
 import numpy as np
-import matplotlib.pyplot as plt
-from pyinstrument import Profiler
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-import stpsf,dill
-import pandas as pd
-from lenstronomy.SimulationAPI.sim_api import SimAPI
-from lenstronomy.SimulationAPI.ObservationConfig.HST import HST
-from lenstronomy.SimulationAPI.ObservationConfig.JWST import JWST
-
-from plot_PL import plot_all
 from particle_galaxy import PartGal
-from python_tools.tools import to_dimless
 from python_tools.image_manipulation import plot_comp_two_images
 from particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
-from generate_particle_lens import wrapper_get_rnd_lens,get_extents,LoadLens,LensPart
+from generate_particle_lens import get_extents,LensPart
 from generate_particle_lens import pixel_num,kw_prior_z_source_minimal
-
-from lenstronomy.LensModel.LineOfSight.LOSModels.los import LOS
-#import scipy.interpolate as interp
-from scipy.ndimage import map_coordinates
-
-def find_index(x,arr):
-    """
-    Find linear interpolation of the index given a value x 
-    with respect to a grid defined by the array arr
-    """
-    arr = np.array(arr)
-    #ind0 = np.where((arr-x)<0)[0][-1]
-    # Find insertion index
-    i = np.searchsorted(arr, x) - 1
-    # Clip to valid range
-    ind0 = np.clip(i, 0, len(arr) - 2)
-    return ind0 + (x-arr[ind0])/(arr[ind0+1] -arr[ind0])
-
+from lens_part_los import get_kw_los,LensPartLOS
+    
 if __name__ == "__main__":
+    reload = True
 
-    #print("Loading specific gal for debugging")
-    #Gal = LoadClass("/pbs/home/g/gqueirolo/EAGLE/data/RefL0025N0752//Gals/snap_18//Gn5SGn0.pkl")
-    profiler = Profiler()
-    profiler.start()
-
-    #mod_LP = wrapper_get_rnd_lens(reload=False)
     Gal    = PartGal(5,0,
                  z=None,snap="20",    # redshift or snap
                  M=None,Centre=None,
-                 reload=True)
+                 reload=reload)
 
     kw_add_lenses = {"lens_model_list":["LOS"],
                     "kwargs_lens":[]}
     # load first parameters from analosis, golden sample
-    path = "/pbs/home/g/gqueirolo/analosis/analosis/results/datasets/golden_sample_input_kwargs.csv"
-    kw   = pd.read_csv(path)
-    los_cols = ['kappa_os', 'gamma1_os', 'gamma2_os', 'omega_os',
-    'kappa_od', 'gamma1_od', 'gamma2_od', 'omega_od',
-    'kappa_ds', 'gamma1_ds', 'gamma2_ds', 'omega_ds',
-    'kappa_los', 'gamma1_los', 'gamma2_los', 'omega_los']
-    los  = kw.loc[:, los_cols]
-    list_los = los.to_dict('records')
-    kw_los = list_los[0]
+    kw_los = get_kw_los()
     kw_add_lenses["kwargs_lens"] = [kw_los]
 
     # compute the LOS effect exactly (analytically)
@@ -68,7 +31,7 @@ if __name__ == "__main__":
                       kw_prior_z_source=kw_prior_z_source_minimal,
                       pixel_num=pixel_num,
                       kw_add_lenses=kw_add_lenses,
-                      reload=True,
+                      reload=reload,
                       savedir_sim="test_sim_lens_LOS")
     
     mod_LP_LOSanl.run()
@@ -76,17 +39,17 @@ if __name__ == "__main__":
 
     # compute LOS effects "a posteriori" (numerically)
     kw_prior_z_source = kw_prior_z_source_minimal | {"fixed_z_source":mod_LP_LOSanl.z_source}
-    mod_LP_LOSnum = LensPart(Galaxy=Gal,
+    mod_LP_LOSnum = LensPartLOS(Galaxy=Gal,
                       kwlens_part=kwlens_part_AS,
                       kw_prior_z_source=kw_prior_z_source,
                       pixel_num=pixel_num,
                       kw_add_lenses=None,
-                      reload=True,
+                      reload=reload,
                       savedir_sim="test_sim_lens_LOSnum")
 
     mod_LP_LOSnum.run()
     #print("Verify same z_source: ",mod_LP_LOSanl.z_source,"==",mod_LP_LOSnum.z_source,mod_LP_LOSanl.z_source == mod_LP_LOSnum.z_source) #-> verified
-    
+    """
     # fit the 2D alphamap
     ra,dec = mod_LP_LOSnum.get_RADEC()
     radec_points = np.stack([ra.ravel(),dec.ravel()],-1)
@@ -141,7 +104,9 @@ if __name__ == "__main__":
     alpha_ra += ra - theta_ra_os
     alpha_dec += dec - theta_dec_os
     alpha_map_los_num = (alpha_ra,alpha_dec)
-
+    """
+    alpha_map_los_num = mod_LP_LOSnum.alpha_LOS_APost(kw_los)
+    
     # since it's a test, we do not store it in a standard way
     alpha_los_name = "tmp/alpha_los2.pkl"
     print("Saving "+alpha_los_name)
@@ -176,7 +141,7 @@ if __name__ == "__main__":
     
     imsim_LOSanl = mod_LP_LOSanl.image_sim 
     _imsim_LOSanl = mod_LP_LOSanl.get_lensed_image(alpha_map=alpha_map_los_anl)
-    print("verify correct computation\n mod_LP_LOSanl.image_sim == mod_LP_LOSanl.get_lensed_image(alpha_map=alpha_map_los_anl):",  imsim_LOSanl ==_imsim_LOSanl,np.mean(imsim_LOSanl),np.mean(_imsim_LOSanl))
+    print("verify correct computation\n mod_LP_LOSanl.image_sim == mod_LP_LOSanl.get_lensed_image(alpha_map=alpha_map_los_anl):",  np.all(imsim_LOSanl ==_imsim_LOSanl),np.mean(imsim_LOSanl),np.mean(_imsim_LOSanl))
     
     imsim_LOSnum = mod_LP_LOSnum.get_lensed_image(alpha_map=alpha_map_los_num)
 
@@ -188,96 +153,3 @@ if __name__ == "__main__":
     nm = "tmp/comp_im_LOS2.png"
     fg.savefig(nm)
     print(f"Saving {nm}")
-
-    exit()
-    
-    plot_all(mod_LP,skip_caustic=True)
-
-    profiler.start()
-
-    band_HST = HST(band='WFC3_F160W', psf_type="GAUSSIAN")
-    #band = HST(band='WFC3_F160W', psf_type="PIXEL") #-> if pixel, we need to give kernel_point_source (and point_source_supersampling_factor etc)
-    #band.obs["psf_type"] = "PIXEL"
-    #del band.obs["seeing"]
-    #band.obs["kernel_point_source"] = []
-    SimObs_HST = mod_LP.get_SimObs(band_HST,kwargs_source_model=None)
-
-    image_hst = mod_LP.sim_image(SimObs_HST)
-    band_JWST = JWST(band='F444W', psf_type="GAUSSIAN")
-    
-
-    
-    SimObs_jwst = mod_LP.get_SimObs(band_JWST,kwargs_source_model=None)
-    image_jwst = mod_LP.sim_image(SimObs_jwst)
-
-
-    # more realistic PSF for JWST
-    nrc = stpsf.NIRCam()
-    nrc.filter =  'F444W'
-    
-    pssf = 4
-    psf = nrc.calc_psf(oversample=pssf)
-    
-    psf_data = psf[2].data
-    band_JWST = JWST(band=nrc.filter, psf_type="PIXEL")
-    kwb = band_JWST.kwargs_single_band()
-    kwb["kernel_point_source"]               = psf_data
-    kwb["point_source_supersampling_factor"] = pssf
-    pixel_num   =  int(to_dimless(2*mod_LP.radius)/kwb["pixel_scale"])
-    SimObs_JWST = SimAPI(numpix=pixel_num, 
-                    kwargs_single_band=kwb,
-                    kwargs_model=mod_LP.kwargs_source_model)
-    
-    image_jwst_real = mod_LP.sim_image(SimObs_JWST)
-
-
-    plt.close()
-    fig, axis = plt.subplots(1,4,figsize=(19,7))
-    kw_extents = get_extents(mod_LP.arcXkpc,mod_LP)
-    extent_arcsec = kw_extents["extent_arcsec"]
-    ax  = axis[0]
-    im0 = ax.matshow(mod_LP.image_sim,origin='lower',extent=extent_arcsec,cmap="hot")
-    ax.set_xlabel("RA ['']")
-    ax.set_ylabel("DEC ['']")
-    ax.set_title(r"Original sim. Image")
-
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes('right', size='5%', pad=0.05)
-    fig.colorbar(im0, cax=cax, orientation='vertical')
-
-    ax  = axis[1]
-    im0 = ax.matshow(image_hst,origin='lower',extent=extent_arcsec,cmap="hot")
-    ax.set_xlabel("RA ['']")
-    ax.set_ylabel("DEC ['']")
-    ax.set_title(r"HST sim. Image ")
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes('right', size='5%', pad=0.05)
-    fig.colorbar(im0, cax=cax, orientation='vertical')
-
-    ax  = axis[2]
-    im0 = ax.matshow(image_jwst,origin='lower',extent=extent_arcsec,cmap="hot")
-    ax.set_xlabel("RA ['']")
-    ax.set_ylabel("DEC ['']")
-    ax.set_title(r"JWST sim. Image ")
-
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes('right', size='5%', pad=0.05)
-    fig.colorbar(im0, cax=cax, orientation='vertical')
-
-    ax  = axis[3]
-    im0 = ax.matshow(image_jwst_real,origin='lower',extent=extent_arcsec,cmap="hot")
-    ax.set_xlabel("RA ['']")
-    ax.set_ylabel("DEC ['']")
-    ax.set_title(r"JWST sim. Image (real PSF) ")
-
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes('right', size='5%', pad=0.05)
-    fig.colorbar(im0, cax=cax, orientation='vertical')
-
-    plt.suptitle(mod_LP.Gal.Name)
-    nm = "tmp/comp_SimIm.png"
-    plt.tight_layout()
-    plt.savefig(nm)
-    plt.close()
-    print(f"Saving {nm}")
-    profiler.stop()
