@@ -18,7 +18,7 @@ from lenstronomy.ImSim.image_model import ImageModel
 from lenstronomy.SimulationAPI.sim_api import SimAPI
 
 # My libs
-from python_tools.get_res import load_whatever,LoadClass
+from python_tools.get_res import LoadClass
 from python_tools.tools import mkdir,to_dimless,ensure_unit
 # cosmol. params.
 from lib_cosmo import SigCrit
@@ -417,6 +417,7 @@ class LensPart():
         """
         self.setup_particle_lenses()
         return 0
+        
     # the following is meant to be rerun every time we load the class to save space
     # -> computationally not intense 
     def setup_particle_lenses(self):
@@ -601,7 +602,7 @@ class LensPart():
     def psi_map(self):
         psi = self.compute_psi_map(_radec=None)
         self.store()
-        return psi
+        return psi        
     #
     # Coordinates 
     # 

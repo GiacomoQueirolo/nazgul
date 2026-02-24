@@ -1,6 +1,8 @@
-# copy from project_gal_alpha
-# instead of a "dumb" optimised 2D histogram, run Adaptive mesh refinement
-# this would give me easily the MD and as well we can get the first bin higher than sigma crit in order to get theta_E
+"""
+Project the particles along different axis and verify if that produces a supercritical surface, given 
+a maximum source redshift and a minimum Einstein angle
+Uses Adaptime Mesh Refinement for the estimation of the density map
+"""
 import dill
 import numpy as np
 from copy import copy
@@ -44,15 +46,15 @@ class ProjGal:
             # simply check if at least one proj. is supercritical
             for kw_prj in kw_res_proj["projs"]:
                 verify_if_lens = kw_prj["verify_lens"]
-                if verify_if_lens(z_source_max=z_source_max,
-                                   min_thetaE=min_thetaE) is not np.nan:
+                if verify_if_lens(self,z_source_max=z_source_max,
+                                  min_thetaE=min_thetaE) is not np.nan:
                     is_lens = True                    
                     break
         except FileNotFoundError:
             # If file is not there, we assume it is 
             # (rather, could be) a lens
-            islens = True
-        return islens
+            is_lens = True
+        return is_lens
         
 
 
@@ -279,17 +281,19 @@ def create_verify_lens_fnc(interpSigEncArc2):
     conditions: max z, min thetaE
     """
     def verify_lens(gal_class,min_thetaE=None,z_source_max=None):
-        z_lens = gal_class.z 
-        cosmo  = gal_class.cosmo 
+        z_lens  = gal_class.z 
+        cosmo   = gal_class.cosmo 
+        arcXkpc = cosmo.arcsec_per_kpc_proper(z_lens)
         if min_thetaE is None:
             min_thetaE = gallens_class.min_thetaE
         min_thetaE = ensure_unit(min_thetaE,u.arcsec)
         if z_source_max is None:
             z_source_max = gallens_class.z_source_max
             
-        min_SigEnc   = interpSigEncArc2(min_thetaE)
-        Dd           = cosmo.angular_diameter_distance(z_lens)
-        thresh_DsDds = min_SigEnc*(4*np.pi*const.G*Dd)/(const.c**2)
+        minSigEncArc2  = interpSigEncArc2(min_thetaE)
+        minSigEnc      = minSigEncArc2*(arcXkpc**2)
+        Dd             = cosmo.angular_diameter_distance(z_lens)
+        thresh_DsDds   = minSigEnc*(4*np.pi*const.G*Dd)/(const.c**2)
         ensure_unit(thresh_DsDds,u.dimensionless_unscaled)
         
         if thresh_DsDds>=DsDds(cosmo=cosmo,z_d=z_lens,z_s=z_source_max):

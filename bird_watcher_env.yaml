@@ -20,11 +20,11 @@ dependencies:
   - tqdm
   - emcee
   - corner
-  - pandas # for tutorial
+  - pandas 
   - pip  
   - pip:
       - mgefit
       - capfit
       - eaglesqltools
-      - git+https://github.com/GiacomoQueirolo/python_tools.git@5c157f7e5800db3f8f9a675f518107f093fd3454
+      - git+https://github.com/GiacomoQueirolo/python_tools.git@5c157f7e5800db3f8f9a675f518107f093fd3454 #likely will need to discard the commit index to allow for the latest version of the repo to be downlaoded
       - git+https://github.com/GiacomoQueirolo/lenstronomy.git@6ebdf06b5fb022ceb0624a9067ab545ab74c846a

@@ -40,12 +40,13 @@ def split_indices(x, y, pts, x0, x1, y0, y1):
 
     return c0, c1, c2, c3
 
-def test_split(x, y, m):
+def test_split_indices(x, y, m):
+    """unit test function for split_indices"""
     pts = np.arange(len(x))
 
     c0,c1,c2,c3 = split_indices(x, y, pts, x.min(), x.max(), y.min(), y.max())
     
-    total = len(c0) + len(c1) + len(c2) + len(c3)
+    total  = len(c0) + len(c1) + len(c2) + len(c3)
     unique = len(set(np.concatenate((c0,c1,c2,c3))))
 
     print("Total:", total)
