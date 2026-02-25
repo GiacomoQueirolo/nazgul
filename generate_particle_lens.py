@@ -29,6 +29,7 @@ from particle_lenses import PMLens
 from particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # likelihood class
 from likelihood import Likelihood
+from likelihood_z_source import kw_prior_z_source_zl
 # project galaxy along various axis
 from project_gal_AMR import get_2Dkappa_map,ProjGal,projection_main_AMR
 from project_gal_AMR import Gal2kw_samples,ProjectionError
@@ -105,13 +106,15 @@ kwargs_band_sim = {'read_noise': 0, # no RN noise
  'num_exposures': 1,          # standard HST n exp.
  'psf_type': 'NONE'}          # "infinite" psf resolution 
 kw_prior_z_source_minimal = {"z_source_max":z_source_max}
+kw_prior_z_source_stnd    = kw_prior_z_source_zl|kw_prior_z_source_minimal
+
 class LensPart(): 
     def __init__(self,
                  Galaxy,
                  kwlens_part, # if PM or AS, and if so size of the core
                  pixel_num=pixel_num, # sim prms 
                  kw_add_lenses=None, # additional lenses (e.g. LOS)
-                 kw_prior_z_source = kw_prior_z_source_minimal, # could likelihood of z_source
+                 kw_prior_z_source = kw_prior_z_source_stnd, # could likelihood of z_source
                  min_thetaE = min_thetaE,
                  source_model_list=source_model_list, # this might not be the most efficient way to do it..
                  kwargs_band_sim=kwargs_band_sim,
@@ -286,6 +289,11 @@ class LensPart():
     @property
     def pkl_path(self):
         return self.savedir/f"{self.name}.pkl"
+
+    def is_precomputed(self):
+        if self.pkl_path.exists():
+            return True
+        return False
     #############################
     # Run:
     def upload_prev(self):
@@ -358,6 +366,11 @@ class LensPart():
         self.SigCrit       = SigCrit(cosmo=self.cosmo,
                                      z_lens=self.z_lens,
                                      z_source=self.z_source) # Msun/kpc^2
+    @property
+    def deltaPix(self):
+        Diam_arcsec = 2*self.radius #diameter in arcsec
+        deltaPix    = Diam_arcsec/self.pixel_num # ''/pix
+        return deltaPix
 
     def create_lens(self,verbose=True):
         # setup lensing keywords
@@ -467,8 +480,8 @@ class LensPart():
         x_source_plane,y_source_plane = self.get_xy_source_plane(alpha_map=alpha_map)
         kwargs_source_list = [kwargs_source]
         source_light = sourceModel.surface_brightness(x_source_plane, y_source_plane, kwargs_source_list, k=None)
-        if not np.abs(imageModel.Data.pixel_width-self.deltaPix.value)<1e-10:
-            if imageModel.Data.pixel_width<self.deltaPix.value:
+        if not np.abs(imageModel.Data.pixel_width-to_dimless(self.deltaPix))<1e-10:
+            if imageModel.Data.pixel_width<to_dimless(self.deltaPix):
                 raise RuntimeError("Simulated observatory cannot have higher resolution than baseline simulation") 
             # different pixel scale (due different simulated observatory)
             source_light_im = util.array2image(source_light)
@@ -940,7 +953,7 @@ def kw_prior2like_zs(kw_prior_z_source,z_lens):
     prior_keys = kw_prior_z_source.keys()
     if "f_lkl_z_source" in prior_keys and "fixed_z_source" in prior_keys:
         raise RuntimeError("Either sample z_source or fix it")
-    if "f_lkl_z_source" in prior_keys:
+    elif "f_lkl_z_source" in prior_keys:
         kw_like_zs = {}
         # wrapper funct. to fix the z_lens
         def like_func_zs(z_source,*args):

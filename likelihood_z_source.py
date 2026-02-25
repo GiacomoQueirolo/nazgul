@@ -35,7 +35,7 @@ stat_zs = np.hstack([zsa,zsb,zsc])
 
 # the simplest way would be to return a likelihood based on
 # all z_sources
-def logL_z_source_easy(z_source,z_lens=None,*args):
+def logL_z_source_all(z_source,z_lens=None,*args):
     # ignore z_lens
     lkl,bins = np.histogram(stat_zs,bins=40,density=1)
     zs       = (bins[1:]+bins[:-1])/2
@@ -44,12 +44,22 @@ def logL_z_source_easy(z_source,z_lens=None,*args):
 # slighly more complex (not sure how correct)
 # given the z_lens, select a range of zl around, 
 # and only fit for z_s of these lenses
-def logL_z_source_mid(z_source,z_lens,dzl=0.2,*args):
+def logL_z_source_zl(z_source,z_lens,dzl=0.2,*args):
     stat_zs_cut = stat_zs[np.where(np.abs(stat_zl-z_lens)<dzl)]
     lkl,bins = np.histogram(stat_zs_cut,bins=40,density=1)
     zs       = (bins[1:]+bins[:-1])/2
     return np.interp(z_source,zs,lkl)
+
+
+kw_prior_z_source_all = {"f_lkl_z_source":logL_z_source_all,
+                          "prms_lkl_z_source":[]}
+kw_prior_z_source_zl = {"f_lkl_z_source":logL_z_source_zl,
+                          "prms_lkl_z_source":[]}
+
+
 """
+kw_prior_z_source_easy = kw_prior_z_source_all
+kw_prior_z_source_mid  = kw_prior_z_source_zl
 # Plots
 plt.title("LSST expected lenses population")
 plt.xlabel("z")
@@ -76,9 +86,3 @@ plt.plot(z_rng,logL_z_source_mid(z_rng,z_lens=z_lens),color="k",ls="--",label="l
 plt.legend()
 plt.savefig("tmp/zsl2.png")
 """
-
-kw_prior_z_source_easy = {"f_lkl_z_source":logL_z_source_easy,
-                          "prms_lkl_z_source":[]}
-kw_prior_z_source_mid = {"f_lkl_z_source":logL_z_source_mid,
-                          "prms_lkl_z_source":[]}
-
