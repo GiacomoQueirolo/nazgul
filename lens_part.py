@@ -10,12 +10,12 @@ as well as los
 import numpy as np
 
 from generate_particle_lens import LensPart
-from project_gal_AMR import ProjectionError
+from project_gal import ProjectionError
 from lens_part_los import LensPartLOS,bounds_error
 
 # mass
 from particle_galaxy import Gal2MXYZ,Gal2kwMXYZ
-from project_gal_AMR import project_kw_parts
+from project_gal import project_kw_parts
 
 
 __author__ = ["giacomo_queirolo"]
@@ -30,6 +30,7 @@ __all__ = ["SinglePlaneLensPart"]
 from lenstronomy.LensModel.profile_list_base import _SUPPORTED_MODELS
 LOS_models = [lm for lm in _SUPPORTED_MODELS if lm[:3]=="LOS" ]
 
+raise RuntimeError("This is wrongggg! the alpha e.g. is not correctly implemented for LOS")
 class SinglePlaneLensPart():
     """This class is based on the 'SinglePlaneLOS' class, modified to handle lens-galaxies obtained from hydrodynamical particles
     -> not inheritance per se, rather a wrapper

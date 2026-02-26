@@ -13,6 +13,7 @@ from lenstronomy.SimulationAPI.ObservationConfig.JWST import JWST
 from plot_PL import plot_all
 from particle_galaxy import PartGal
 from python_tools.tools import to_dimless
+from python_tools.conversion import find_index
 from python_tools.image_manipulation import plot_comp_two_images
 from particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 from generate_particle_lens import wrapper_get_rnd_lens,get_extents,LoadLens,LensPart
@@ -21,19 +22,6 @@ from generate_particle_lens import pixel_num,kw_prior_z_source_minimal
 from lenstronomy.LensModel.LineOfSight.LOSModels.los import LOS
 #import scipy.interpolate as interp
 from scipy.ndimage import map_coordinates
-
-def find_index(x,arr):
-    """
-    Find linear interpolation of the index given a value x 
-    with respect to a grid defined by the array arr
-    """
-    arr = np.array(arr)
-    #ind0 = np.where((arr-x)<0)[0][-1]
-    # Find insertion index
-    i = np.searchsorted(arr, x) - 1
-    # Clip to valid range
-    ind0 = np.clip(i, 0, len(arr) - 2)
-    return ind0 + (x-arr[ind0])/(arr[ind0+1] -arr[ind0])
 
 if __name__ == "__main__":
 
@@ -188,96 +176,3 @@ if __name__ == "__main__":
     nm = "tmp/comp_im_LOS2.png"
     fg.savefig(nm)
     print(f"Saving {nm}")
-
-    exit()
-    
-    plot_all(mod_LP,skip_caustic=True)
-
-    profiler.start()
-
-    band_HST = HST(band='WFC3_F160W', psf_type="GAUSSIAN")
-    #band = HST(band='WFC3_F160W', psf_type="PIXEL") #-> if pixel, we need to give kernel_point_source (and point_source_supersampling_factor etc)
-    #band.obs["psf_type"] = "PIXEL"
-    #del band.obs["seeing"]
-    #band.obs["kernel_point_source"] = []
-    SimObs_HST = mod_LP.get_SimObs(band_HST,kwargs_source_model=None)
-
-    image_hst = mod_LP.sim_image(SimObs_HST)
-    band_JWST = JWST(band='F444W', psf_type="GAUSSIAN")
-    
-
-    
-    SimObs_jwst = mod_LP.get_SimObs(band_JWST,kwargs_source_model=None)
-    image_jwst = mod_LP.sim_image(SimObs_jwst)
-
-
-    # more realistic PSF for JWST
-    nrc = stpsf.NIRCam()
-    nrc.filter =  'F444W'
-    
-    pssf = 4
-    psf = nrc.calc_psf(oversample=pssf)
-    
-    psf_data = psf[2].data
-    band_JWST = JWST(band=nrc.filter, psf_type="PIXEL")
-    kwb = band_JWST.kwargs_single_band()
-    kwb["kernel_point_source"]               = psf_data
-    kwb["point_source_supersampling_factor"] = pssf
-    pixel_num   =  int(to_dimless(2*mod_LP.radius)/kwb["pixel_scale"])
-    SimObs_JWST = SimAPI(numpix=pixel_num, 
-                    kwargs_single_band=kwb,
-                    kwargs_model=mod_LP.kwargs_source_model)
-    
-    image_jwst_real = mod_LP.sim_image(SimObs_JWST)
-
-
-    plt.close()
-    fig, axis = plt.subplots(1,4,figsize=(19,7))
-    kw_extents = get_extents(mod_LP.arcXkpc,mod_LP)
-    extent_arcsec = kw_extents["extent_arcsec"]
-    ax  = axis[0]
-    im0 = ax.matshow(mod_LP.image_sim,origin='lower',extent=extent_arcsec,cmap="hot")
-    ax.set_xlabel("RA ['']")
-    ax.set_ylabel("DEC ['']")
-    ax.set_title(r"Original sim. Image")
-
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes('right', size='5%', pad=0.05)
-    fig.colorbar(im0, cax=cax, orientation='vertical')
-
-    ax  = axis[1]
-    im0 = ax.matshow(image_hst,origin='lower',extent=extent_arcsec,cmap="hot")
-    ax.set_xlabel("RA ['']")
-    ax.set_ylabel("DEC ['']")
-    ax.set_title(r"HST sim. Image ")
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes('right', size='5%', pad=0.05)
-    fig.colorbar(im0, cax=cax, orientation='vertical')
-
-    ax  = axis[2]
-    im0 = ax.matshow(image_jwst,origin='lower',extent=extent_arcsec,cmap="hot")
-    ax.set_xlabel("RA ['']")
-    ax.set_ylabel("DEC ['']")
-    ax.set_title(r"JWST sim. Image ")
-
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes('right', size='5%', pad=0.05)
-    fig.colorbar(im0, cax=cax, orientation='vertical')
-
-    ax  = axis[3]
-    im0 = ax.matshow(image_jwst_real,origin='lower',extent=extent_arcsec,cmap="hot")
-    ax.set_xlabel("RA ['']")
-    ax.set_ylabel("DEC ['']")
-    ax.set_title(r"JWST sim. Image (real PSF) ")
-
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes('right', size='5%', pad=0.05)
-    fig.colorbar(im0, cax=cax, orientation='vertical')
-
-    plt.suptitle(mod_LP.Gal.Name)
-    nm = "tmp/comp_SimIm.png"
-    plt.tight_layout()
-    plt.savefig(nm)
-    plt.close()
-    print(f"Saving {nm}")
-    profiler.stop()

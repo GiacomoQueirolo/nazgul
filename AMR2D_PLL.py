@@ -194,7 +194,7 @@ def AMR_density_PLL(x, y, m, max_particles=300, min_area=None,dens_thresh=None,S
     # cells: x0,x1,y0,y1,m,density
     return cells
 """
-# check project_gal_AMR
+# check project_gal
 def plot_amr_cells(cells):
     fig, ax = plt.subplots(figsize=(8,8))
     a,b= [],[]

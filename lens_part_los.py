@@ -26,16 +26,16 @@ def get_kw_los(kw_los_path=kw_los_path,index=0):
 
 # decorator:
 def bounds_error(func):
-        """Raise error if given coordinates are outside the bounds of the lenspart area"""
-        def func_bounded(self,x,y,*args):
-            x = np.atleast_1d(np.asarray(x, dtype=np.float64))
-            y = np.atleast_1d(np.asarray(y, dtype=np.float64))
-            extents = self.kw_extents["extent_arcsec"]
-            if np.any(x<extents[0]) or np.any(x>extents[1])  \
-                or np.any(y<extents[2]) or np.any(y>extents[3]):
-                raise RuntimeError("Input coordinates are outside allowed range")
-            return func(self,x,y,*args)
-        return func_bounded
+    """Raise error if given coordinates are outside the bounds of the lenspart area"""
+    def func_bounded(self,x,y,*args):
+        x = np.atleast_1d(np.asarray(x, dtype=np.float64))
+        y = np.atleast_1d(np.asarray(y, dtype=np.float64))
+        extents = self.kw_extents["extent_arcsec"]
+        if np.any(x<extents[0]) or np.any(x>extents[1])  \
+            or np.any(y<extents[2]) or np.any(y>extents[3]):
+            raise RuntimeError("Input coordinates are outside allowed range")
+        return func(self,x,y,*args)
+    return func_bounded
 
 class LensPartLOS(LensPart):
     """

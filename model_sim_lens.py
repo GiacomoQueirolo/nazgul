@@ -2,6 +2,7 @@ import json,dill
 import numpy as np
 from pathlib import Path
 from copy import copy,deepcopy
+from scipy.ndimage import zoom
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -10,35 +11,52 @@ from lenstronomy.Plots.model_plot import ModelPlot
 from lenstronomy.SimulationAPI.ObservationConfig.HST import HST
 
 from plot_PL import plot_all
-from GPPA_realistic_sim_images import masking
+from masking import mask_SEAGLE,mask_center
 from python_tools.tools import mkdir,to_dimless
+from python_tools.read_fits import load_fits
 from generate_particle_lens import wrapper_get_rnd_lens
 
 
-lens_model_list = ['EPL','SHEAR_GAMMA_PSI']
-res_dir_base = Path("tmp/modelling_sim_lenses/")
+lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
+source_model_list = ["SERSIC"]
+res_dir_base      = Path("./tmp/modelling_sim_lenses/")
 
 if __name__=="__main__":
-    lens = wrapper_get_rnd_lens(reload=False)
+    lens = wrapper_get_rnd_lens(kw_lenspart={"min_thetaE":.9},
+                                reload=False)
     res_dir = Path(f"{res_dir_base}/{lens.name}")
     mkdir(res_dir)
     plot_all(lens,skip_caustic=False)
-
+    """
     band_HST = HST(band='WFC3_F160W', psf_type="GAUSSIAN")
+    """
+    band_HST = HST(band='WFC3_F160W', psf_type="PIXEL")
+    psf_path = Path(f"./ObsData/HST/WFC3/F160W/PSFSTD_WFC3IR_F160W.fits")
+    # the following contain 9 PSF depending on their position in the CCD
+    # we will consider the central position -> i think it should be the second to last (not too important here )
+    psf = load_fits(psf_path)[-2]
+    # we can supersample it
+    pssf    = 3
+    psf_ss  = zoom(psf,pssf)
+    kwargs_psf_HST = {"kernel_point_source":psf_ss,
+                      "point_source_supersampling_factor":pssf}
 
-    multi_band_list = lens.sim_multi_band_list(band=band_HST)
+    multi_band_list = lens.sim_multi_band_list(band=band_HST,
+                                               kwargs_psf=kwargs_psf_HST)
+    
     # models
     kwargs_model = {'lens_model_list': lens_model_list,
-               'source_light_model_list': ["SERSIC"]}
+                    'source_light_model_list': source_model_list}
     
-    # masking inner and outer of thetaE
+    # masking inner and outer of thetaE -> nope, follow SEAGLE approach
     #image = kwargs_data["image_data"]
-    mask_HD = masking(lens)
+    mask_HD =  mask_SEAGLE(lens)*mask_center(lens)
     _lns  = deepcopy(lens)
     _lns.image_sim = multi_band_list[0][0]["image_data"]
     _lns.pixel_num = _lns.image_sim.shape[0]
-    _lns.deltaPix  = to_dimless(_lns.radius)*2/_lns.pixel_num
-    mask_LD = masking(_lns)
+    # deltapix is now a property - def. by pixel_num
+    #_lns.deltaPix  = to_dimless(_lns.radius)*2/_lns.pixel_num
+    mask_LD = mask_SEAGLE(_lns)*mask_center(_lns)
     #DEBUG 
     plt.close()
     plt.close("all")

@@ -31,8 +31,8 @@ from particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 from likelihood import Likelihood
 from likelihood_z_source import kw_prior_z_source_zl
 # project galaxy along various axis
-from project_gal_AMR import get_2Dkappa_map,ProjGal,projection_main_AMR
-from project_gal_AMR import Gal2kw_samples,ProjectionError
+from project_gal import get_2Dkappa_map,ProjGal,projection_main_AMR
+from project_gal import Gal2kw_samples,ProjectionError
 
 # default parameters:
 pixel_num     = 200 # pix for image
@@ -381,8 +381,6 @@ class LensPart():
         self.radius    = self.thetaE*scale_tE
         if verbose:
             print("Image radius:",np.round(self.radius,3))
-        Diam_arcsec      = 2*self.radius #diameter in arcsec
-        self.deltaPix    = Diam_arcsec/self.pixel_num # ''/pix
         # update kwargs_band_sim:
         self.kwargs_band_sim["pixel_scale"] = to_dimless(self.deltaPix)
         # define Sim for the lens computations

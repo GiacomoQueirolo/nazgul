@@ -1,17 +1,24 @@
 from   astropy.cosmology import FlatLambdaCDM
 import astropy.constants as const
-from numpy import pi
+import astropy.units as u
+import numpy as np
 
 default_cosmo       = FlatLambdaCDM(H0=67.7,Om0=0.3)
-def SigCrit(z_lens,z_source,cosmo=default_cosmo):
-    cosmo_dd  = cosmo.angular_diameter_distance(z_lens).to("kpc")   #kpc
-    cosmo_ds  = cosmo.angular_diameter_distance(z_source).to("kpc") #kpc
-    cosmo_dds = cosmo.angular_diameter_distance_z1z2(z1=z_lens,z2=z_source).to("kpc") #kpc
 
-    Sigma_Crit        = (cosmo_ds*const.c**2)/(4*pi*const.G*cosmo_dds*cosmo_dd) #
+def DsDds(cosmo,z_d,z_s):
+    if np.isinf(z_s):
+        return 1*u.dimensionless_unscaled
+    Ds  = cosmo.angular_diameter_distance(z_s)
+    Dds = cosmo.angular_diameter_distance_z1z2(z_d,z_s)
+    return Ds/Dds
+
+def SigCrit(cosmo,z_lens,z_source):
+    cosmo_dd    = cosmo.angular_diameter_distance(z_lens).to("kpc")   #kpc
+    ratio_DsDds = DsDds(cosmo,z_lens,z_source)
+    Sigma_Crit  = ratio_DsDds*(const.c**2)/(4*np.pi*const.G*cosmo_dd) #
     return Sigma_Crit.to("Msun /(kpc kpc)")
-
-def SigCrArc2(z_lens,z_source,cosmo=default_cosmo):
+    
+def SigCrArc2(cosmo,z_lens,z_source):
     arcXkpc           = cosmo.arcsec_per_kpc_proper(z_lens) # ''/kpc
     Sigma_Crit        = SigCrit(cosmo=cosmo,z_lens=z_lens,z_source=z_source)
     Sigma_Crit_arcs2  = Sigma_Crit.to("Msun /(kpc kpc)")/(arcXkpc*arcXkpc)

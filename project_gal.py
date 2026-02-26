@@ -19,7 +19,7 @@ from scipy.interpolate import interp1d
 from python_tools.tools import mkdir,to_dimless,ensure_unit,short_SciNot
 from python_tools.get_res import load_whatever
 
-from lib_cosmo import SigCrit
+from lib_cosmo import SigCrit,DsDds
 from particle_galaxy import Gal2kwMXYZ,get_CM
 
 # standard directory 
@@ -267,11 +267,7 @@ def get_min_z_source(Gal,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,save
     z_source_min = _get_min_z_source(cosmo=Gal.cosmo,z_lens=Gal.z,
                                     thresh_DsDds=thresh_DsDds,
                                     z_source_max=z_source_max,verbose=verbose)
-    """
-    if z_source_min==0:
-        # verify_lens_fnc have to be passed somehow
-        raise ProjectionError("This projection for this galaxy does not lead to a supercritical lens. Rerun trying different projection")
-    """
+
     kw_zs_min = {"z_source_min":z_source_min,"fig_Sig":fig,"verify_lens":verify_lens}
     return kw_zs_min
 
@@ -325,12 +321,10 @@ def  _get_min_z_source_thresh_DsDds(z_source_range,thresh_DsDds,cosmo,z_d):
     return z_source_min    
 
 def _get_z_source_range(z_lens,z_source_max,n=100,dz=0.01):
+    if np.isinf(z_source_max):
+        print("Edge case - z_source_max = inf, we set the range of redshift to be = [np.inf]")
+        return [np.inf]
     return np.linspace(z_lens+dz,z_source_max,n)
-
-def DsDds(cosmo,z_d,z_s):
-    Ds  = cosmo.angular_diameter_distance(z_s)
-    Dds = cosmo.angular_diameter_distance_z1z2(z_d,z_s)
-    return Ds/Dds
 
 def _get_min_z_source(cosmo,z_lens,thresh_DsDds,z_source_max,verbose=True):
     # the lens has to be supercritical

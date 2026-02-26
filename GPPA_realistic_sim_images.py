@@ -5,7 +5,7 @@ from python_tools.conversion import get_pixscale
 from python_tools.tools import to_dimless
 from generate_particle_lens import LensPart,LoadLens
 from generate_particle_lens import kwlens_part_AS,z_source_max,pixel_num
-from project_gal_AMR import ProjectionError
+from project_gal import ProjectionError
 from pyinstrument import Profiler
 
 import numpy as np
@@ -142,20 +142,6 @@ def lnstr_kw_data(kw_data):
     # kw_data["deltaPix"],exposure_time=kw_data["exp_time"],background_rms=kw_data["bckg_rms"])
     return kwargs_data
 
-from python_tools.image_manipulation import mask_in, mask_out
-def masking(lens):
-    # we want to mask everything apart the thetaE ?
-    tE  = to_dimless(lens.thetaE) #arcsec
-    # rad = 2thetaE
-    # let us mask r<thetaE/2 and r> thetaE*3/2
-    r_mask_in = .5*tE/to_dimless(lens.deltaPix)     #pixel 
-    r_mask_out = 3*tE/(2*to_dimless(lens.deltaPix)) #pixel
-    # by construction recentered around densest point
-    cx,cy = lens.pixel_num/2.,lens.pixel_num/2.
-    mask = np.ones_like(lens.image_sim)
-    mask = mask_in(cx,cy,r_mask_in,mask)
-    mask = mask_out(cx,cy,r_mask_out,mask)
-    return mask
     
 if __name__ == "__main__":
     #print("Loading specific gal for debugging")

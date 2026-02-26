@@ -29,7 +29,8 @@ if __name__ == "__main__":
                  reload=False)
     mod_LP = LensPart(Galaxy=Gal,kwlens_part=kwlens_part_AS,
                        kw_prior_z_source=kw_prior_z_source_minimal, 
-                       pixel_num=pixel_num,reload=False,savedir_sim="test_sim_lens_AMR")
+                       pixel_num=pixel_num,reload=False,
+                      savedir_sim="test_sim_lens_AMR")
     """
     mod_LP = LoadLens("/pbs/home/g/gqueirolo/EAGLE/sim_lens/RefL0025N0752/snap19_G12.0/test_sim_lens_AMR/Gn12SGn0_Npix200_PartAS.pkl")
     #sim_lens/RefL0025N0752/snap16_G8.0//test_sim_lens_AMR/G8SGn0_Npix200_PartAS.pkl")
@@ -54,7 +55,7 @@ if __name__ == "__main__":
 
     
     SimObs_jwst = mod_LP.get_SimObs(band_JWST,kwargs_source_model=None)
-    image_jwst = mod_LP.sim_image(SimObs_jwst)
+    image_jwst  = mod_LP.sim_image(SimObs_jwst)
 
 
     # more realistic PSF for JWST
@@ -66,14 +67,18 @@ if __name__ == "__main__":
     
     psf_data = psf[2].data
     band_JWST = JWST(band=nrc.filter, psf_type="PIXEL")
-    kwb = band_JWST.kwargs_single_band()
+    """kwb = band_JWST.kwargs_single_band()
     kwb["kernel_point_source"]               = psf_data
     kwb["point_source_supersampling_factor"] = pssf
     pixel_num   =  int(to_dimless(2*mod_LP.radius)/kwb["pixel_scale"])
     SimObs_JWST = SimAPI(numpix=pixel_num, 
                     kwargs_single_band=kwb,
                     kwargs_model=mod_LP.kwargs_source_model)
-    
+    """
+    kwargs_psf_JWST = {"kernel_point_source":psf_data,
+                  "point_source_supersampling_factor":pssf}
+    SimObs_JWST = mod_LP.get_SimObs(band_JWST,kwargs_psf=kwargs_psf_JWST,
+                    kwargs_source_model=mod_LP.kwargs_source_model)
     image_jwst_real = mod_LP.sim_image(SimObs_JWST)
 
 
