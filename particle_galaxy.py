@@ -241,14 +241,14 @@ class PartGal:
             # Convert to proper/physical mass 
             kw["Mass"] = np.multiply(m, cgs*(a**aexp)*(h**hexp), dtype='f8')
             
+        nfiles = 16
+        files = glob.glob(f"{self.path_snap}.{[i for i in range(nfiles)]}.hdf5".replace(" ",""))
+        if len(files)!=nfiles:
+                raise RuntimeError(f"Found {len(files)} files instead of {nfiles}")
         for att in atts:
             data = []
-            nfiles = 16
             for i in range(nfiles):
-                fl =  glob.glob(f"{self.path_snap}.{i}.hdf5")
-                if len(fl)!=1:
-                    raise RuntimeError(f"{fl} found to be not of lenght 1 from glob({self.path_snap}.{i}.hdf5)")
-                fl = fl[0]
+                fl =  files[i]
                 with h5py.File(fl,'r') as f:
                     tmp = f['PartType%i/%s'%(itype,att)][...]
                     data.append(tmp)

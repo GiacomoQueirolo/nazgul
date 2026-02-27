@@ -102,6 +102,40 @@ def get_lens_model_AS(theta_cAS,thetaEs,samples,kw_add_lenses=None):
                                                kw_add_lenses=kw_add_lenses)
     lens_model_AS   = LensModel(lens_model_list=lens_model_list)
     return kwargs_lens_AS,lens_model_AS
+
+from lenstronomy.LensModel.Profiles.arsinh_parall import ParallelArsinh
+from lenstronomy.LensModel.Profiles.point_mass_parall import ParallelPointMass
+
+"""
+class Prof2LensModel():
+    raise RuntimeError("Not used")
+    #Wrapper class used only here to rename the functions in order to be 
+    #compatible with LensModel naming -> not sure it's how it should be done...
+    def __init__(self,Prof):
+        self.Prof = Prof
+    def alpha(self,*args,**kwargs):
+        return self.Prof.function(*args,**kwargs)
+    def potential(self,*args,**kwargs):
+        return self.Prof.function(*args,**kwargs)
+    def kappa(self,*args,**kwargs):
+        f_xx, f_xy, f_yx, f_yy = self.Prof.hessian(*args,**kwargs)
+        kappa = 1.0 / 2 * (f_xx + f_yy)
+        return kappa
+"""
+
+def get_lens_prof_PM(thetaEs,samples):
+    kwargs_lens_PM  = [_build_kwargs_lens_PM((thetaEs, samples[0],samples[1]))]
+    lens_prof_PM    = ParallelPointMass()
+    return kwargs_lens_PM,lens_prof_PM 
+
+def get_lens_prof_AS(theta_cAS,thetaEs,samples):
+    try:
+        len(theta_cAS)
+    except TypeError:
+        theta_cAS *= np.ones_like(thetaEs)
+    kwargs_lens_AS = [_build_kwargs_lens_AS((thetaEs,theta_cAS, samples[0],samples[1]))]
+    lens_prof_AS   = ParallelArsinh()
+    return kwargs_lens_AS,lens_prof_AS
     
 #
 # Particle functions
@@ -156,21 +190,20 @@ def get_name_AS(kwargs_lens):
 # Particle Lens computation class
 #
 class PMLens():
-    def __init__(self,kwargs_lens_part,kw_add_lenses=None):
+    def __init__(self,kwargs_lens_part):
         self.kwargs_lens = kwargs_lens_part
-        self.kw_add_lenses = kw_add_lenses 
         type_part = kwargs_lens_part["type"]
         self.name = type_part
         
         if type_part=="PM":
             self.thetaE_prefact = thetaE_PM_prefact
             self.thetaE         = thetaE_PM
-            self.get_lens_model = get_lens_model_PM
+            self.get_lens_prof  = get_lens_prof_PM
 
         elif type_part=="ARCSINH" or type_part=="AS":
             self.thetaE_prefact = thetaE_AS_prefact
             self.thetaE         = thetaE_AS
-            self.get_lens_model = get_lens_model_AS 
+            self.get_lens_prof  = get_lens_prof_AS
         else:
             raise TypeError("This particle model is not known: "+type_part)
 
@@ -192,11 +225,10 @@ class PMLens():
         kw_lns_mod = {}
         if self.name =="ARSINH"  or self.name =="AS":
             kw_lns_mod = {"theta_cAS":self.kwargs_lens["theta_cAS"]}
-        kwargs_lens_PART,lens_model_PART = self.get_lens_model(thetaEs=thetaEs,
+        kwargs_lens_PART,lens_profile_PART = self.get_lens_prof(thetaEs=thetaEs,
                                                                samples=samples,
-                                                               kw_add_lenses=self.kw_add_lenses,
                                                                **kw_lns_mod)
-        return kwargs_lens_PART,lens_model_PART
+        return kwargs_lens_PART,lens_profile_PART
 
     
     ### Class Structure ####
@@ -221,5 +253,42 @@ class PMLens():
         if not getattr(self,"name",False):
             self._setup_names()
         return self.name
+        
+class PMLensExpanded(PMLens):
+    raise RuntimeError(
+        "Discontinued - not using LensModel anymore"
+    )
+    """
+    Add the possibility to consider ulterior lens profiles
+    """
+    def __init__(self,kwargs_lens_part,kw_add_lenses=None):
+        super(PartGal, self).__init__()
+        self.kw_add_lenses = kw_add_lenses 
+                                      
+    def get_lens_PART(self,samples,Ms):
+        """From the sample of particles (position and masses) return their model and parameters
+        in lenstronomy format.
+        If present, consider additional lenses profiles
+        """
+        theta_pref = self.thetaE_prefact(z_lens=self.z_lens,z_source=self.z_source,cosmo=self.cosmo)
+        thetaEs    = self.thetaE(M=Ms,theta_pref = theta_pref)
+        kw_lns_mod = {}
+        if self.name =="ARSINH"  or self.name =="AS":
+            kw_lns_mod = {"theta_cAS":self.kwargs_lens["theta_cAS"]}
+        kwargs_lens_PART,lens_model_PART = self.get_lens_model(thetaEs=thetaEs,
+                                                               samples=samples,
+                                                               kw_add_lenses=self.kw_add_lenses,
+                                                               **kw_lns_mod)
+        return kwargs_lens_PART,lens_model_PART
+    
+    ### Class Structure ####
+    ########################
+    def _identity(self):
+        """Returns tuple to identify uniquely this galaxy
+        convert kwargs in immuatable tuple to be hashable"""
+        Id = (self.name,
+              "expanded",
+              tuple(sorted(self.kwargs_lens.items())))
+        return Id
 ########################
 ########################
