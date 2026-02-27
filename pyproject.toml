@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+[project]
+name = "nazgul"
+version = "0.0.1"
+authors = [
+  { name="Giacomo Queirolo", email="giacomo.queirolo@umontpellier.fr" },
+]
+description = "Simulates and analyses gravitational lenses from hydrodynamically simulated galaxies"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICENSE"]
+
+[project.urls]
+Homepage = "https://github.com/GiacomoQueirolo/EAGLE_Lensing" 
+Issues = "https://github.com/GiacomoQueirolo/EAGLE_Lensing/issues"
