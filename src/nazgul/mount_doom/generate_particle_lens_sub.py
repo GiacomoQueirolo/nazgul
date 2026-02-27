@@ -1,5 +1,5 @@
 """
-From randomly selected galaxies, read particles and generate Particles Lenses
+From given galaxies, read particles and generate Lens Class
 Revolves around the SubLensPart class, plus several helper functions
 
 -> restructured to be "subdominant" w.r.t. LensModel
@@ -374,9 +374,9 @@ class SubLensPart():
         samples    = kw_samples["RAs"],kw_samples["DECs"]
         Ms         = kw_samples["Ms"]
         # Convert in lenses parameters 
-        kwLnsPart,LnsModPart   = self.PMLens.get_lens_PART(samples=samples,Ms=Ms)
+        kwLnsPart,LnsProfPart   = self.PMLens.get_lens_PART(samples=samples,Ms=Ms)
         self.kwargs_lens       = kwLnsPart
-        self.lens_prof         = LnsModPart
+        self.lens_prof         = LnsProfPart
         return 0
         
     def sample_z_source(self,z_source_min,z_source_max):

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from python_tools.fwhm import get_fwhm
-from nazgul.generate_particle_lens import get_extents
+from nazgul.mount_doom.generate_particle_lens import get_extents
 
 def _plot_caustics(LPClass,
                    kwargs_lens,

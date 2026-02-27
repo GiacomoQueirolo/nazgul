@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 from python_tools.tools import to_dimless
 
 from nazgul.fnct import std_sim
-from nazgul.generate_particle_lens import LoadLens,default_savedir_sim
-from nazgul.generate_particle_lens import std_sim_lens_path as sim_lens_path
+from nazgul.mount_doom.generate_particle_lens import LoadLens,default_savedir_sim
+from nazgul.mount_doom.generate_particle_lens import std_sim_lens_path as sim_lens_path
 from nazgul.isodens import fit_isodens,plot_isodens
 
 if __name__=="__main__":

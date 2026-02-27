@@ -15,7 +15,7 @@ from photutils.isophote import Ellipse, EllipseGeometry, build_ellipse_model
 from python_tools.get_res import load_whatever
 from python_tools.tools import ensure_unit,to_dimless
 
-from nazgul.generate_particle_lens import LoadLens #LensPart,kwlens_part_AS,cutoff_radius,z_source_max,pixel_num
+from nazgul.mount_doom.generate_particle_lens import LoadLens #LensPart,kwlens_part_AS,cutoff_radius,z_source_max,pixel_num
     
 def linlaw(x, a, b) :
     return a + x * b

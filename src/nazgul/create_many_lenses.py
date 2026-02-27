@@ -1,6 +1,6 @@
 # dirty little script to produce many GL 
 import numpy as np
-from nazgul.generate_particle_lens import wrapper_get_rnd_lens
+from nazgul.mount_doom.generate_particle_lens import wrapper_get_rnd_lens
 
 aim_n_lenses = 200
 n_lenses = 0
