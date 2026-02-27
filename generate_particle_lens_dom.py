@@ -2,9 +2,9 @@
 From randomly selected galaxies, read particles and generate Particles Lenses
 Revolves around the LensPart class, plus several helper functions
 
--> restructured to be "subdominant" w.r.t. LensModel
-     -> no additional lens profiles possible (at this level)
-     -> loose z_lens and z_source(=np.inf) (but store the details for later use)
+-> restructured to be "dominant" w.r.t. LensModel
+    -> set z_lens and sample z_s
+    -> can have additional lens models
 """
 
 import dill
@@ -17,6 +17,7 @@ from scipy.ndimage import zoom
 from scipy.interpolate import splprep, splev, RectBivariateSpline
 
 from lenstronomy.Util import util
+import lenstronomy.Util.image_util as image_util
 from lenstronomy.ImSim.image_model import ImageModel
 from lenstronomy.SimulationAPI.sim_api import SimAPI
 
