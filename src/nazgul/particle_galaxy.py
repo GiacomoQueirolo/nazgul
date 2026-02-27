@@ -242,6 +242,7 @@ class PartGal:
             kw["Mass"] = np.multiply(m, cgs*(a**aexp)*(h**hexp), dtype='f8')
             
         nfiles = 16
+        print(f"{self.path_snap}.{[i for i in range(nfiles)]}.hdf5".replace(" ",""))
         files = glob.glob(f"{self.path_snap}.{[i for i in range(nfiles)]}.hdf5".replace(" ",""))
         if len(files)!=nfiles:
                 raise RuntimeError(f"Found {len(files)} files instead of {nfiles}")

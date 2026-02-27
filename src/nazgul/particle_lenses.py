@@ -188,7 +188,10 @@ def get_name_AS(kwargs_lens):
 #
 # Particle Lens computation class
 #
-class PMLens():
+class PMLens_basis():
+    """
+    Common class for all PM lens approach
+    """
     def __init__(self,kwargs_lens_part):
         self.kwargs_lens = kwargs_lens_part
         type_part = kwargs_lens_part["type"]
@@ -197,12 +200,10 @@ class PMLens():
         if type_part=="PM":
             self.thetaE_prefact = thetaE_PM_prefact
             self.thetaE         = thetaE_PM
-            self.get_lens_prof  = get_lens_prof_PM
 
         elif type_part=="ARCSINH" or type_part=="AS":
             self.thetaE_prefact = thetaE_AS_prefact
             self.thetaE         = thetaE_AS
-            self.get_lens_prof  = get_lens_prof_AS
         else:
             raise TypeError("This particle model is not known: "+type_part)
 
@@ -214,6 +215,45 @@ class PMLens():
         self.z_source = Mod.z_source
         self.cosmo    = Mod.cosmo
                                           
+    def get_lens_PART(self,samples,Ms):
+        raise RuntimeError("To implement")
+    
+    ### Class Structure ####
+    ########################
+    def _identity(self):
+        """Returns tuple to identify uniquely this galaxy
+        convert kwargs in immuatable tuple to be hashable"""
+        Id = (self.name,
+              tuple(sorted(self.kwargs_lens.items())))
+        return Id
+    
+    def __hash__(self):
+        """simplify the hash method"""
+        return hash(self._identity())
+
+    def __eq__(self, other):
+        if not isinstance(other, PMLens_basis):
+            return NotImplemented
+        return self._identity() == other._identity()
+
+    def __str__(self):
+        if not getattr(self,"name",False):
+            self._setup_names()
+        return self.name
+
+
+
+class PMLens(PMLens_basis):
+    def __init__(self,kwargs_lens_part):
+        super().__init__(kwargs_lens_part)
+        type_part = kwargs_lens_part["type"]
+        if type_part=="PM":
+            self.get_lens_prof  = get_lens_prof_PM
+        elif type_part=="ARCSINH" or type_part=="AS":
+            self.get_lens_prof  = get_lens_prof_AS
+        else:
+            raise TypeError("This particle model is not known: "+type_part)
+
     def get_lens_PART(self,samples,Ms):
         """From the sample of particles (position and masses) return their model and parameters
         in lenstronomy format.
@@ -232,38 +272,27 @@ class PMLens():
     
     ### Class Structure ####
     ########################
-    def _identity(self):
-        """Returns tuple to identify uniquely this galaxy
-        convert kwargs in immuatable tuple to be hashable"""
-        Id = (self.name,
-              tuple(sorted(self.kwargs_lens.items())))
-        return Id
-    
-    def __hash__(self):
-        """simplify the hash method"""
-        return hash(self._identity())
-
     def __eq__(self, other):
         if not isinstance(other, PMLens):
             return NotImplemented
         return self._identity() == other._identity()
 
-    def __str__(self):
-        if not getattr(self,"name",False):
-            self._setup_names()
-        return self.name
         
-class PMLensExpanded(PMLens):
-    raise RuntimeError(
-        "Discontinued - not using LensModel anymore"
-    )
+class PMLensExpanded(PMLens_basis):
     """
     Add the possibility to consider ulterior lens profiles
     """
     def __init__(self,kwargs_lens_part,kw_add_lenses=None):
-        super(PartGal, self).__init__()
-        self.kw_add_lenses = kw_add_lenses 
-                                      
+        super().__init__(kwargs_lens_part)
+        self.kw_add_lenses = kw_add_lenses
+        type_part = kwargs_lens_part["type"]
+        if type_part=="PM":
+            self.get_lens_model  = get_lens_model_PM
+        elif type_part=="ARCSINH" or type_part=="AS":
+            self.get_lens_model  = get_lens_model_AS
+        else:
+            raise TypeError("This particle model is not known: "+type_part)
+               
     def get_lens_PART(self,samples,Ms):
         """From the sample of particles (position and masses) return their model and parameters
         in lenstronomy format.
@@ -286,8 +315,14 @@ class PMLensExpanded(PMLens):
         """Returns tuple to identify uniquely this galaxy
         convert kwargs in immuatable tuple to be hashable"""
         Id = (self.name,
-              "expanded",
+              "Expanded",
               tuple(sorted(self.kwargs_lens.items())))
         return Id
+
+    def __eq__(self, other):
+        if not isinstance(other, PMLensExpanded):
+            return NotImplemented
+        return self._identity() == other._identity()
+
 ########################
 ########################

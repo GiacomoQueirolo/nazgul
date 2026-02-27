@@ -28,7 +28,7 @@ from nazgul.lib_cosmo import SigCrit
 # Get particle from galaxy catalogue
 from nazgul.particle_galaxy import get_rnd_PG,Gal2kwMXYZ,LoadGal
 # particle lens class and params.
-from nazgul.particle_lenses import PMLens 
+from nazgul.particle_lenses import PMLens , PMLensExpanded
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # likelihood class
 from nazgul.likelihood import Likelihood
@@ -149,7 +149,7 @@ class LensPart():
         self.pixel_num     = pixel_num      
         self.kwlens_part   = kwlens_part
         self.kw_add_lenses = kw_add_lenses
-        self.PMLens        = PMLens(kwlens_part,kw_add_lenses=kw_add_lenses)
+        self.PMLens        = PMLensExpanded(kwlens_part,kw_add_lenses=kw_add_lenses)
         self.PMLens_name   = self.PMLens.name
         # cosmo params
         self.z_lens        = self.Gal.z
@@ -259,7 +259,7 @@ class LensPart():
         self.cosmo = Galaxy.cosmo
         
         # re-define PMLens
-        self.PMLens = PMLens(self.kwlens_part,kw_add_lenses=self.kw_add_lenses)
+        self.PMLens = PMLensExpanded(self.kwlens_part,kw_add_lenses=self.kw_add_lenses)
         self.PMLens.setup(self)
         
         # Rebuild lens model if missing

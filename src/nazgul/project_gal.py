@@ -20,6 +20,7 @@ from python_tools.get_res import load_whatever
 from python_tools.tools import mkdir,to_dimless,ensure_unit,short_SciNot
 
 from nazgul.lib_cosmo import SigCrit,DsDds
+from nazgul.AMR2D_PLL import AMR_density_PLL
 from nazgul.particle_galaxy import Gal2kwMXYZ,get_CM
 
 # standard directory 
@@ -88,7 +89,7 @@ class ProjectionError(Exception):
     # very specific error: raise if there is no projection s.t. 
     def __init__(self, error):
         self.error   = str(error)
-        self.message = "Projection Error: "+self.error
+        self.message = f"Projection Error: {self.error}"
         super().__init__(self.message)
     def __str__(self):
         return self.message
@@ -187,7 +188,6 @@ Rerun trying different projection")
     return kw_proj_res
 
 
-from AMR2D_PLL import AMR_density_PLL
 def dens_map_AMR(kw_parts_proj,
                   max_particles=100,
                   min_area=0.1*u.kpc*u.kpc,
