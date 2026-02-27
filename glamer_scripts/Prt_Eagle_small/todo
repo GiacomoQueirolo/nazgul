@@ -1,7 +1,0 @@
- create a list of particles from eagle that can be read by glamer
-	OR check if glamer can read directly the particles from EAGLE
-	-> prob not, as you have to call it from SQL
-
--> done , check that it works:
-
--> the error i had was due to 1) the presence of the # in the first line of the csv file 2) the fact that i was running the code in the build directory and not in the Prt_Eagle dir, where the data dir is present
