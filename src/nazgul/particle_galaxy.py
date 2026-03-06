@@ -1,4 +1,5 @@
 """
+-> this has to be generalised for any simulation, for now only adapted to EAGLE
 Define the galaxy class PartGal (storing all particle data), as well as related helper functions, e.g. to sample galaxies 
 """
 
@@ -20,9 +21,9 @@ from astropy.cosmology import FlatLambdaCDM
 
 from nazgul.get_gal_indexes import get_gals
 from nazgul.get_gal_indexes import get_catpath
-from nazgul.fnct import std_gal_dir,sim2galdir,galdir2sim,_count_part,_mass_part
-from nazgul.fnct import part_data_path,std_sim,get_z_snap,prepend_str,get_snap,read_snap_header
-
+from nazgul.pathfinder import get_gal_dir,get_part_dir,std_sim,std_simsuite,std_data_dir
+from nazgul.fnct import _count_part,_mass_part
+from nazgul.fnct import get_z_snap,read_snap_header
 # combination btw get_rnd_gal and _get_rnd_gal
 z_source_max = 4
 verbose      = True
@@ -51,35 +52,36 @@ def get_rnd_gal_indexes(sim=std_sim,min_mass = str(min_mass),min_z=str(min_z),
     return kw
 
 # from path to kw of Gal
-def gal_path2kwGal(gal_pkl_path,gal_dir=std_gal_dir):
+def gal_path2kwGal(gal_pkl_path):
     """From path extract the required inputs for PartGal class
     """
     gal_pkl_path = Path(gal_pkl_path)
-    kw_gal       = {} 
-    str_snap     = gal_pkl_path.parent.name
-    snap         = str_snap.replace("snap_","")
-    str_gal_name = gal_pkl_path.name
-    gal_name     = str_gal_name.replace(".pkl","")
-    sGn,SGn      = gal_name.split("SGn")
-    Gn           = sGn.replace("Gn","")
+    kw_gal       = {}
+    GnSGn_dir    = gal_pkl_path.parent.parent
+    snap_dir     = GnSGn_dir.parent
+    sim_dir      = snap_dir.parent
+    #simsuite_dir = sim_dir.parent
+    _Gn,SGn      = GnSGn_dir.name.split("SGn")
+    Gn           = _Gn.replace("Gn","")
+    snap         = snap_dir.name.replace("snap","")
     kw_gal["Gn"]   = int(Gn)
     kw_gal["SGn"]  = int(SGn)
     kw_gal["snap"] = str(snap)
-    kw_gal["sim"]  = str(galdir2sim(gal_dir))
+    kw_gal["sim"]  = str(sim_dir.name)
     # M,center not necessary
     return kw_gal
     
 # index for particle types:
-# gas,dm, stars,bh : 0,1,4,5 
+# gas,dm, stars,bh : 0,1,4,5
+
 class PartGal:
     """Given the simulation, snap (or z) and galaxy numbers, set up a class
     with all the needed particle properties converted in physical units
     """
     def __init__(self, 
                  Gn, SGn,sim=std_sim, # identity of the galaxy
+                 simsuite=std_simsuite,data_dir=std_data_dir,
                  z=None,snap=None,    # redshift or snap
-                 part_dir=part_data_path, # where are stored the particles
-                 gal_dir=std_gal_dir,     # where to store it
                  M=None,Centre=None, # these can be recovered
                  reload=True):    # set to false only for debug
         self.sim      = sim
@@ -90,10 +92,13 @@ class PartGal:
         self.SGn      = SGn
         #Note: this is unique only within the snap
         self.Name     = f"Gn{self.Gn}SGn{self.SGn}" 
-        self.gal_dir  = Path(gal_dir)
-        self.part_dir = Path(part_dir)
+        # Input Dir:
+        self.part_dir = get_part_dir(snap,sim=sim,simsuite=simsuite,data_dir=data_dir)
+        # Output dir:
+        self.gal_dir  = get_gal_dir(Gn=Gn,SGn=SGn,snap=snap,sim=sim,
+                                    simsuite=simsuite,data_dir=data_dir)# data and simsuite are for now fixed
         # Mass and Centre can be recovered
-        kw_MCntr      = get_kwMCntr(Gn,SGn,z=z,sim=sim,gal_dir=gal_dir)
+        kw_MCntr      = get_kwMCntr(Gn,SGn,z=z,sim=sim)
         _M            = kw_MCntr["M"]
         _Centre       = kw_MCntr["Centre"]
         if M is not None:
@@ -105,11 +110,16 @@ class PartGal:
         self.a,self.h,self.boxsize = self.read_snap_header()
 
         # all paths are dealt as properties
-        mkdir(self.gal_snap_dir)
-        #self.islens_file = self.gal_snap_dir/f"{self.Name}_islens.dll"
-        
+        mkdir(self.gal_dir)        
         self.run(reload=reload)
 
+    @property
+    def pkl_path(self):
+        """Define pkl path to store the class instance
+        """
+        pkl_path = self.gal_dir/f"{self.Name}.pkl"
+        return pkl_path
+        
     ### Class Structure ####
     ########################
     def _identity(self):
@@ -147,16 +157,7 @@ class PartGal:
     @property 
     def cosmo(self):
         return FlatLambdaCDM(H0=self.h*100, Om0=1-self.h)
-    
 
-    """
-    def update_is_lens(self,islens,message="",kw_islens={}):
-        kw_islens["islens"]  = islens
-        kw_islens["message"] = message
-        with open(self.islens_file,"wb") as f:
-            dill.dump(kw_islens,f)
-        return 0
-    """
     def run(self,reload=True):
         upload_successful = False
         if reload:
@@ -165,8 +166,7 @@ class PartGal:
             # useful to check Center of Mass
             self.xy_propr2comov = self.prop2comov("Coordinates") 
             self.m_propr2comov  = self.prop2comov("Mass") 
-            self._init_path_snap()
-            self._initialise_parts()
+            self.initialise_parts()
             # works:
             self._count_tot_part()
             self._mass_tot_part()
@@ -195,18 +195,9 @@ class PartGal:
         return  1/(self.a**aexp)
 
     def read_snap_header(self):
-        return read_snap_header(z=self.z,snap=self.snap,sim=self.sim,part_path=self.part_dir)
-        
-    def _init_path_snap(self):
-        z_str          = prepend_str(str(int(self.z)),ln_str=3,fill="0")
-        str_snap       = get_snap(self.z,3)
-        fullsnap_str   = f"_{str_snap}_z{z_str}p???"
-        self.path_snap = f"{self.part_dir}/{self.sim}/snapshot{fullsnap_str}/snap{fullsnap_str}"
-        return 0
-        
-    def _initialise_parts(self):
-        if not hasattr(self,"path_snap"):
-            self._init_path_snap()
+        return read_snap_header(z=self.z,snap=self.snap,sim=self.sim)
+
+    def initialise_parts(self):
         self.gas   = self.read_part(0)
         self.dm    = self.read_part(1)
         self.stars = self.read_part(4)
@@ -223,9 +214,9 @@ class PartGal:
             atts.append("SmoothingLength")
         else:
             """Special case for the mass of dark matter particles."""   
-            fl =  glob.glob(f"{self.path_snap}.0.hdf5")
+            fl =  glob.glob(f"{self.part_dir}/*.0.hdf5")
             if len(fl)!=1:
-                raise RuntimeError(f"{fl} found to be not of lenght 1 from glob({self.path_snap}.0.hdf5): len={len(fl)}")
+                raise RuntimeError(f"{fl} found to be not of lenght 1 from glob({self.part_dir}/*.0.hdf5): len={len(fl)}")
             fl = fl[0]
             with h5py.File(fl, 'r') as f:
                 h = f['Header'].attrs.get('HubbleParam')
@@ -242,10 +233,9 @@ class PartGal:
             kw["Mass"] = np.multiply(m, cgs*(a**aexp)*(h**hexp), dtype='f8')
             
         nfiles = 16
-        print(f"{self.path_snap}.{[i for i in range(nfiles)]}.hdf5".replace(" ",""))
-        files = glob.glob(f"{self.path_snap}.{[i for i in range(nfiles)]}.hdf5".replace(" ",""))
+        files = [glob.glob(f"{self.part_dir}/snap*.{i}.hdf5")[0] for i in range(nfiles)]
         if len(files)!=nfiles:
-                raise RuntimeError(f"Found {len(files)} files instead of {nfiles}")
+                raise RuntimeError(f"Found {len(files)} files instead of {nfiles}\nFiles:\n{files}\nFile str:\n{file_str}")
         for att in atts:
             data = []
             for i in range(nfiles):
@@ -344,19 +334,6 @@ class PartGal:
         #np.testing.assert_almost_equal(center_desired,center_desired,decimal=2)
         self.verbose_assert_almost_equal(center_desired,center_desired,decimal=2,msg_title="Centre") 
         
-    @property
-    def gal_snap_dir(self):
-        """Define/locate main snap/redshift directory
-        """
-        gal_snap_dir = self.gal_dir/f"snap_{self.snap}"
-        return gal_snap_dir
-    @property
-    def pkl_path(self):
-        """Define pkl path to store the class instance
-        """
-        pkl_path = self.gal_snap_dir/f"{self.Name}.pkl"
-        return pkl_path
-        
     def store_gal(self):
         # store this galaxy
         with open(self.pkl_path,"wb") as f:
@@ -367,33 +344,31 @@ class PartGal:
 def ReadGal(Gal,vebose=True):
     return LoadClass(path=Gal.pkl_path,verbose=verbose)
 
-def LoadGal(path,if_fail_recompute=True,sim=std_sim,verbose=True):
+def LoadGal(path,if_fail_recompute=True,verbose=True):
     # Try loading galaxy - if fail and fail_recompute==True, try recomputing it
     Gal = LoadClass(path=path,verbose=verbose)
     if not Gal and if_fail_recompute:
-        gal_dir = sim2galdir(sim)
-        kwGal   = gal_path2kwGal(path,gal_dir=gal_dir)
+        kwGal   = gal_path2kwGal(path)
         Gal     = PartGal(**kwGal)
     return Gal
     
 # to simplify the input: given the sim, z, and GnSgn, 
 # we get the mass and center of the galaxy for input of PartGal 
-
-
-def get_myCat(Gn,SGn,z,sim,min_mass="1e10",dz=0.05,gal_dir=std_gal_dir):
+def get_myCat(Gn,SGn,z,sim,min_mass="1e10",dz=0.05):
     min_z=str(z-0.05)
     max_z=str(z+0.05)
 
     # try first finding the exact one
     cat_path = get_catpath(min_mass=min_mass,\
                            min_z=min_z,max_z=max_z,
-                          gal_dir=gal_dir)
+                           sim=sim)
     if os.path.isfile(cat_path):
         myCat = load_whatever(cat_path)
     else:
         # try all the other
         found = False
-        for pkl in Path(gal_dir).glob("*.pkl"):
+        # now quite a desperate attempt
+        for pkl in Path(cat_path).parent.glob("*.pkl"):
             cat = load_whatever(pkl)
             if np.any(np.abs(cat["z"]-z)<dz):
                 zz      = min(cat["z"], key=lambda x:abs(x-z))
@@ -403,27 +378,26 @@ def get_myCat(Gn,SGn,z,sim,min_mass="1e10",dz=0.05,gal_dir=std_gal_dir):
                     myCat = cat
                     index  = indexx[0]
                     break
-    if not found:
-        # get_gals is slow-ish but safe (require internet access!)
-        # safe-ish since we now hard write the min_mass - but should be fine
-        # TODO: find a safer approach
-
-        myCat   = get_gals(sim=sim,
-                            min_mass=min_mass,min_z=min_z,max_z=max_z,
-                            save_pkl=False,check_prev=True,verbose=False,plot=False)
+        if not found:
+            # get_gals is slow-ish but safe (require internet access!)
+            # safe-ish since we now hard write the min_mass - but should be fine
+            # TODO: find a safer approach
     
-        z        = min(myCat["z"], key=lambda x:abs(x-z))
-        index    = np.where((myCat["Gn"]==Gn) & (myCat["SGn"]==SGn) & (myCat["z"]==z))[0]
-        if len(index)>1:
-            raise RuntimeError(f"Found multiple galaxies with same z, G and SGn")
-        index    = index[0] 
+            myCat   = get_gals(sim=sim,
+                                min_mass=min_mass,min_z=min_z,max_z=max_z,
+                                save_pkl=False,check_prev=True,verbose=False,plot=False)
+    
+    z        = min(myCat["z"], key=lambda x:abs(x-z))
+    index    = np.where((myCat["Gn"]==Gn) & (myCat["SGn"]==SGn) & (myCat["z"]==z))[0]
+    if len(index)>1:
+        raise RuntimeError(f"Found multiple galaxies with same z, G and SGn")
+    index    = index[0] 
     return myCat,index
     
 def get_kwMCntr(Gn,SGn,sim=std_sim,
-                z=None,snap=None,
-               gal_dir=std_gal_dir):
+                z=None,snap=None):
     z,snap       = get_z_snap(z,snap)
-    myCat,index  = get_myCat(Gn,SGn,z,sim,gal_dir=gal_dir)
+    myCat,index  = get_myCat(Gn,SGn,z,sim)
     Centre       = np.array([myCat["CMx"],myCat["CMy"],myCat["CMz"]]).T[index]
     kwMCntr      = {"M":myCat["M"][index],
                     "Centre":Centre}

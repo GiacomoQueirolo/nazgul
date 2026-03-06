@@ -1,6 +1,6 @@
 """
 Particle lenses function
-Main Class: PMLens
+Main Class: PartLens
 From sample of particles, returns kwargs and model for lenstronomy
 depending on the particle potential profile chosen (for now AS or PM)
 """
@@ -96,8 +96,8 @@ def get_lens_model_AS(theta_cAS,thetaEs,samples,kw_add_lenses=None):
     try:
         len(theta_cAS)
     except TypeError:
-        theta_cAS *= np.ones_like(thetaEs)
-    kwargs_lens_AS = [_build_kwargs_lens_AS((thetaEs,theta_cAS, samples[0],samples[1]))]
+        theta_cAS  *= np.ones_like(thetaEs)
+    kwargs_lens_AS  = [_build_kwargs_lens_AS((thetaEs,theta_cAS, samples[0],samples[1]))]
     lens_model_list = ["ARSINH_PARALL"]
     kwargs_lens_AS,lens_model_list= add_lenses(kwargs_lens=kwargs_lens_AS,
                                                lens_model_list=lens_model_list,
@@ -123,7 +123,7 @@ class Prof2LensModel():
 """
 
 def get_lens_prof_PM(thetaEs,samples):
-    kwargs_lens_PM  = [_build_kwargs_lens_PM((thetaEs, samples[0],samples[1]))]
+    kwargs_lens_PM  = _build_kwargs_lens_PM((thetaEs, samples[0],samples[1]))
     lens_prof_PM    = ParallelPointMass()
     return kwargs_lens_PM,lens_prof_PM 
 
@@ -132,7 +132,7 @@ def get_lens_prof_AS(theta_cAS,thetaEs,samples):
         len(theta_cAS)
     except TypeError:
         theta_cAS *= np.ones_like(thetaEs)
-    kwargs_lens_AS = [_build_kwargs_lens_AS((thetaEs,theta_cAS, samples[0],samples[1]))]
+    kwargs_lens_AS = _build_kwargs_lens_AS((thetaEs,theta_cAS, samples[0],samples[1]))
     lens_prof_AS   = ParallelArsinh()
     return kwargs_lens_AS,lens_prof_AS
     
@@ -188,7 +188,7 @@ def get_name_AS(kwargs_lens):
 #
 # Particle Lens computation class
 #
-class PMLens_basis():
+class PartLens_basis():
     """
     Common class for all PM lens approach
     """
@@ -232,7 +232,7 @@ class PMLens_basis():
         return hash(self._identity())
 
     def __eq__(self, other):
-        if not isinstance(other, PMLens_basis):
+        if not isinstance(other, PartLens_basis):
             return NotImplemented
         return self._identity() == other._identity()
 
@@ -243,7 +243,7 @@ class PMLens_basis():
 
 
 
-class PMLens(PMLens_basis):
+class PartLens(PartLens_basis):
     def __init__(self,kwargs_lens_part):
         super().__init__(kwargs_lens_part)
         type_part = kwargs_lens_part["type"]
@@ -273,12 +273,12 @@ class PMLens(PMLens_basis):
     ### Class Structure ####
     ########################
     def __eq__(self, other):
-        if not isinstance(other, PMLens):
+        if not isinstance(other, PartLens):
             return NotImplemented
         return self._identity() == other._identity()
 
         
-class PMLensExpanded(PMLens_basis):
+class PartLensExpanded(PartLens_basis):
     """
     Add the possibility to consider ulterior lens profiles
     """
@@ -320,7 +320,7 @@ class PMLensExpanded(PMLens_basis):
         return Id
 
     def __eq__(self, other):
-        if not isinstance(other, PMLensExpanded):
+        if not isinstance(other, PartLensExpanded):
             return NotImplemented
         return self._identity() == other._identity()
 
