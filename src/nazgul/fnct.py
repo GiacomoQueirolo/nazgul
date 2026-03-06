@@ -1,5 +1,6 @@
 """
 Random bazar of useful functions for the reading of particles for galaxies
+-> EAGLE specific
 """
 import glob
 import h5py
@@ -10,41 +11,12 @@ from pathlib import Path
 
 from python_tools.get_res import load_whatever
 from python_tools.tools import mkdir,to_dimless
-####
 
-# Setup and General Structure
-##############################
-
-# data dir structure: data_path 
-#                        |_ Sim
-#                            |_snapshots_of_particles
-#                            |_Gals
-#                                |_snaphots_of_gals (obtained from particles)
-
-
-# data path
-#part_data_path = Path("/pbs/home/g/gqueirolo/EAGLE/data/")
-part_data_path = Path("./data/")
-# "Standard" simulation
-std_sim  = "RefL0025N0752"
-# use the following simulation only as test case
-test_sim = "RefL0012N0188"
-# used for tutorial -linked ONLY snap 20 of test_sim
-tutorial_sim = "RefTuto"
-
-def galdir2sim(gal_dir):
-    sim_path = gal_dir.parent
-    sim      = str(sim_path.name)
-    return sim
-
-def sim2galdir(sim,part_path=part_data_path):
-    sim_path = Path(part_path)/sim
-    gal_dir  = sim_path/"Gals"
-    mkdir(gal_dir)
-    return gal_dir
-
-# Where to store the galaxies
-std_gal_dir = sim2galdir(std_sim,part_path=part_data_path) 
+from nazgul.pathfinder import get_part_dir,get_sim_dir,std_sim,std_simsuite,std_data_dir
+from nazgul.pathfinder import std_sim,test_sim,tutorial_sim
+#########
+# Setup # 
+#########
 
 # ./tmp will be a collector of intermediate, mildly useful plots/results, with the advantage of being easily accessible
 mkdir("./tmp")
@@ -88,7 +60,11 @@ def get_z_snap(z=None,snap=None):
         snap = get_snap(z)
     snap = str(snap)
     return z,snap
-    
+
+def verify_z_snap(z,snap):
+    if z is not None and snap is not None:
+        assert int(get_snap(z))==int(snap)
+
 def prepend_str(str_i,ln_str,fill="0"):
     """Prepend 'fill' to 'str_i' until it reaches the lenght 'ln_str'
     """
@@ -100,51 +76,45 @@ def prepend_str(str_i,ln_str,fill="0"):
         str_i=fill+str_i
     return str_i
 
-def get_files(sim,z=None,snap=None,_i_="*",part_path=part_data_path):
+
+def get_partfiles(sim=std_sim,simsuite=std_simsuite,data_dir=std_data_dir,
+                  z=None,snap=None,_i_="*"):
     """
     Find the files 
     If _i_ is specified, only that specific subsection of the snapshot (useful for DM)
     If no redshift/snapshots are defined, take all of them
     """
-    
-    sim_path = Path(part_path)/sim
-    # find the files
-    _i_ = str(_i_)
-    pstring = "???"
-    suffix = "p"+pstring+"."+_i_+".hdf5"
-    prefix = sim_path/"snapshot_"
-    if z is None and snap is None:
-        # take all snapshots/all redshifts
-        snap ="0??"
-        zstr = "???"
+    verify_z_snap(z,snap)
+    sim_dir = get_sim_dir(sim=sim,simsuite=simsuite,data_dir=data_dir)
+
+    if z is not None and snap is not None:
+        # verify that they are compatible:
+        assert int(get_snap(z))==int(snap)
+    elif z is not None:
+        zstr = str(int(z))
+        snap = get_snap(z)
+    # if snap
+    part_dir = get_part_dir(snap=snap,sim=sim,
+                     simsuite=simsuite,data_dir=data_dir)
+
+    if snap is None:
+        snap = "???"
     else:
-        if z is not None and snap is not None:
-            # verify that they are compatible:
-            assert int(get_snap(z))==int(snap)
-        if z is not None:
-            zstr = str(int(z))
-            snap = get_snap(z)
-        elif snap is not None:
-            #zstr = str(get_z(snap))
-            _zstr = glob.glob(str(prefix)+prepend_str(snap,ln_str=3,fill="0")+"_z*")
-            assert len(_zstr)==1
-            zstr  = _zstr[0].split("_z")[1].split("p")[0]
-        snap = prepend_str(snap,ln_str=3,fill="0")
-        zstr = prepend_str(zstr,ln_str=3,fill="0")
-    
-    fix  = f"{snap}_z{zstr}p{pstring}/snap_{snap}_z{zstr}"
-    file_string = f"{prefix}{fix}{suffix}"
-    files = glob.glob(file_string)
+        snap = str(snap)
+
+    file_string = part_dir/f"snap_{snap.zfill(3)}_*.{_i_}.hdf5"
+    files = glob.glob(str(file_string))
     # checking that the files are not empty
     if files == []:
         raise RuntimeError(f"Files not found:{file_string}")
     return files
 
 
-def read_snap_header(z=None,snap=None,sim=std_sim,part_path=part_data_path):
+def read_snap_header(z=None,snap=None,sim=std_sim,simsuite=std_simsuite,data_dir=std_data_dir):
     """Read various attributes from the header group. 
     """
-    file    = get_files(sim,z,snap,_i_=0,part_path=part_path)
+    verify_z_snap(z,snap)
+    file    = get_partfiles(sim=sim,z=z,snap=snap,simsuite=simsuite,data_dir=data_dir,_i_=0)
     if len(file)!=1:
         print("file=",file)
         raise RuntimeError("Warning: define only one snapshot")
@@ -159,49 +129,5 @@ def _count_part(part):
     return len(part["mass"])
 
 def _mass_part(part):
-    return np.sum(part["mass"])   
-################################
+    return np.sum(part["mass"]) 
 
-def sersic_brightness(x,y,n=4,I=10,cntx=0,cnty=0,pa=0,q=1,Re=5.0):
-    """
-     x,y : N,M grid of coordinates
-     n : Sersic index
-     I : amplitude
-     cntx,cnty : center coordinates
-     pa: pointing angle (in angles)
-     q : axis ratio
-    """
-    x    = to_dimless(x)
-    cntx = to_dimless(cntx)
-    y    = to_dimless(y)
-    cnty = to_dimless(cnty)
-    
-    if q==1:
-        # for some reason pa has effects even if q is 1 
-        pa=0
-    paRad = pa*np.pi/180
-    # rotate the galaxy by the angle paRad
-    X = np.cos(paRad)*(x-cntx)+np.sin(paRad)*(y-cnty)
-    Y = -np.sin(paRad)*(x-cntx)+np.cos(paRad)*(y-cnty)
-    # include elliptical isophotes
-    #r = np.sqrt(x**2+y**2) #-> if q==1
-    xt2difq2 = Y/(q*q)
-    r = np.sqrt(X**2+Y*xt2difq2)
-    # brightness at distance r
-    bn = 1.992*n - 0.3271
-    brightness = I*np.exp(-bn*((r/Re)**(1.0/n)-1.0))
-    return brightness
-    
-class Sersic():
-    # useful to lens an image:
-    def __init__(self,I=10,cntx=0,cnty=0,pa=0,q=1,n=4):
-        raise DeprecationWarning("Something is off w. the centering when considering ellipticity. \
-        Use lenstronomy 'lenstronomy.LightModel.Profiles.sersic import SersicElliptic' for example")
-        self.cntx = cntx
-        self.cnty = cnty
-        self.pa   = pa
-        self.q    = q
-        self.n    = n
-        self.I    = I
-    def image(self,x,y):
-        return sersic_brightness(x,y,**self.__dict__)
