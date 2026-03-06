@@ -21,7 +21,7 @@ if __name__ == "__main__":
                  reload=reload)
 
     kw_add_lenses = {"lens_model_list":["LOS"],
-                    "kwargs_lens":[]}
+                     "kwargs_lens":[]}
     # load first parameters from analosis, golden sample
     kw_los = get_kw_los()
     kw_add_lenses["kwargs_lens"] = [kw_los]
