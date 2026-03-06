@@ -5,9 +5,9 @@
 import numpy as np
 from pathlib import Path
 
+from nazgul.pathfinder import LensPop_dir
 from python_tools.tools import Read_Column_File
 
-LensPop_dir = Path("./LensPop/LensPop")
 file0       = LensPop_dir/"lenses_LSSTa.txt"
 if LensPop_dir.is_dir() is False or file0.is_file() is False :
     LensPop_dir.mkdir()
@@ -20,7 +20,7 @@ if LensPop_dir.is_dir() is False or file0.is_file() is False :
         with open(LensPop_dir/file_name,"w") as f:
             f.write(raw_file)
     
-print("This data has been taken from tcollett/LensPop.git, assuming the LSST telescope")
+print("Source z prior inferred from tcollett/LensPop.git, assuming the LSST telescope")
 
 zla = Read_Column_File(LensPop_dir/"lenses_LSSTa.txt")[0]
 zsa = Read_Column_File(LensPop_dir/"lenses_LSSTa.txt")[1]
@@ -54,7 +54,7 @@ def logL_z_source_zl(z_source,z_lens,dzl=0.2,*args):
 kw_prior_z_source_all = {"f_lkl_z_source":logL_z_source_all,
                           "prms_lkl_z_source":[]}
 kw_prior_z_source_zl = {"f_lkl_z_source":logL_z_source_zl,
-                          "prms_lkl_z_source":[]}
+                        "prms_lkl_z_source":[]}
 
 
 """

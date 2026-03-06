@@ -7,7 +7,7 @@ from lenstronomy.LensModel.lens_model import LensModel
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from nazgul.fnct import std_sim
-from nazgul.mount_doom.generate_particle_lens import LoadLens,get_extents
+from nazgul.mount_doom.generate_particle_lens import LoadLens
 from nazgul.isodens import get_kwisodens
 
 from python_tools.get_res import load_whatever
@@ -56,7 +56,7 @@ if __name__=="__main__":
     if cutoff_rad<=to_dimless(Lens.radius):
         raise RuntimeError("not accounting for this case")
     # the sim is over this
-    kw_extents  = get_extents(Lens.arcXkpc,Lens)
+    kw_extents  = Lens.kw_extents
     extent_full = kw_extents["extent_kpc"]
 
     # I am not sure if they have the same cutout -  to test

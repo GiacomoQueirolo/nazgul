@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from python_tools.fwhm import get_fwhm
-from nazgul.mount_doom.generate_particle_lens import get_extents
+
 
 def _plot_caustics(LPClass,
                    kwargs_lens,
@@ -13,7 +13,7 @@ def _plot_caustics(LPClass,
                    fast_caustic = True,
                    savename="test_caustics.png"):
     if kw_extents is None:
-        kw_extents = get_extents(LPClass.arcXkpc,LPClass) 
+        kw_extents = LPClass.kw_extents 
     xmin,xmax,ymin,ymax = kw_extents["extent_arcsec"]
     kw_crit             = LPClass.critical_curve_caustics
     cl_rad_x,cl_rad_y   = kw_crit["critical_lines"]["radial"]
@@ -83,7 +83,7 @@ def plot_kappamap(kappa1,extent_kpc,title1="",savename="kappa.png",skip_show=Fal
 def plot_lensed_im_and_kappa(Model,savename="lensed_im.pdf",kw_extents=None):
     kappa = Model.kappa_map
     if kw_extents is None:
-        kw_extents = get_extents(Model.arcXkpc,Model)
+        kw_extents = Model.kw_extents
     fg,axes = plt.subplots(1,2,figsize=(10,5))
     ax = axes[0]
 
@@ -115,7 +115,7 @@ def plot_lensed_im_and_kappa(Model,savename="lensed_im.pdf",kw_extents=None):
     plt.close("all")
     
 def plot_all(Model,savename_lensed="lensed_im.pdf",savename_kappa="kappa.png",savename_caustics="caustics.png",fast_caustic=True,skip_caustic=False):
-    kw_extents = get_extents(Model.arcXkpc,Model)
+    kw_extents = Model.kw_extents
     plot_lensed_im_and_kappa(Model,savename=Model.savedir/savename_lensed,kw_extents=kw_extents)
     if not skip_caustic:
         plot_caustics(Model,fast_caustic=fast_caustic,savename=Model.savedir/savename_caustics,kw_extents=kw_extents)

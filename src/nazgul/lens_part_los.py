@@ -48,7 +48,7 @@ class LensPartLOS(LensPart):
         # overwritten to allow for a different path
         # -> issue as it will 2x the space required  (not terrirble actually)
         #TODO find better solution
-        return f"{self.Gal_name}_Npix{self.pixel_num}_Part{self.PMLens_name}_LOS"
+        return f"{self.Gal_name}_Npix{self.pixel_num}_Part{self.PartLens_name}_LOS"
 
     @property
     def los(self):

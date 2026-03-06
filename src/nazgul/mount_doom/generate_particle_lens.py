@@ -1,115 +1,44 @@
 """
-From randomly selected galaxies, read particles and generate Particles Lenses
-Revolves around the LensPart class, plus several helper functions
+Older version of the approach, mantained for now. Aim to phase it out in favour of a combination of sub/LensModel/dom
 
--> restructured to be "subdominant" w.r.t. LensModel
-     -> no additional lens profiles possible (at this level)
-     -> loose z_lens and z_source(=np.inf) (but store the details for later use)
+From randomly selected galaxies, read particles and generate Particles Lenses
+Revolves around the LensPart class, plus several helper functions -> imported by cracks_of_doom
 """
 
 import dill
 import numpy as np
-from pathlib import Path
 from functools import cached_property 
 
 import astropy.units as u
 from scipy.ndimage import zoom
-from scipy.interpolate import splprep, splev, RectBivariateSpline
+from scipy.interpolate import  RectBivariateSpline
 
 from lenstronomy.Util import util
 from lenstronomy.ImSim.image_model import ImageModel
 from lenstronomy.SimulationAPI.sim_api import SimAPI
 
 # My libs
-from python_tools.get_res import LoadClass
 from python_tools.tools import mkdir,to_dimless,ensure_unit
 # cosmol. params.
 from nazgul.lib_cosmo import SigCrit
 # Get particle from galaxy catalogue
-from nazgul.particle_galaxy import get_rnd_PG,Gal2kwMXYZ,LoadGal
+from nazgul.particle_galaxy import Gal2kwMXYZ,LoadGal
 # particle lens class and params.
-from nazgul.particle_lenses import PMLens , PMLensExpanded
-from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
+from nazgul.particle_lenses import  PartLensExpanded
 # likelihood class
 from nazgul.likelihood import Likelihood
-from nazgul.likelihood_z_source import kw_prior_z_source_zl
 # project galaxy along various axis
 from nazgul.project_gal import get_2Dkappa_map,ProjGal,projection_main_AMR
-from nazgul.project_gal import Gal2kw_samples,ProjectionError
+from nazgul.project_gal import Gal2kw_samples
 
-# default parameters:
-pixel_num     = 200 # pix for image
-verbose       = True
-# for z_source computation:
-z_source_max  = 4
-#minimum theta_E
-min_thetaE = .3*u.arcsec #arcsec
+from nazgul.mount_doom.cracks_of_doom import pixel_num,z_source_max,min_thetaE
+from nazgul.mount_doom.cracks_of_doom import std_sim_lens_path,default_savedir_sim
+from nazgul.mount_doom.cracks_of_doom import kwargs_source_default,source_model_list
+from nazgul.mount_doom.cracks_of_doom import kwargs_band_sim,kw_prior_z_source_stnd,kw_prior_z_source_minimal
+from nazgul.mount_doom.cracks_of_doom import ReadLens
+import nazgul.mount_doom.cracks_of_doom as cod
 
-# Path definitions:
-
-# define where to store the obtained lenses classes
-std_sim_lens_path   = Path("./sim_lens/")
-default_savedir_sim = "test_sim_lens_AMR" # subdirectory depending on the lensing algorithm
-
-def get_lens_dir(Gal,sim_lens_path=std_sim_lens_path):
-    #lens_dir = f"{sim_lens_path}/{Gal.sim}/snap{Gal.snap}_G{Gal.Gn}.{Gal.SGn}/"
-    lens_dir = Path(sim_lens_path)/Gal.sim/f"snap{Gal.snap}_G{Gal.Gn}.{Gal.SGn}"
-    mkdir(lens_dir)
-    Gal.lens_dir = lens_dir
-    return lens_dir
-
-
-
-##########################
-##########################
-# Sampling of the Profiles
-##########################
-##########################
-
-# source parametrisation
-kwargs_sersic_ellipse_basic = {'R_sersic': .1, 'n_sersic': 3, 
-                            'center_x': 0,
-                            'center_y': 0, 
-                            'e1': 0.0, 
-                            'e2': 0.0}
-kwargs_sersic_ellipse     = {'amp': 4000.}|kwargs_sersic_ellipse_basic
-kwargs_sersic_ellipse_mag = {'magnitude':25.}|kwargs_sersic_ellipse_basic
-kwargs_source_default     = kwargs_sersic_ellipse_mag
-source_model_list         = ['SERSIC_ELLIPSE']
-
-def get_kwargs_sourceSim(Sim,kwargs_source=kwargs_source_default):
-    if "magnitude" in kwargs_source.keys():
-        kwargs_source_list       = [kwargs_source]
-        # the following only depends on -kwargs_source_params, -magnitude_0_point -source_model_list
-        _, kwargs_source_list, _ = Sim.magnitude2amplitude(kwargs_source_mag = kwargs_source_list)
-        kwargs_source            = kwargs_source_list[0]
-    return kwargs_source
-
-def get_dataclasses(Sim,kwargs_source=kwargs_source_default):
-        print("Pixel_num: ",  Sim.numpix)
-        print("DeltaPix: ",   np.round(Sim.pixel_scale,3))
-        data_class         = Sim.data_class
-        psf_class          = Sim.psf_class
-        kwargs_numerics    = {'supersampling_factor': 1, 'supersampling_convolution': False}
-        # Source Params
-        source_model_class = Sim.source_model_class
-        kwargs_source      = get_kwargs_sourceSim(Sim,kwargs_source=kwargs_source)
-        return data_class,psf_class,source_model_class,kwargs_numerics,kwargs_source
-
-##########################
-# Model class for parts. #
-##########################
-# kwargs of ultra-performing band for default simulated images -> quite arbitrary, possibly to improve
-kwargs_band_sim = {'read_noise': 0, # no RN noise
- 'pixel_scale': None,               # to update depending on the lens
- 'ccd_gain': 2.5,             # standard gain for HST
- 'exposure_time': 5400.0,     # standard exp time for HST
- 'sky_brightness': 35,        #"dark" sky
- 'magnitude_zero_point': 30,  # very deep 
- 'num_exposures': 1,          # standard HST n exp.
- 'psf_type': 'NONE'}          # "infinite" psf resolution 
-kw_prior_z_source_minimal = {"z_source_max":z_source_max}
-kw_prior_z_source_stnd    = kw_prior_z_source_zl|kw_prior_z_source_minimal
+verbose = True
 
 class LensPart(): 
     def __init__(self,
@@ -139,7 +68,7 @@ class LensPart():
                                    min_thetaE=min_thetaE):
                 raise RuntimeError("Previously defined as not a lens")
         
-        lens_dir           = get_lens_dir(self.Gal,sim_lens_path=sim_lens_path)
+        lens_dir           = cod.get_lens_dir(self.Gal,sim_lens_path=sim_lens_path)
         self.savedir_sim   = savedir_sim
         self.savedir       = lens_dir/savedir_sim
         self.reload        = reload
@@ -149,8 +78,8 @@ class LensPart():
         self.pixel_num     = pixel_num      
         self.kwlens_part   = kwlens_part
         self.kw_add_lenses = kw_add_lenses
-        self.PMLens        = PMLensExpanded(kwlens_part,kw_add_lenses=kw_add_lenses)
-        self.PMLens_name   = self.PMLens.name
+        self.PartLens        = PartLensExpanded(kwlens_part,kw_add_lenses=kw_add_lenses)
+        self.PartLens_name   = self.PartLens.name
         # cosmo params
         self.z_lens        = self.Gal.z
         self.cosmo         = self.Gal.cosmo
@@ -158,7 +87,7 @@ class LensPart():
 
         # criteria for supercriticality of the lens
         self.z_source_max  = z_source_max
-        self.kw_like_zs    = kw_prior2like_zs(kw_prior_z_source=kw_prior_z_source,
+        self.kw_like_zs    = cod.kw_prior2like_zs(kw_prior_z_source=kw_prior_z_source,
                                               z_lens=self.z_lens)
         self.min_thetaE    = ensure_unit(min_thetaE,u.arcsec) #arcsec
         
@@ -179,7 +108,7 @@ class LensPart():
         """
         return (
             self.Gal._identity(),
-            self.PMLens._identity(),
+            self.PartLens._identity(),
             self.pixel_num,
             self.z_source_max,
             self.kwlens_part,
@@ -224,7 +153,7 @@ class LensPart():
         state.pop('imageModel',None)
         # These are reloaded / reconstructed
         state.pop('Gal',None)
-        state.pop('PMLens',None)
+        state.pop('PartLens',None)
         state.pop('cosmo',None)
         return state
 
@@ -245,7 +174,7 @@ class LensPart():
         """
         return not all(
             hasattr(self, attr)
-            for attr in ("Gal", "PMLens", "cosmo")
+            for attr in ("Gal", "PartLens", "cosmo")
         )
     def _unpack(self):
         """Reconstruct all attributes that were intentionally removed
@@ -258,9 +187,9 @@ class LensPart():
         self.Gal_name = Galaxy.Name # unsure why this is needed
         self.cosmo = Galaxy.cosmo
         
-        # re-define PMLens
-        self.PMLens = PMLensExpanded(self.kwlens_part,kw_add_lenses=self.kw_add_lenses)
-        self.PMLens.setup(self)
+        # re-define PartLens
+        self.PartLens = PartLensExpanded(self.kwlens_part,kw_add_lenses=self.kw_add_lenses)
+        self.PartLens.setup(self)
         
         # Rebuild lens model if missing
         if not hasattr(self, "lens_model"):
@@ -288,7 +217,7 @@ class LensPart():
     @property
     def name(self):
         # define name and path of savefile
-        return f"{self.Gal_name}_Npix{self.pixel_num}_Part{self.PMLens_name}"
+        return f"{self.Gal_name}_Npix{self.pixel_num}_Part{self.PartLens_name}"
     @property
     def pkl_path(self):
         return self.savedir/f"{self.name}.pkl"
@@ -377,7 +306,7 @@ class LensPart():
 
     def create_lens(self,verbose=True):
         # setup lensing keywords
-        self.PMLens.setup(self) # only run now as it needs z_source 
+        self.PartLens.setup(self) # only run now as it needs z_source 
         
         # Define the radius based on ~ theta_E
         scale_tE       = 2 
@@ -414,7 +343,7 @@ class LensPart():
         """
         if Sim is None:
             Sim = self.Sim
-        self.data_class,self.psf_class,self.source_model_class,self.kwargs_numerics,self.kwargs_source = get_dataclasses(Sim)
+        self.data_class,self.psf_class,self.source_model_class,self.kwargs_numerics,self.kwargs_source = cod.get_dataclasses(Sim)
         return 0
         
     def update_source_position(self,ra_source,dec_source):
@@ -442,7 +371,7 @@ class LensPart():
         samples    = kw_samples["RAs"],kw_samples["DECs"]
         Ms         = kw_samples["Ms"]
         # Convert in lenses parameters 
-        kwLnsPart,LnsModPart   = self.PMLens.get_lens_PART(samples=samples,Ms=Ms)
+        kwLnsPart,LnsModPart   = self.PartLens.get_lens_PART(samples=samples,Ms=Ms)
         self.kwargs_lens       = kwLnsPart
         self.lens_model        = LnsModPart
         return 0
@@ -544,7 +473,7 @@ class LensPart():
             psf_class  = self.psf_class
             source_model_class = self.source_model_class
         else:
-            data_class,psf_class,source_model_class,_,_ = get_dataclasses(Sim)
+            data_class,psf_class,source_model_class,_,_ = cod.get_dataclasses(Sim)
         
         imageModel = ImageModel(data_class, psf_class, 
                             self.lens_model, 
@@ -607,7 +536,7 @@ class LensPart():
         if _radec is None:
             kw_extents = self.kw_extents
         else:
-            kw_extents = get_extents(arcXkpc=self.arcXkpc,Model=self,_radec=_radec)
+            kw_extents = cod.get_extents(arcXkpc=self.arcXkpc,Model=self,_radec=_radec)
         kappa = get_2Dkappa_map(Gal=self.Gal,proj_index=self.proj_index,MD_coords=self.MD_coords,kwargs_extents=kw_extents,
                                 SigCrit=self.SigCrit,arcXkpc=self.arcXkpc)
         return kappa
@@ -623,7 +552,7 @@ class LensPart():
     @property
     def kw_extents(self):
         _radec = self.imageModel.ImageNumerics.coordinates_evaluate
-        kw_extents = get_extents(arcXkpc=self.arcXkpc,Model=self,_radec=_radec)
+        kw_extents = cod.get_extents(arcXkpc=self.arcXkpc,Model=self,_radec=_radec)
         return kw_extents
         
     def get_RADEC(self):
@@ -671,7 +600,7 @@ class LensPart():
         """
         imageModelObs    = self.get_imageModel(Sim=SimObs)
         sourceModelObs   = SimObs.source_model_class
-        kwargs_sourceObs = get_kwargs_sourceSim(SimObs)    
+        kwargs_sourceObs = cod.get_kwargs_sourceSim(SimObs)    
 
         image_SimObs     = self.get_lensed_image(imageModel=imageModelObs,
                                              sourceModel=sourceModelObs,
@@ -776,7 +705,7 @@ class LensPart():
             if len(ierx)/(self.pixel_num**2) >0.001 :
                 break
             else:
-                iery,ierx = np.where(MAD_mask(np.abs(eigen_rad),0,tv)) 
+                iery,ierx = np.where(cod.MAD_mask(np.abs(eigen_rad),0,tv)) 
         # tangential
         mintv = np.min(np.abs(eigen_tan))
         Dv = np.max(np.abs(eigen_tan)) - mintv
@@ -786,7 +715,7 @@ class LensPart():
             if len(ietx)/(self.pixel_num**2) >0.001:
                 break
             else:
-                iety,ietx = np.where(MAD_mask(np.abs(eigen_tan),0,tv))
+                iety,ietx = np.where(cod.MAD_mask(np.abs(eigen_tan),0,tv))
         # coords
         RA,DEC      = self.get_RADEC()
         ra0,dec0    = RA[0],DEC.T[0]
@@ -794,26 +723,14 @@ class LensPart():
         cl_rad_x_noisy,cl_rad_y_noisy   = ra0[ierx],dec0[iery]    
         cl_tan_x_noisy,cl_tan_y_noisy   = ra0[ietx],dec0[iety]
         # fit them with splines  
-        cl_rad_x,cl_rad_y = fit_xy_spline(cl_rad_x_noisy,cl_rad_y_noisy)
-        cl_tan_x,cl_tan_y = fit_xy_spline(cl_tan_x_noisy,cl_tan_y_noisy)
+        cl_rad_x,cl_rad_y = cod.fit_xy_spline(cl_rad_x_noisy,cl_rad_y_noisy)
+        cl_tan_x,cl_tan_y = cod.fit_xy_spline(cl_tan_x_noisy,cl_tan_y_noisy)
         
         # fit alpha in 2D
         # TODO: verify that it is indeed dec0,ra0 and not the other way out ->correct, see TEST
         alpha_x_spline = RectBivariateSpline(dec0,ra0, alpha_x)
         alpha_y_spline = RectBivariateSpline(dec0,ra0, alpha_y)
 
-        """
-        #TEST: Passed
-        i_dec = np.random.choice(np.arange(0,len(dec0)-1))
-        i_ra  = np.random.choice(np.arange(0,len(ra0)-1))
-        # Direct grid value
-        v_grid = alpha_x[i_dec, i_ra]
-        
-        # Interpolated value at exact grid point
-        v_spline = alpha_x_spline.ev(dec0[i_dec], ra0[i_ra])
-        
-        print(v_grid, v_spline)
-        """
         cc_rad_x,cc_rad_y   = cl_rad_x-alpha_x_spline.ev(cl_rad_y,cl_rad_x),\
                               cl_rad_y-alpha_y_spline.ev(cl_rad_y,cl_rad_x)
 
@@ -825,228 +742,8 @@ class LensPart():
                    "critical_lines":{"radial":[cl_rad_x,cl_rad_y],
                                      "tangential":[cl_tan_x,cl_tan_y]}
                   }
-        """
-        # DEBUG
-        fig,ax = plt.subplots(figsize=(8,8))
-        ax.scatter(cc_rad_x,cc_rad_y,c="b",marker=".",label="Radial Caustics")
-        ax.scatter(cc_tan_x,cc_tan_y,c="r",marker=".",label="Tangential Caustics")
-        ax.scatter(cl_rad_x,cl_rad_y,c="cyan",marker=".",label="Radial Crit. Curve")
-        ax.scatter(cl_tan_x,cl_tan_y,c="darkorange",marker=".",label="Tangential Crit. Curve")
         
-        #ax.scatter(cc_rad_x_noisy,cc_rad_y_noisy,c="gold",marker=".",label="Radial Caustics noisy")
-        #ax.scatter(cc_tan_x_noisy,cc_tan_y_noisy,c="purple",marker=".",label="Tangential Caustics noisy")
-        ax.scatter(cl_rad_x_noisy,cl_rad_y_noisy,c="lime",marker=".",label="Radial Crit. Curve noisy")
-        ax.scatter(cl_tan_x_noisy,cl_tan_y_noisy,c="peru",marker=".",label="Tangential Crit. Curve noisy")
-        
-        
-        
-        ax.set_xlim(xmin,xmax)
-        ax.set_ylim(ymin,ymax)
-        plt.gca().set_aspect('equal')
-        ax.set_xlabel("RA ['']")
-        ax.set_ylabel("DEC ['']")
-        ax.legend()
-        ax.set_title("Caustics and Critical Curves") 
-        
-        plt.tight_layout()
-        nm = "tmp/del2.png"
-        print(f"Saving {nm}")
-        plt.savefig(nm)
-        """
         return kw_crit
-
-                
-def MAD_mask(values,v0=0,sigma_scale=3):
-    # robust estimator of noise: Median Absolute Deviation    
-    mad = np.median(np.abs(values - np.median(values)))
-
-    sigma = 1.4826 * mad
-
-    mask = np.abs(values-v0) < sigma_scale*sigma   # ~99.7% Gaussian confidence
-    return mask
-
-# optimised w. CGPT:
-def fit_xy_spline(x, y,
-    u=np.linspace(0, 1, 200),
-    n_eval=150,           # points used for error estimation
-    ):
-    # --- angular ordering ---
-    xc = np.median(x)
-    yc = np.median(y)
-    theta = np.arctan2(y - yc, x - xc)
-    order = np.argsort(theta)
-    
-    x_ord = x[order]
-    y_ord = y[order]
-    n = len(x_ord)
-
-    # fixed parameter grid
-    u_fit = np.linspace(0, 1, n, endpoint=False)
-
-    # subsampling indices for error evaluation
-    idx = np.linspace(0, n - 1, n_eval).astype(int)
-    u_sub = u_fit[idx]
-    x_sub = x_ord[idx]
-    y_sub = y_ord[idx]
-
-    # --- coarse search ---
-    s_vals = np.logspace(-5,-1, 12)
-    errs = np.empty(len(s_vals))
-
-    for i, s in enumerate(s_vals):
-        # DEBUG
-        try:
-            tck, _ = splprep(
-                [x_ord, y_ord],
-                s=s * n,
-                per=True,
-                quiet=True
-            )
-        except TypeError as e:
-            print(x_ord,y_ord,s,n)
-            raise TypeError(e)
-        xs, ys = splev(u_sub, tck)
-        errs[i] = np.sum(np.hypot(xs - x_sub, ys - y_sub))
-
-    # --- refine around minimum ---
-    i0 = np.argmin(errs)
-    lo = max(i0 - 1, 0)
-    hi = min(i0 + 1, len(s_vals) - 1)
-
-    s_refined = np.logspace(
-        np.log10(s_vals[lo]),
-        np.log10(s_vals[hi]),
-        10
-    )
-
-    best_err = np.inf
-    best_tck = None
-
-    for s in s_refined:
-        tck, _ = splprep(
-            [x_ord, y_ord],
-            s=s * n,
-            per=True,
-            quiet=True
-        )
-        xs, ys = splev(u_sub, tck)
-        err = np.sum(np.hypot(xs - x_sub, ys - y_sub))
-        if err < best_err:
-            best_err = err
-            best_tck = tck
-
-    # --- final evaluation ---
-    xs, ys = splev(u, best_tck)
-    return xs, ys
-
-#
-# helper funct
-#
-
-def kw_prior2like_zs(kw_prior_z_source,z_lens):
-    """
-    Convert kw_prior_z_source into the kw_like 
-    needed for the Likelihood class for the z_source sampling
-    if kw_prior_z_source does not have the required function, returns None
-    if kw_prior_z_source had "fixed_z_source", fix the z_source
-    """
-    kw_like_zs = None
-    prior_keys = kw_prior_z_source.keys()
-    if "f_lkl_z_source" in prior_keys and "fixed_z_source" in prior_keys:
-        raise RuntimeError("Either sample z_source or fix it")
-    elif "f_lkl_z_source" in prior_keys:
-        kw_like_zs = {}
-        # wrapper funct. to fix the z_lens
-        def like_func_zs(z_source,*args):
-            f_lkl_pr = kw_prior_z_source["f_lkl_z_source"]
-            return f_lkl_pr(z_source=z_source,z_lens=z_lens,*args)
-        kw_like_zs["like_func"] = like_func_zs
-        kw_like_zs["like_prms"] = kw_prior_z_source.get("prms_lkl_z_source",[]) 
-        return kw_like_zs
-    elif "fixed_z_source" in prior_keys:
-        def lkl(zs,*args):
-            return 0 
-        kw_like_zs = {"fixed":kw_prior_z_source["fixed_z_source"]}
-    return kw_like_zs
-        
-
-# we override the standard loading function to recompute some large dataset that
-# are deleted to save space
-def LoadLens(LnsCl,verbose=True):
-    LnsCl = LoadClass(LnsCl,verbose=verbose)
-    # has to consider the possibility it failed to load
-    if LnsCl: 
-        # recompute deleted components
-        LnsCl.unpack()
-    return LnsCl
-    
-def ReadLens(aClass,verbose=True):
-    return LoadLens(aClass.pkl_path,verbose=verbose)
-
-
-# monkey-patch for compatibility reason with previous versions:
-#Lens_PART = LensPart
-
-def get_extents(arcXkpc,Model=None,_radec=None):
-    """Returns the extent of the image in various units
-    """
-    if _radec is None:
-        _radec = Model.imageModel.ImageNumerics.coordinates_evaluate #arcsecs 
-    _ra,_dec = _radec
-    RA,DEC   = util.array2image(_ra),util.array2image(_dec)
-    ra0,dec0 = RA[0]*u.arcsec,DEC.T[0]*u.arcsec # center of the bin
-
-    Dra0  = np.diff(ra0)  
-    Ddec0 = np.diff(dec0)
-
-    ra_edges  = np.hstack([ra0[0]-(Dra0[0]/2.),ra0[1:]-(Dra0/2.),ra0[-1]+.5*Dra0[-1]])
-    dec_edges = np.hstack([dec0[0]-(Ddec0[0]/2.),dec0[1:]-(Ddec0/2.),dec0[-1]+.5*Ddec0[-1]])
-    
-    Dra01   = np.diff(ra_edges) 
-    # ugly, could be cleaner-> but after all it's constant so 
-    Ddec01  = np.diff(dec_edges)
-
-    # in kpc:
-    xmin = ra_edges[0]/arcXkpc
-    xmax = ra_edges[-1]/arcXkpc
-    ymin = dec_edges[0]/arcXkpc
-    ymax = dec_edges[-1]/arcXkpc
-
-    extent_kpc    = [xmin.value, xmax.value,ymin.value, ymax.value] #kpc
-    extent_arcsec = [ra_edges[0].value, ra_edges[-1].value,dec_edges[0].value, dec_edges[-1].value] #arcsec
-    bins_arcsec   = [ra_edges,dec_edges]
-    kw_extents = {"extent_kpc":extent_kpc,
-              "extent_arcsec":extent_arcsec,
-              "bins_arcsec":bins_arcsec,
-              "DRaDec":[Dra01,Ddec01]}
-    return kw_extents
-
-# get a lens no matter what:
-def wrapper_get_rnd_lens(reload=True,
-                        kw_lenspart={}):
-    """Try to get a lens from random galaxies, repeat until finds one
-    which is an actual lens (i.e. supercritical)
-    """
-    
-    default_kw_lenspart={"kwlens_part":kwlens_part_AS,
-                     "kw_prior_z_source":kw_prior_z_source_minimal,
-                     "kwargs_band_sim":kwargs_band_sim,
-                     "pixel_num":pixel_num,
-                     "reload":reload,
-                     "savedir_sim":default_savedir_sim}
-    kw_lenspart = default_kw_lenspart.update(kw_lenspart)
-    while True:
-        Gal    = get_rnd_PG()
-        mod_LP = LensPart(Galaxy=Gal,
-                          **kw_lenspart)
-        try:
-            mod_LP.run()
-            break
-        except ProjectionError as PE:
-            print("This galaxy failed: ",PE,"\n","Trying different galaxy")
-            pass
-    return mod_LP
-
 
 if __name__ == "__main__":
     print("Do not run this script, but test_generate_particle_lens.py")

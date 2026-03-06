@@ -19,10 +19,10 @@ from scipy.interpolate import interp1d
 from python_tools.get_res import load_whatever
 from python_tools.tools import mkdir,to_dimless,ensure_unit,short_SciNot
 
+from nazgul.pathfinder import get_proj_dir_from_galdir
 from nazgul.lib_cosmo import SigCrit,DsDds
 from nazgul.AMR2D_PLL import AMR_density_PLL
 from nazgul.particle_galaxy import Gal2kwMXYZ,get_CM
-
 # standard directory 
 dir_name     = "Projection"
 
@@ -31,8 +31,7 @@ dir_name     = "Projection"
 class ProjGal:
     def __init__(self,Gal,proj_dir_name=dir_name):
         self._gal = Gal
-        self.proj_dir_name = f"{proj_dir_name}_{Gal.Name}"
-        self.proj_dir = Path(Gal.gal_snap_dir)/self.proj_dir_name 
+        self.proj_dir      = get_proj_dir_from_galdir(Gal.gal_dir)
         mkdir(self.proj_dir)
         self.projection_path = self.proj_dir/"projection.pkl"
         
@@ -359,7 +358,7 @@ def _get_min_z_source(cosmo,z_lens,thresh_DsDds,z_source_max,verbose=True):
             name = "tmp/DsDds.pdf"
             fig_dsdds.savefig(name)
             plt.close(fig_dsdds)
-            print("threshold density",short_SciNot(thresh_dens.value))
+            print("threshold density",short_SciNot(thresh_DsDds))
             print(f"Saved {name}")
         return np.nan
     else:

@@ -23,8 +23,8 @@ class Likelihood():
             return -1e18 
         like = 1
         if self.kw_like is not None:
-            f     = kw_like["like_func"]
-            prms  = kw_like["like_prms"]
+            f     = self.kw_like["like_func"]
+            prms  = self.kw_like["like_prms"]
             like *= f(x,*prms)
         logL = np.log(like)
         return logL
