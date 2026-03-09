@@ -15,7 +15,7 @@ Gal    = PartGal(5,0,
              z=None,snap="20",    # redshift or snap
              M=None,Centre=None,
              reload=True)
-SubLensPart(Gal,
+lens = SubLensPart(Gal,
                  kwlens_part=kwlens_part_AS, # if PM or AS, and if so size of the core
                  pixel_num=pixel_num, # sim prms 
                  kw_prior_z_source = kw_prior_z_source_stnd, # could likelihood of z_source
@@ -23,3 +23,5 @@ SubLensPart(Gal,
                  subdir="./",
                  reload=True # reload previous lens
                  ) 
+
+lens.run()

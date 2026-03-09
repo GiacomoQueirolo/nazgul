@@ -27,7 +27,7 @@ from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # likelihood class
 from nazgul.likelihood import Likelihood
 # project galaxy along various axis
-from nazgul.project_gal import get_2Dkappa_map,ProjGal,projection_main_AMR
+from nazgul.project_gal import get_2Dkappa_map,ProjGal,projection_main_AMR,ProjectionError
 from nazgul.project_gal import Gal2kw_samples
 from nazgul.pathfinder import get_lens_lowdir_from_galdir
 
@@ -61,7 +61,7 @@ class SubLensPart():
         if reload:
             if not self.Gal.is_lens(z_source_max=z_source_max,
                                    min_thetaE=min_thetaE):
-                raise RuntimeError(f"Previously defined as not a lens given z_s,max={z_source_max} and min_thetaE={min_thetaE}")
+                raise ProjectionError(f"Previously defined as not a lens given z_(s, max)={z_source_max} and min_thetaE={min_thetaE}")
 
         self.savedir  = get_lens_lowdir_from_galdir(galdir=self.Gal.gal_dir)
         self.reload   = reload
@@ -132,7 +132,7 @@ class SubLensPart():
         # Large / recomputable lensing structures
         state.pop('kwargs_lens', None)
         state.pop('lens_prof', None)
-        state.pop('grid',None)
+        #state.pop('grid',None)
         # These are reloaded / reconstructed
         state.pop('Gal',None)
         state.pop('PartLens',None)
@@ -294,7 +294,7 @@ class SubLensPart():
         if verbose:
             print("Image radius:",np.round(self.radius,3))
         # setup grid:
-        self.grid
+        #self.grid
         # setup lenses 
         self.setup_lenses()
         # compute all lensing maps 

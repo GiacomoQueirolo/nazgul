@@ -644,7 +644,8 @@ class LensPart(SubLensPart):
 
 # get a lens no matter what:
 def wrapper_get_rnd_lens(reload=True,
-                        kw_lenspart={}):
+                        kw_lenspart={},
+                        kw_galpart={}):
     """Try to get a lens from random galaxies, repeat until finds one
     which is an actual lens (i.e. supercritical)
     """
@@ -657,13 +658,13 @@ def wrapper_get_rnd_lens(reload=True,
     default_kw_lenspart.update(kw_lenspart)
     kw_lenspart = default_kw_lenspart
     while True:
-        Gal    = get_rnd_PG()
-        mod_LP = LensPart(Galaxy=Gal,
-                          **kw_lenspart)
+        Gal    = get_rnd_PG(**kw_galpart)
         try:
+            mod_LP = LensPart(Galaxy=Gal,
+                          **kw_lenspart)
             mod_LP.run()
             break
         except ProjectionError as PE:
-            print("This galaxy failed: ",PE,"\n","Trying different galaxy")
+            print("This galaxy failed:\n# ",PE," #\n","Trying different galaxy")
             pass
     return mod_LP

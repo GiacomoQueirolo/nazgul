@@ -354,7 +354,7 @@ def LoadGal(path,if_fail_recompute=True,verbose=True):
     
 # to simplify the input: given the sim, z, and GnSgn, 
 # we get the mass and center of the galaxy for input of PartGal 
-def get_myCat(Gn,SGn,z,sim,min_mass="1e10",dz=0.05):
+def get_myCat(Gn,SGn,z,sim,min_mass=min_mass,dz=0.05):
     min_z=str(z-0.05)
     max_z=str(z+0.05)
 
@@ -408,7 +408,8 @@ def get_rnd_PG(sim=std_sim,min_mass = min_mass,min_z=min_z,max_z=max_z,
     """Randomly sample a galaxy from the simulation 
     """
 
-    kw_gal   = get_rnd_gal_indexes(sim=sim,min_mass=min_mass,min_z=min_z,max_z=max_z,
+    kw_gal   = get_rnd_gal_indexes(sim=sim,min_mass=min_mass,
+                                   min_z=min_z,max_z=max_z,
                                    check_prev=check_prev,save_pkl=save_pkl)
     z        = kw_gal["z"] 
     M        = kw_gal["M"] 

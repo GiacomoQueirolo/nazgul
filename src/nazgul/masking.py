@@ -1,4 +1,7 @@
+import numpy as np
+from astropy.stats import sigma_clip
 from scipy.ndimage import gaussian_filter
+
 from python_tools.tools import to_dimless
 from python_tools.image_manipulation import mask_in, mask_out
 
@@ -40,6 +43,25 @@ def mask_SEAGLE(lens,image=None,threshold_scale=3,fwhm=.05,sig_clip=3):
     mask[np.where(filt_img<threshold)] = 0
     return mask
 
+def mask_max_dens(lens,image=None,rad=0.15):
+    """
+    mask the densest coord of the lens (~center)
+    """
+    if not image:
+        image = lens.image_sim
+    # by construction recentered around densest point
+    cx,cy = lens.pixel_num/2.,lens.pixel_num/2.
+    # for some reason this might be a bit off -> take the maximum density
+    y,x    = np.where(lens.kappa_map==lens.kappa_map.max())
+    #RA,DEC = lens.get_RADEC()
+    #ra,dec = RA[0][x],DEC[:,0][y]
+    
+    mask = np.ones_like(image)
+    r_mask_in = to_dimless(rad/lens.deltaPix)     #pixel 
+    #mask = mask_in(cx,cy,r_mask_in,mask)
+    mask = mask_in(x,y,r_mask_in,mask)
+    return mask
+    
 def mask_center(lens,image=None,rad=0.15):
     """
     mask the centre of the lens

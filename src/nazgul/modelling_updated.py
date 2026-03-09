@@ -14,7 +14,7 @@ from python_tools.read_fits import load_fits
 from python_tools.tools import mkdir,to_dimless
 
 from nazgul.plot_PL import plot_all
-from nazgul.masking import mask_SEAGLE,mask_center
+from nazgul.masking import mask_SEAGLE,mask_max_dens
 from nazgul.mount_doom.generate_particle_lens_dom import wrapper_get_rnd_lens
 
 lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
@@ -25,6 +25,7 @@ res_dir_base      = Path("./tmp/modelling_sim_lenses/")
 def setup_lens(min_thetaE=.9,reload=True):
 
     lens = wrapper_get_rnd_lens(kw_lenspart={"min_thetaE":min_thetaE},
+                                kw_galpart={"min_mass":3e12},
                                 reload=reload)
 
     res_dir = Path(f"{res_dir_base}/{lens.name}")
@@ -58,13 +59,13 @@ def setup_sim_obs(lens,band_str="HST_F160W",pssf=3):
 def get_kwargs_likelihood(lens,plot_mask=True):
     # masking inner and outer of thetaE -> nope, follow SEAGLE approach
     #image = kwargs_data["image_data"]
-    mask_HD =  mask_SEAGLE(lens)*mask_center(lens)
+    mask_HD =  mask_SEAGLE(lens)*mask_max_dens(lens)
     _lns  = deepcopy(lens)
     _lns.image_sim = multi_band_list[0][0]["image_data"]
     _lns.pixel_num = _lns.image_sim.shape[0]
     # deltapix is now a property - def. by pixel_num
     #_lns.deltaPix  = to_dimless(_lns.radius)*2/_lns.pixel_num
-    mask_LD = mask_SEAGLE(_lns)*mask_center(_lns)
+    mask_LD = mask_SEAGLE(_lns)*mask_max_dens(_lns)
     #DEBUG 
     if plot_mask:
         plt.close()
