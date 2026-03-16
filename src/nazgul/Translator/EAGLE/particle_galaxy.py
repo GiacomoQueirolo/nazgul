@@ -75,11 +75,11 @@ def get_rnd_gal_indexes(sim=std_sim,
     return kw
 
 
-def get_kw_SimPartGal(kw_gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload):
+def get_kw_SimPartGal(kw_Gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload):
     
     assert simsuite==simsuite_name
 
-    return {"kw_gal":kw_gal,"sim":sim,"subsim":subsim}
+    return {"kw_Gal":kw_Gal,"sim":sim,"snap":snap,"z":z,"M":M,"Centre":Centre,"reload":reload}
 
 # index for particle types:
 # gas,dm, stars,bh : 0,1,4,5
@@ -89,8 +89,8 @@ class SimPartGal(BasicPartGal):
     """
     _large_attributes = ["stars","gas","dm","bh"]
     def __init__(self, 
-                 kw_gal,
-                 sim=std_sim, # identity of the galaxy
+                 kw_Gal, # identity of the galaxy: Gn,SGn
+                 sim=std_sim, 
                  data_dir=std_data_dir,
                  z=None,snap=None, # define redshift bin
                  M=None,Centre=None, # these can be recovered
@@ -99,12 +99,12 @@ class SimPartGal(BasicPartGal):
         z,snap        = get_z_snap(z,snap)
         self.snap     = snap
         self.z        = z
-        self.Gn       = kw_gal["Gn"]
-        self.SGn      = kw_gal["SGn"]
+        self.Gn       = kw_Gal["Gn"]
+        self.SGn      = kw_Gal["SGn"]
         # Input Dir:
         self.part_dir = get_part_dir(snap,sim=sim,simsuite=simsuite_name,data_dir=data_dir)
         # Output dir:
-        self.gal_dir  = get_gal_dir(kw_gal=kw_gal,snap=snap,sim=sim,
+        self.gal_dir  = get_gal_dir(kw_gal=kw_Gal,snap=snap,sim=sim,
                                     simsuite=simsuite_name,data_dir=data_dir)# data and simsuite are for now fixed
         # Mass and Centre can be recovered
         kw_MCntr      = get_kwMCntr(self.Gn,self.SGn,z=z,sim=sim)
@@ -136,17 +136,17 @@ class SimPartGal(BasicPartGal):
     def __str__(self):
         str_gal = f"Gal {self.Gn}.{self.SGn}"
         str_gal += f", at z={str(np.round(self.z,3))}/snap={self.snap},"
-        str_gal += f" with \nN={'%.1E'%Decimal(self.N_part)} part.\nof \ntot Mass={'%.1E'%Decimal(self.M)} [M_sun]\n"
+        str_gal += f" with \nN={'%.1E'%Decimal(int(self.N_part))} part.\nof \ntot Mass={'%.1E'%Decimal(float(self.M))} [M_sun]\n"
         str_gal +=f" divided in N \n\
-                Stars:{'%.1E'%Decimal(self.N_stars)}\n\
-                Gas:{'%.1E'%Decimal(self.N_gas)}\n\
-                DM:{'%.1E'%Decimal(self.N_dm)}\n\
-                BH:{'%.1E'%Decimal(self.N_bh)}\n"
+                Stars:{'%.1E'%Decimal(int(self.N_stars))}\n\
+                Gas:{'%.1E'%Decimal(int(self.N_gas))}\n\
+                DM:{'%.1E'%Decimal(int(self.N_dm))}\n\
+                BH:{'%.1E'%Decimal(int(self.N_bh))}\n"
         str_gal +=f"and Mass in \n\
-                    Stars:{'%.1E'%Decimal(self.M_stars)} [M_sun]\n\
-                    Gas:{'%.1E'%Decimal(self.M_gas)} [M_sun]\n\
-                    DM:{'%.1E'%Decimal(self.M_dm)} [M_sun]\n\
-                    BH:{'%.1E'%Decimal(self.M_bh)} [M_sun]\n"
+                    Stars:{'%.1E'%Decimal(float(self.M_stars))} [M_sun]\n\
+                    Gas:{'%.1E'%Decimal(float(self.M_gas))} [M_sun]\n\
+                    DM:{'%.1E'%Decimal(float(self.M_dm))} [M_sun]\n\
+                    BH:{'%.1E'%Decimal(float(self.M_bh))} [M_sun]\n"
         return str_gal 
 
     # ------------------------------------------------------------------
@@ -268,7 +268,7 @@ class SimPartGal(BasicPartGal):
             # Convert to physical/proper
             if data.dtype!=np.int32 and data.dtype!=np.int64:
                 # note: it IS multiply by 1/h (h**hexp)
-                dagal_dirta = np.multiply(data,cgs*(a**aexp)*(h**hexp),dtype='f8')
+                data = np.multiply(data,cgs*(a**aexp)*(h**hexp),dtype='f8')
             kw[att] = data
         #print("self.Gn,self.SGn",self.Gn,self.SGn)
         mask   = np.logical_and(kw["GroupNumber"]==self.Gn,kw["SubGroupNumber"]==self.SGn)
@@ -335,7 +335,9 @@ class SimPartGal(BasicPartGal):
         self.verbose_assert_almost_equal(center_desired,center_desired,decimal=2,msg_title="Centre") 
 
 # this function is a wrapper for convenience - it takes the class itself as input
-def ReadGal(Gal,vebose=True):
+def ReadGal(Gal,verbose=True):
+    if not Path(Gal.dill_path).is_file():
+        return False
     return LoadGal(path=Gal.dill_path,verbose=verbose)
 
 def LoadGal(path,if_fail_recompute=True,verbose=True):
@@ -450,15 +452,6 @@ def Gal2MXYZ(Gal):
     Ys -= Cy
     Zs -= Cz
     return Ms, Xs,Ys,Zs
-
-
-def LoadGal(path,if_fail_recompute=True,verbose=True):
-    # Try loading galaxy - if fail and fail_recompute==True, try recomputing it
-    Gal = LoadClass(path=path,verbose=verbose)
-    if not Gal and if_fail_recompute:
-        kwGal   = gal_path2kwGal(path)
-        Gal     = PartGal(**kwGal)
-    return Gal
 
 # The following should be done in the test_particle_galaxy
 """    

@@ -21,7 +21,7 @@ from python_tools.tools import mkdir,to_dimless,ensure_unit
 # cosmol. params.
 from nazgul.lib_cosmo import SigCrit
 # Get particle from galaxy catalogue
-from nazgul.particle_galaxy import get_rnd_PG,Gal2kwMXYZ,LoadGal
+from nazgul.Translator.translator import get_rnd_PG,Gal2kwMXYZ,LoadGal
 # particle lens class and params.
 from nazgul.particle_lenses import PartLens , PartLensExpanded
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
