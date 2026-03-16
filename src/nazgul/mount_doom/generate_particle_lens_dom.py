@@ -30,7 +30,7 @@ from python_tools.tools import mkdir,to_dimless
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # project galaxy along various axis
 from nazgul.project_gal import get_2Dkappa_map,ProjectionError
-from nazgul.particle_galaxy import get_rnd_PG
+from nazgul.Translator.translator import get_rnd_PG
 
 
 from nazgul.mount_doom.generate_particle_lens_sub import SubLensPart

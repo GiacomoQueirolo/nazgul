@@ -88,6 +88,11 @@ def gal_path2kwGal(gal_pkl_path,data_dir=std_data_dir):
     gal_path2kwGal = get_sim_func(simsuite,"gal_path2kwGal")
     kw_gal         = gal_path2kwGal(gal_pkl_path)
     return kw_gal
+
+def get_rnd_PG(simsuite,kw_galpart={}):
+    get_rnd_PG = get_sim_func(simsuite,"get_rnd_SPG")
+    return get_rnd_PG(**kw_galpart)
+
     
 def LoadGal(path,if_fail_recompute=True,verbose=True):
     # Try loading galaxy - if fail and fail_recompute==True, try recomputing it

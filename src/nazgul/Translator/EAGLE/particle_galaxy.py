@@ -399,7 +399,7 @@ def get_kwMCntr(Gn,SGn,sim=std_sim,
                     "Centre":Centre}
     return kwMCntr
 
-def get_rnd_SPG(sim=std_sim,min_mass = min_mass,min_z=min_z,max_z=max_z,
+def get_rnd_SPG(sim=std_sim,min_mass=min_mass,min_z=min_z,max_z=max_z,
                check_prev=True,save_pkl=True):
     """Randomly sample a galaxy from the simulation 
     """

@@ -33,7 +33,6 @@ dependencies:
       - eaglesqltools
       - git+https://github.com/GiacomoQueirolo/python_tools.git 
       - git+https://github.com/GiacomoQueirolo/lenstronomy.git 
-      - git+https://github.com/tcollett/LensPop.git # will need a link in the main dir 
       - git+https://github.com/SWIFTSIM/swiftgalaxy.git@f5006a2fa0f6e5e2c38886d4420815e71fc9d9caa
       - swiftsimio
       - sympy
