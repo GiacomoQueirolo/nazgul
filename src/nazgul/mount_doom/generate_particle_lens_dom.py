@@ -157,7 +157,7 @@ class LensPart(SubLensPart):
         # Image creation
         self.sample_source_pos(update=update_source_pos)
         self.image_sim  = self.get_lensed_image()
-
+        #self.store()
     ########################
     ########################
     @property

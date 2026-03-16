@@ -16,7 +16,7 @@ if LensPop_dir.is_dir() is False or file0.is_file() is False :
     git_path = "https://raw.githubusercontent.com/tcollett/LensPop/master"
     for lett in "a","b","c":
         file_name = "lenses_LSST"+lett+".txt"
-        raw_file  = requests.get(git_path+"/"+file_name)
+        raw_file  = requests.get(git_path+"/"+file_name).text
         with open(LensPop_dir/file_name,"w") as f:
             f.write(raw_file)
     

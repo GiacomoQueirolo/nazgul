@@ -1,13 +1,15 @@
 from pathlib import Path
 from python_tools.tools import mkdir
+from nazgul.Translator import std_simsuite,std_sim,test_sim,tutorial_sim
 """
-New data structure:
+Data structure:
+---------------
 RingBearer
     |_ Sims Suite  (e.g EAGLE)
-        |_ Specific Res. Sim  (e.g RefL0025N0752)
+        |_ Specific Res. Sim  (e.g RefL0025N0752 -> eventual subdirectory if subsim exist, e.g. COLIBRE)
             |_Snapshots   (e.g snap1)                                                  |_ CatGal                   |_CatLens
                 |_GnSgn                                    |_ParticleData                   |_pkl                     |_pkl
-                     |_ Gal |_Proj |_Lens                         |_hdf5
+                     |_ Gal |_Proj |_Lens                         |_hdf5 (link)
                          |     |       |_ Algos
                          |     |            |_ Sub |_Dom
                          |     |_pkl            |     |_pkl
@@ -15,13 +17,9 @@ RingBearer
 """
 
 std_data_dir = Path("./RingBearer")
-from nazgul.Translator import std_simsuite,std_sim,test_sim,tutorial_sim
-
 
 std_simsuite_dir = std_data_dir/std_simsuite # which simulation suite
-std_sim_dir      = std_simsuite_dir/std_sim # which simulation
-
-
+std_sim_dir      = std_simsuite_dir/std_sim  # which simulation
 
 # path to LensPop directory
 LensPop_dir = Path("./LensPop/LensPop")

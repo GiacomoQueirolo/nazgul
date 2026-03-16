@@ -132,7 +132,7 @@ class SimPartGal(BasicPartGal):
         # Returns tuple to identify uniquely this galaxy
         Id = (self.sim,self.snap,self.Name)
         return Id
-
+        
     def __str__(self):
         str_gal = f"Gal {self.Gn}.{self.SGn}"
         str_gal += f", at z={str(np.round(self.z,3))}/snap={self.snap},"
@@ -190,6 +190,8 @@ class SimPartGal(BasicPartGal):
             return False
         # if common attribute, they are overwritten by previous:
         self.__dict__ = {**self.__dict__,**prev_Gal.__dict__}
+        if not getattr(self,"stars",False):
+            self.initialise_parts()
         return True
             
     

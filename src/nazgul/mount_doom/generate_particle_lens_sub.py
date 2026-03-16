@@ -36,9 +36,6 @@ from nazgul.mount_doom.cracks_of_doom import kw_prior_z_source_stnd
 from nazgul.mount_doom.cracks_of_doom import ReadLens
 import nazgul.mount_doom.cracks_of_doom as cod
 
-verbose       = True
-
-
 class SubLensPart(): 
     def __init__(self,
                  Galaxy,      # class instance of PartGal
