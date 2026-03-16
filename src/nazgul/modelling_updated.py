@@ -1,6 +1,8 @@
-import json,dill
+import argparse
 import numpy as np
+import sys,json,dill
 from pathlib import Path
+from corner import corner
 from copy import copy,deepcopy
 from scipy.ndimage import zoom
 import matplotlib.pyplot as plt
@@ -12,23 +14,20 @@ from lenstronomy.SimulationAPI.ObservationConfig.HST import HST
 
 from python_tools.read_fits import load_fits
 from python_tools.tools import mkdir,to_dimless
+from python_tools.get_res import load_whatever
 
 from nazgul.plot_PL import plot_all
 from nazgul.masking import mask_SEAGLE,mask_max_dens
-from nazgul.mount_doom.generate_particle_lens_dom import wrapper_get_rnd_lens
+from nazgul.mount_doom.generate_particle_lens_dom import wrapper_get_rnd_lens,LensPart
 
 lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
 source_model_list = ["SERSIC"]
 res_dir_base      = Path("./tmp/modelling_sim_lenses/")
 
 
-def setup_lens(min_thetaE=.9,reload=True):
-
-    lens = wrapper_get_rnd_lens(kw_lenspart={"min_thetaE":min_thetaE},
-                                kw_galpart={"min_mass":3e12},
-                                reload=reload)
-
+def setup_lens(lens):
     res_dir = Path(f"{res_dir_base}/{lens.name}")
+    lens.model_res_dir = res_dir
     mkdir(res_dir)
     plot_all(lens,skip_caustic=False)
     return lens
@@ -106,7 +105,7 @@ def get_kwargs_likelihood(lens,plot_mask=True):
         cax = divider.append_axes('right', size='5%', pad=0.05)
         fig.colorbar(im0, cax=cax, orientation='vertical')   
         
-        nm = f"{res_dir}/{lens.name}_masked_im.png"
+        nm = f"{lens.model_res_dir}/{lens.name}_masked_im.png"
         print(f"Saving {nm}")
         plt.savefig(nm)
     
@@ -124,7 +123,8 @@ def get_kwargs_likelihood(lens,plot_mask=True):
 def get_kwargs_params(lens):
     # Params:
     # initial guess of non-linear parameters, we chose different starting parameters than the truth #
-    kwargs_lens_init = [{'theta_E': lens.thetaE + np.random.normal(0,.1,1)*lens.thetaE, 
+    tE = lens.thetaE.value
+    kwargs_lens_init = [{'theta_E': tE + np.random.normal(0,.1,1)[0]*tE, 
                     'e1': 0, 'e2': 0, 
                     'gamma': 2., 
                     'center_x': 0., 'center_y': 0},
@@ -151,9 +151,64 @@ def get_kwargs_params(lens):
     
     kwargs_params = {'lens_model': lens_params,
                     'source_model': source_params}
-                    
+    return kwargs_params
+
+
+#PSO
+n_it_std   = 2000
+n_part_std = 300
+#MCMC
+n_burn_std = 200
+n_run_std  = 1000
 if __name__=="__main__":
-    lens = setup_lens()
+    parser = argparse.ArgumentParser(prog=sys.argv[0],description="Simulate and model the lens")
+    parser.add_argument('-rt','--run_type',type=int,dest="run_type",default=0,help= f"""Type of run: 
+        0 = standard, PSO_it = {n_it_std} PSO_prt = {n_part_std} MCMCb = {n_burn_std} MCMCr = {n_run_std}  
+        1 = test run  PSO_it = 3      PSO_prt = 3      MCMCb = 1     MCMCr = 2 
+       (PSO_it: PSO iterations, PSO_prt: PSO particles, MCMCr: MCMC run steps, MCMCb: MCMC burn in steps)\n""")
+    parser.add_argument('-mtE','--min_theta_E',type=float,default=0.7,dest="min_thetaE",
+                        help="Minimum thetaE threshold for the galaxy to be considered a lens (float, e.g. 0.9)")
+    parser.add_argument('-mM','--min_Mass',type=str,default="3e12",dest="min_mass",
+                        help="Minimum mass threshold for the galaxy to be loaded (str, e.g. 3e12)")
+    parser.add_argument('-lp','--lens_path',type=str,default="",dest="lens_path",
+                        help="Path to pre-computed LensPart class instance")
+    
+    args         = parser.parse_args()
+    run_type     = args.run_type
+    min_thetaE   = args.min_thetaE
+    min_mass     = float(args.min_mass)
+    lens_path    = args.lens_path
+
+    if run_type==0:
+        n_iterations = int(n_it_std) #number of iteration of the PSO run
+        n_particles  = int(n_part_std) #number of particles in PSO run
+        n_burn = int(n_burn_std) #MCMC burn in steps
+        n_run  = int(n_run_std) #MCMC total steps 
+    elif run_type ==1:
+        print("Test Run")
+        n_iterations = int(3) #number of iteration of the PSO run
+        n_particles  = int(3) #number of particles in PSO run
+        n_run  = int(2) #MCMC total steps 
+        n_burn = int(1) #MCMC burn in steps
+    else:
+        raise RuntimeError("Give a valid run_type or implement it your own")
+
+    if lens_path=="":
+        lens = wrapper_get_rnd_lens(kw_lenspart={"min_thetaE":min_thetaE},
+                                    kw_galpart={"min_mass":min_mass},
+                                    reload=reload)
+    else:
+        print("Loading lens from \n"+lens_path+"\n")
+        lens = load_whatever(lens_path)
+        lens.run()
+        if "/Sub/" in lens_path:
+            lens = LensPart(lens.Gal)
+            lens.run()
+        if lens.thetaE.value<min_thetaE:
+            raise RuntimeError("Ensure that the thetaE of the input lens is larger than min_thetaE")
+        if lens.Gal.M < min_mass:
+            raise RuntimeError("Ensure that the M of the input lens is larger than min_mass")
+    lens = setup_lens(lens)
     multi_band_list = setup_sim_obs(lens)
     
     # models
@@ -181,9 +236,9 @@ if __name__=="__main__":
     # actual fit:
     from lenstronomy.Workflow.fitting_sequence import FittingSequence
     fitting_seq = FittingSequence(kwargs_data_joint, kwargs_model, kwargs_constraints, kwargs_likelihood, kwargs_params)
-    fitting_kwargs_list = [['PSO', {'sigma_scale': 1., 'n_particles': 50, 'n_iterations': 400}]
+    fitting_kwargs_list = [['PSO', {'sigma_scale': 1., 'n_particles': n_particles, 'n_iterations':n_iterations}]
                       ,
-                       ['MCMC', {'n_burn': 100, 'n_run': 400, 'walkerRatio': 5, 'sigma_scale': .1}]
+                       ['MCMC', {'n_burn': n_burn, 'n_run': n_run, 'walkerRatio': 5, 'sigma_scale': .1}]
         ]
     kw_input = {"kwargs_data_joint":   kwargs_data_joint,
                 "kwargs_model":        kwargs_model, 
@@ -192,7 +247,7 @@ if __name__=="__main__":
                 "kwargs_params":       kwargs_params,
                 "fitting_kwargs_list": fitting_kwargs_list
                }
-    nm_input = f"{res_dir}/kw_input.dll"
+    nm_input = f"{lens.model_res_dir}/kw_input.dll"
     with open(nm_input,"wb") as f:
         dill.dump(kw_input,f)
     print(f"Saving input in kw: {nm_input}")
@@ -200,7 +255,7 @@ if __name__=="__main__":
     chain_list = fitting_seq.fit_sequence(fitting_kwargs_list)
     kwargs_result = fitting_seq.best_fit()
     print("kwargs_result",kwargs_result)
-    nm_res = f"{res_dir}/kw_res.json"
+    nm_res = f"{lens.model_res_dir}/kw_res.json"
     with open(nm_res,"w") as f:
         json.dump(kwargs_result,f)
     print(f"Saving result output in kw:{nm_res}")
@@ -224,7 +279,7 @@ if __name__=="__main__":
     modelPlot.magnification_plot(ax=axes[1, 2], band_index=band_index_plot)
     f.tight_layout()
     f.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0., hspace=0.05)
-    nm = f'{res_dir}/mass_model.pdf'
+    nm = f'{lens.model_res_dir}/mass_model.pdf'
     plt.savefig(nm)
     print(f"Saving {nm}")
     
@@ -236,6 +291,52 @@ if __name__=="__main__":
     f.tight_layout()
     f.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0., hspace=0.05)
     #plt.show()
-    nm = f'{res_dir}/light_model.pdf'
+    nm = f'{lens.model_res_dir}/light_model.pdf'
     plt.savefig(nm)
     print(f"Saving {nm}")
+
+    ### 
+    logL   = modelPlot._imageModel.likelihood_data_given_model(source_marg=False, linear_prior=None, **kwargs_result)
+    n_data = modelPlot._imageModel.num_data_evaluate
+    print(str(-logL * 2 / n_data)+' reduced X^2 of all evaluated imaging data combined\n')
+    print("################################\n")
+
+    #Normalised plot
+    f, axes = plt.subplots(figsize=(10,7))
+    modelPlot.normalized_residual_plot(ax=axes,v_min=-3, v_max=3)
+    nm = f'{lens.model_res_dir}/normalised_residuals.png'
+    plt.savefig(nm)
+    print(f"Saving {nm}")
+    plt.close()
+
+    #Caustics
+    f, axes = plt.subplots(figsize=(10,7))
+    modelPlot.source_plot(ax=axes, deltaPix_source=0.01, numPix=1000, with_caustics=True)
+    f.tight_layout()
+    f.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0., hspace=0.05)
+    nm = f'{lens.model_res_dir}/caustics.png'
+    plt.savefig(nm)
+    print(f"Saving {nm}")
+    plt.close()
+
+    f, axes = plt.subplots(figsize=(10,7))
+    modelPlot.decomposition_plot(ax=axes, text='Point source position', source_add=False, \
+                    lens_light_add=False, point_source_add=True, v_min=-1, v_max=1)
+    nm = f'{lens.model_res_dir}/point_source_position.png'
+    plt.savefig(nm)
+    print(f"Saving {nm}")
+    plt.close()
+
+    
+    if run_type!=1:
+        sampler_type, mc_sample, param_mcmc, mc_logL  = chain_list[-1]
+        chnl_path = f'{lens.model_res_dir}/chain_list.dll'
+        with open(chnl_path,"wb") as f:
+            dill.dump(chnl_path,f)
+        print(f"Saving {chnl_path}")
+        corner(mc_sample,labels=param_mcm,show_titles=True,plot_datapoints=False,hist_kwargs= {"density":True})
+        nm = f'{lens.model_res_dir}/mcmc_post.pdf'
+        plt.savefig(nm)
+        print(f"Saving {nm}")
+        plt.close()
+        

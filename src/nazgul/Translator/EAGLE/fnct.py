@@ -106,7 +106,7 @@ def get_partfiles(sim=std_sim,simsuite=std_simsuite,data_dir=std_data_dir,
     files = glob.glob(str(file_string))
     # checking that the files are not empty
     if files == []:
-        raise RuntimeError(f"Files not found:{file_string}")
+        raise RuntimeError(f"Files not found: {file_string}")
     return files
 
 

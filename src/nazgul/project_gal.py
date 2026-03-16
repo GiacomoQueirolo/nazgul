@@ -20,14 +20,15 @@ from python_tools.get_res import load_whatever
 from python_tools.tools import mkdir,to_dimless,ensure_unit,short_SciNot
 
 from nazgul.pathfinder import get_proj_dir_from_galdir
+from nazgul.pathfinder import nm_proj_dir as dir_name
 from nazgul.lib_cosmo import SigCrit,DsDds
 from nazgul.AMR2D_PLL import AMR_density_PLL
-from nazgul.particle_galaxy import Gal2kwMXYZ,get_CM
+#from nazgul.particle_galaxy import Gal2kwMXYZ,get_CM
+from nazgul.Translator.translator import Gal2kwMXYZ,get_CM
 # standard directory 
-dir_name     = "Projection"
-
 # Wrapper class of PartGal that extend it to
 # deal with the projection components
+
 class ProjGal:
     def __init__(self,Gal,proj_dir_name=dir_name):
         self._gal = Gal

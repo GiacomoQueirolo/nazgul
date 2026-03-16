@@ -3,7 +3,6 @@
 Define the galaxy class PartGal (storing all particle data), as well as related helper functions, e.g. to sample galaxies 
 """
 
-import os
 import glob
 import dill
 import h5py
@@ -19,20 +18,44 @@ from python_tools.get_res import LoadClass
 from python_tools.get_res import load_whatever
 from astropy.cosmology import FlatLambdaCDM
 
-from nazgul.get_gal_indexes import get_gals
-from nazgul.get_gal_indexes import get_catpath
+from nazgul.Translator.EAGLE.get_gal_indexes import get_gals
+from nazgul.Translator.EAGLE.get_gal_indexes import get_catpath
+from nazgul.Translator.EAGLE.fnct import _count_part,_mass_part
+from nazgul.Translator.EAGLE.fnct import get_z_snap,read_snap_header
 from nazgul.pathfinder import get_gal_dir,get_part_dir,std_sim,std_simsuite,std_data_dir
-from nazgul.fnct import _count_part,_mass_part
-from nazgul.fnct import get_z_snap,read_snap_header
-# combination btw get_rnd_gal and _get_rnd_gal
-z_source_max = 4
-verbose      = True
-min_z        = 0.02
-max_z        = 2
-# max_z is implicitely =3.53
-min_mass     = 1e12 # Sol Mass
-def get_rnd_gal_indexes(sim=std_sim,min_mass = str(min_mass),min_z=str(min_z),
-                        max_z=str(max_z),check_prev=True,save_pkl=True):
+from nazgul.Translator.EAGLE.fnct import _count_part,_mass_part
+from nazgul.Translator.EAGLE.fnct import get_z_snap,read_snap_header
+
+from nazgul.Translator.translator import min_z,max_z,min_mass
+
+from nazgul.Translator.particle_galaxy import BasicPartGal,clip_coord
+
+from nazgul.Translator.EAGLE.pathfinder import simsuite_name
+
+def gal_path2kwGal(gal_path):
+    """From path extract the ALL required inputs for SimPartGal class
+    """
+    gal_path     = Path(gal_path)
+    kwGal        = {}
+    GnSGn_dir    = gal_path.parent.parent
+    snap_dir     = GnSGn_dir.parent
+    sim_dir      = snap_dir.parent
+    #simsuite_dir = sim_dir.parent
+    _Gn,SGn      = GnSGn_dir.name.split("SGn")
+    Gn           = _Gn.replace("Gn","")
+    snap         = snap_dir.name.replace("snap","")
+    kwGal["Gn"]  = int(Gn)
+    kwGal["SGn"] = int(SGn)
+    kwGal["snap"]= str(snap)
+    kwGal["sim"] = str(sim_dir.name)
+    # M,center not necessary
+    return kwGal
+
+def get_rnd_gal_indexes(sim=std_sim,
+                        min_mass = str(min_mass),
+                        min_z=str(min_z),
+                        max_z=str(max_z),
+                        check_prev=True,save_pkl=True):
     """Given the simulation, the range of redshift and minimum mass required, 
         returns a random galaxy from the simulation
     """
@@ -51,54 +74,40 @@ def get_rnd_gal_indexes(sim=std_sim,min_mass = str(min_mass),min_z=str(min_z),
             kw[k] = data[k][rnd_i]
     return kw
 
-# from path to kw of Gal
-def gal_path2kwGal(gal_pkl_path):
-    """From path extract the required inputs for PartGal class
-    """
-    gal_pkl_path = Path(gal_pkl_path)
-    kw_gal       = {}
-    GnSGn_dir    = gal_pkl_path.parent.parent
-    snap_dir     = GnSGn_dir.parent
-    sim_dir      = snap_dir.parent
-    #simsuite_dir = sim_dir.parent
-    _Gn,SGn      = GnSGn_dir.name.split("SGn")
-    Gn           = _Gn.replace("Gn","")
-    snap         = snap_dir.name.replace("snap","")
-    kw_gal["Gn"]   = int(Gn)
-    kw_gal["SGn"]  = int(SGn)
-    kw_gal["snap"] = str(snap)
-    kw_gal["sim"]  = str(sim_dir.name)
-    # M,center not necessary
-    return kw_gal
+
+def get_kw_SimPartGal(kw_gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload):
     
+    assert simsuite==simsuite_name
+
+    return {"kw_gal":kw_gal,"sim":sim,"subsim":subsim}
+
 # index for particle types:
 # gas,dm, stars,bh : 0,1,4,5
-
-class PartGal:
+class SimPartGal(BasicPartGal):
     """Given the simulation, snap (or z) and galaxy numbers, set up a class
     with all the needed particle properties converted in physical units
     """
+    _large_attributes = ["stars","gas","dm","bh"]
     def __init__(self, 
-                 Gn, SGn,sim=std_sim, # identity of the galaxy
-                 simsuite=std_simsuite,data_dir=std_data_dir,
-                 z=None,snap=None,    # redshift or snap
+                 kw_gal,
+                 sim=std_sim, # identity of the galaxy
+                 data_dir=std_data_dir,
+                 z=None,snap=None, # define redshift bin
                  M=None,Centre=None, # these can be recovered
                  reload=True):    # set to false only for debug
         self.sim      = sim
         z,snap        = get_z_snap(z,snap)
         self.snap     = snap
         self.z        = z
-        self.Gn       = Gn
-        self.SGn      = SGn
-        #Note: this is unique only within the snap
-        self.Name     = f"Gn{self.Gn}SGn{self.SGn}" 
+        self.Gn       = kw_gal["Gn"]
+        self.SGn      = kw_gal["SGn"]
         # Input Dir:
-        self.part_dir = get_part_dir(snap,sim=sim,simsuite=simsuite,data_dir=data_dir)
+        self.part_dir = get_part_dir(snap,sim=sim,simsuite=simsuite_name,data_dir=data_dir)
         # Output dir:
-        self.gal_dir  = get_gal_dir(Gn=Gn,SGn=SGn,snap=snap,sim=sim,
-                                    simsuite=simsuite,data_dir=data_dir)# data and simsuite are for now fixed
+        self.gal_dir  = get_gal_dir(kw_gal=kw_gal,snap=snap,sim=sim,
+                                    simsuite=simsuite_name,data_dir=data_dir)# data and simsuite are for now fixed
         # Mass and Centre can be recovered
-        kw_MCntr      = get_kwMCntr(Gn,SGn,z=z,sim=sim)
+        kw_MCntr      = get_kwMCntr(self.Gn,self.SGn,z=z,sim=sim)
         _M            = kw_MCntr["M"]
         _Centre       = kw_MCntr["Centre"]
         if M is not None:
@@ -112,34 +121,22 @@ class PartGal:
         # all paths are dealt as properties
         mkdir(self.gal_dir)        
         self.run(reload=reload)
-
     @property
-    def pkl_path(self):
-        """Define pkl path to store the class instance
-        """
-        pkl_path = self.gal_dir/f"{self.Name}.pkl"
-        return pkl_path
-        
+    def Name(self):
+        #Note: this is unique only within the snap
+        return f"Gn{self.Gn}SGn{self.SGn}"
+                
     ### Class Structure ####
     ########################
     def _identity(self):
         # Returns tuple to identify uniquely this galaxy
         Id = (self.sim,self.snap,self.Name)
         return Id
-    
-    def __hash__(self):
-        # simplify the hash method
-        return hash(self._identity())
 
-    def __eq__(self, other):
-        if not isinstance(other, PartGal):
-            return NotImplemented
-        return self._identity() == other._identity()
-        
     def __str__(self):
         str_gal = f"Gal {self.Gn}.{self.SGn}"
         str_gal += f", at z={str(np.round(self.z,3))}/snap={self.snap},"
-        str_gal += f" with \nN={'%.1E'%Decimal(self.N_tot_part)} part.\nof \ntot Mass={'%.1E'%Decimal(self.M_tot)} [M_sun]\n"
+        str_gal += f" with \nN={'%.1E'%Decimal(self.N_part)} part.\nof \ntot Mass={'%.1E'%Decimal(self.M)} [M_sun]\n"
         str_gal +=f" divided in N \n\
                 Stars:{'%.1E'%Decimal(self.N_stars)}\n\
                 Gas:{'%.1E'%Decimal(self.N_gas)}\n\
@@ -151,6 +148,18 @@ class PartGal:
                     DM:{'%.1E'%Decimal(self.M_dm)} [M_sun]\n\
                     BH:{'%.1E'%Decimal(self.M_bh)} [M_sun]\n"
         return str_gal 
+
+    # ------------------------------------------------------------------
+    # Lazy reconstruction logic
+    # ------------------------------------------------------------------
+
+    def _unpack(self):
+        """Reconstruct all attributes that were intentionally removed
+        before serialization.
+        """
+        print("Unpacking class...")
+        self.initialise_parts()
+
     ########################
     ########################
     
@@ -166,8 +175,8 @@ class PartGal:
             # useful to check Center of Mass
             self.xy_propr2comov = self.prop2comov("Coordinates") 
             self.m_propr2comov  = self.prop2comov("Mass") 
+            # actually store the gal
             self.initialise_parts()
-            # works:
             self._count_tot_part()
             self._mass_tot_part()
             self._verify_cnt()
@@ -257,7 +266,7 @@ class PartGal:
             # Convert to physical/proper
             if data.dtype!=np.int32 and data.dtype!=np.int64:
                 # note: it IS multiply by 1/h (h**hexp)
-                data = np.multiply(data,cgs*(a**aexp)*(h**hexp),dtype='f8')
+                dagal_dirta = np.multiply(data,cgs*(a**aexp)*(h**hexp),dtype='f8')
             kw[att] = data
         #print("self.Gn,self.SGn",self.Gn,self.SGn)
         mask   = np.logical_and(kw["GroupNumber"]==self.Gn,kw["SubGroupNumber"]==self.SGn)
@@ -278,8 +287,8 @@ class PartGal:
         self.N_dm       = _count_part(self.dm)
         self.N_stars    = _count_part(self.stars)
         self.N_bh       = _count_part(self.bh)
-        self.N_tot_part =  self.N_gas+self.N_dm+self.N_stars+self.N_bh
-        return self.N_tot_part
+        self.N_part     =  self.N_gas+self.N_dm+self.N_stars+self.N_bh
+        return self.N_part
 
     def _mass_tot_part(self):
         """Count total particle mass and verify it's the same as 
@@ -293,18 +302,7 @@ class PartGal:
         self.M_tot   =  self.M_gas+self.M_dm+self.M_stars +self.M_bh
         self.verbose_assert_almost_equal(float(self.M_tot)/float(self.M),1,decimal=3,msg_title="The summed mass and the expected mass differs")
         return self.M_tot
-        
-    def verbose_assert_almost_equal(self,value1,value2=1,decimal=3,msg_title=None):
-        # a verbose way of giving info if if fails
-        try:
-            np.testing.assert_almost_equal(value1,value2,decimal=decimal)
-        except AssertionError as AssErr:
-            if msg_title:
-                print(msg_title)
-            print("Error for \n"+str(self))
-            raise AssertionError(AssErr)
-        return 0
-        
+                
     def _verify_cnt(self):
         """verify that the center of mass is indeed correct
         """
@@ -333,27 +331,23 @@ class PartGal:
         center_desired = self.centre
         #np.testing.assert_almost_equal(center_desired,center_desired,decimal=2)
         self.verbose_assert_almost_equal(center_desired,center_desired,decimal=2,msg_title="Centre") 
-        
-    def store_gal(self):
-        # store this galaxy
-        with open(self.pkl_path,"wb") as f:
-            dill.dump(self,f)
-        print(f"Saved {self.pkl_path}")
 
 # this function is a wrapper for convenience - it takes the class itself as input
 def ReadGal(Gal,vebose=True):
-    return LoadClass(path=Gal.pkl_path,verbose=verbose)
+    return LoadGal(path=Gal.dill_path,verbose=verbose)
 
 def LoadGal(path,if_fail_recompute=True,verbose=True):
     # Try loading galaxy - if fail and fail_recompute==True, try recomputing it
     Gal = LoadClass(path=path,verbose=verbose)
     if not Gal and if_fail_recompute:
         kwGal   = gal_path2kwGal(path)
-        Gal     = PartGal(**kwGal)
+        Gal     = SimPartGal(**kwGal)
+    if Gal:
+        Gal.unpack()
     return Gal
-    
+
 # to simplify the input: given the sim, z, and GnSgn, 
-# we get the mass and center of the galaxy for input of PartGal 
+# we get the mass and center of the galaxy for input of SimPartGal 
 def get_myCat(Gn,SGn,z,sim,min_mass=min_mass,dz=0.05):
     min_z=str(z-0.05)
     max_z=str(z+0.05)
@@ -362,7 +356,7 @@ def get_myCat(Gn,SGn,z,sim,min_mass=min_mass,dz=0.05):
     cat_path = get_catpath(min_mass=min_mass,\
                            min_z=min_z,max_z=max_z,
                            sim=sim)
-    if os.path.isfile(cat_path):
+    if Path.is_file(cat_path):
         myCat = load_whatever(cat_path)
     else:
         # try all the other
@@ -403,7 +397,7 @@ def get_kwMCntr(Gn,SGn,sim=std_sim,
                     "Centre":Centre}
     return kwMCntr
 
-def get_rnd_PG(sim=std_sim,min_mass = min_mass,min_z=min_z,max_z=max_z,
+def get_rnd_SPG(sim=std_sim,min_mass = min_mass,min_z=min_z,max_z=max_z,
                check_prev=True,save_pkl=True):
     """Randomly sample a galaxy from the simulation 
     """
@@ -415,17 +409,11 @@ def get_rnd_PG(sim=std_sim,min_mass = min_mass,min_z=min_z,max_z=max_z,
     M        = kw_gal["M"] 
     Gn,SGn   = kw_gal["Gn"],kw_gal["SGn"]
     Centre   = np.array([kw_gal["CMx"],kw_gal["CMy"],kw_gal["CMz"]]) 
-    kwGal    = {"z":z,"Gn":Gn,"SGn":SGn,"sim":sim,"M":M,"Centre":Centre}
-    PG       = PartGal(**kwGal)
-    return PG
-
-def clip_coord(m,x,y,z,sigma=10):
-    # clip coordinates outliers
-    mask = np.ones(len(x),dtype=bool)
-    for coord in x,y,z:
-        mask *= np.invert(sigma_clip(coord,sigma=sigma).mask)
-    return m[mask],x[mask],y[mask],z[mask]
     
+    kwGal    = {"z":z,"kw_gal":kw_gal,"sim":sim,"M":M,"Centre":Centre}
+    SPG      = SimPartGal(**kwGal)
+    return SPG
+
 
 def Gal2MXYZ(Gal): 
     """Given the galaxy, return Masses (in Msun) and
@@ -461,28 +449,24 @@ def Gal2MXYZ(Gal):
     Zs -= Cz
     return Ms, Xs,Ys,Zs
 
-def Gal2kwMXYZ(Gal): 
-    Ms, Xs,Ys,Zs = Gal2MXYZ(Gal)
-    return {"Ms":Ms,"Xs":Xs,"Ys":Ys,"Zs":Zs}
-    
-def get_CM(Ms,Xs,Ys,Zs=None):
-    """Get Center of Mass (CM)
-    """
-    X_cm = np.sum(Xs*Ms)/np.sum(Ms)
-    Y_cm = np.sum(Ys*Ms)/np.sum(Ms)
-    if Zs is None:
-        return X_cm,Y_cm
-    else:
-        Z_cm = np.sum(Zs*Ms)/np.sum(Ms)
-        return X_cm,Y_cm,Z_cm
-        
+
+def LoadGal(path,if_fail_recompute=True,verbose=True):
+    # Try loading galaxy - if fail and fail_recompute==True, try recomputing it
+    Gal = LoadClass(path=path,verbose=verbose)
+    if not Gal and if_fail_recompute:
+        kwGal   = gal_path2kwGal(path)
+        Gal     = PartGal(**kwGal)
+    return Gal
+
+# The following should be done in the test_particle_galaxy
+"""    
 # for debug:
 if __name__=="__main__":
-    
-    PG = get_rnd_PG()
+
+    SPG = get_rnd_SPG()
     fig, ax = plt.subplots(3)
     nx = 100
-    for name,part in zip(["stars","dm","gas"],[PG.stars,PG.dm,PG.gas]):
+    for name,part in zip(["stars","dm","gas"],[SPG.stars,SPG.dm,SPG.gas]):
         coords = part["coords"]
         x,y,z  = coords.T
         print(np.std(coords,axis=0))
@@ -498,11 +482,11 @@ if __name__=="__main__":
     plt.savefig(namefig)
     plt.close(fig)
     print(f"Saved {namefig}") 
-    """
+    
     print("Testing dens map")
     from test_proj_part_hist import get_dens_map_rotate_hist
     NG.proj_dir = "./tmp/proj_part"
     mkdir(NG.proj_dir)
     dens_Ms_kpc2,radius,dP,cosmo = get_dens_map_rotate_hist(Gal=NG,pixel_num=100j,
                                                             z_source_max=5,verbose=True,plot=True)
-    """
+"""

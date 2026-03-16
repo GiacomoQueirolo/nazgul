@@ -287,6 +287,9 @@ class LensPart(SubLensPart):
         phi_source     = np.random.uniform(0,2*np.pi)
         ra_source      = rad_source*np.cos(phi_source) 
         dec_source     = rad_source*np.sin(phi_source) 
+        if self.kwargs_source["center_x"]==0 and self.kwargs_source["center_x"]==0 and not update:
+            print("Source position has to be sampled a first time")
+            update=True
         if update:
             self.update_source_position(ra_source,dec_source)
         else:
