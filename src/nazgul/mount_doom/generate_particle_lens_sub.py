@@ -8,6 +8,7 @@ Revolves around the SubLensPart class, plus several helper functions
 """
 
 import dill
+import warnings
 import numpy as np
 from pathlib import Path
 from functools import cached_property 
@@ -20,7 +21,7 @@ from python_tools.tools import mkdir,to_dimless,ensure_unit
 # cosmol. params.
 from nazgul.lib_cosmo import SigCrit
 # Get particle from galaxy catalogue
-from nazgul.Translator.translator import Gal2kwMXYZ,LoadGal
+from nazgul.Translator.translator import LoadGal
 # particle lens class and params.
 from nazgul.particle_lenses import PartLens 
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
@@ -35,6 +36,14 @@ from nazgul.mount_doom.cracks_of_doom import pixel_num,min_thetaE
 from nazgul.mount_doom.cracks_of_doom import kw_prior_z_source_stnd
 from nazgul.mount_doom.cracks_of_doom import ReadLens
 import nazgul.mount_doom.cracks_of_doom as cod
+
+
+
+
+def convert_error_to_warning(exception):
+    warning = RuntimeWarning(*exception.args)
+    warning.with_traceback(exception.__traceback__)
+    return warning
 
 class SubLensPart(): 
     def __init__(self,
@@ -51,7 +60,7 @@ class SubLensPart():
         Galaxy             = ProjGal(Galaxy) 
         # setup of data
         self.Gal           = Galaxy
-        self.Gal_path      = Galaxy.pkl_path
+        self.Gal_path      = Galaxy.dill_path
         self.Gal_name      = Galaxy.Name # must be stored
         z_source_max       = kw_prior_z_source["z_source_max"]
         # if reload, check if Gal is a lens - if it isn't, raise error
@@ -174,7 +183,13 @@ class SubLensPart():
         
         # Rebuild lens model if missing
         if not hasattr(self, "lens_prof"):
-            self.setup_lenses()
+            try:
+                self.setup_lenses()
+            except AttributeError as e:
+                # try ignoring the error
+                warning = convert_error_to_warning(e)
+                warnings.warn(warning)
+                print("Ignoring AttributeError - likely due to a slimmed down galaxy. Could still work...")
 
     def unpack(self):
         """Public wrapper for lazy reconstruction.
@@ -248,12 +263,9 @@ class SubLensPart():
             #######################
             self.create_lens(verbose=verbose)
             
-    def galaxy_projection(self,verbose=True):            
-        # Read particles ONCE
-        # kwargs of Msun, XYZ in kpc (explicitely) centered around Centre of Mass (CM)
-        kw_parts         = Gal2kwMXYZ(self.Gal) 
+    def galaxy_projection(self,verbose=True):          
         # Compute projection
-        kwres_proj_res    = projection_main_AMR(Gal=self.Gal,kw_parts=kw_parts,
+        kwres_proj_res    = projection_main_AMR(Gal=self.Gal,
                                                z_source_max=self.z_source_max,
                                                sample_z_source=self.sample_z_source,
                                                min_thetaE=self.min_thetaE,
@@ -290,8 +302,6 @@ class SubLensPart():
         self.radius    = self.thetaE*scale_tE
         if verbose:
             print("Image radius:",np.round(self.radius,3))
-        # setup grid:
-        #self.grid
         # setup lenses 
         self.setup_lenses()
         # compute all lensing maps 
@@ -319,7 +329,6 @@ class SubLensPart():
         kwLnsPart,LnsProfPart  = self.PartLens.get_lens_PART(samples=samples,Ms=Ms)
         self.kwargs_lens       = kwLnsPart
         self.lens_prof         = LnsProfPart
-        return 0
         
     def sample_z_source(self,z_source_min,z_source_max):
         # this is here to allow modularity 

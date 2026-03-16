@@ -23,7 +23,6 @@ from nazgul.pathfinder import get_proj_dir_from_galdir
 from nazgul.pathfinder import nm_proj_dir as dir_name
 from nazgul.lib_cosmo import SigCrit,DsDds
 from nazgul.AMR2D_PLL import AMR_density_PLL
-#from nazgul.particle_galaxy import Gal2kwMXYZ,get_CM
 from nazgul.Translator.translator import Gal2kwMXYZ,get_CM
 # standard directory 
 # Wrapper class of PartGal that extend it to
@@ -94,7 +93,7 @@ class ProjectionError(Exception):
     def __str__(self):
         return self.message
         
-def projection_main_AMR(Gal,kw_parts,z_source_max,sample_z_source,min_thetaE,
+def projection_main_AMR(Gal,z_source_max,sample_z_source,min_thetaE,
                     arcXkpc=None,verbose=True,reload=True):
     """
     Main projection function:
@@ -129,6 +128,10 @@ def projection_main_AMR(Gal,kw_parts,z_source_max,sample_z_source,min_thetaE,
     # else compute it
     if arcXkpc is None:
         arcXkpc = Gal.cosmo.arcsec_per_kpc_proper(Gal.z)
+  
+    # Read particles ONCE
+    # kwargs of Msun, XYZ in kpc (explicitely) centered around Centre of Mass (CM)
+    kw_parts         = Gal2kwMXYZ(Gal) 
 
     min_thetaE_kpc = min_thetaE/arcXkpc 
     proj_supercrit = False

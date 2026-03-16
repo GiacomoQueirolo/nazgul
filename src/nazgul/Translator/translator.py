@@ -75,19 +75,18 @@ def Gal2kwMXYZ(Gal):
     
 # from path to kw of Gal
 
-def gal_path2simsuite(gal_pkl_path,data_dir=std_data_dir):
-    simsuite       = str(gal_pkl_path).split(f"{data_dir.name}/")[1]
-    simsuite       = sim.replace("/","")
+def gal_path2simsuite(gal_dill_path,data_dir=std_data_dir):
+    simsuite       = Path(gal_dill_path).parts[1]
     return simsuite
     
-def gal_path2kwGal(gal_pkl_path,data_dir=std_data_dir):
+def gal_path2kwGal(gal_dill_path,data_dir=std_data_dir):
     """From path extract the required inputs for PartGal class
     """
-    gal_pkl_path   = Path(gal_pkl_path)
-    simsuite       = gal_path2simsuite(gal_pkl_path,data_dir)
-    gal_path2kwGal = get_sim_func(simsuite,"gal_path2kwGal")
-    kw_gal         = gal_path2kwGal(gal_pkl_path)
-    return kw_gal
+    gal_dill_path   = Path(gal_dill_path)
+    simsuite        = gal_path2simsuite(gal_dill_path,data_dir)
+    gal_path2kwGal  = get_sim_func(simsuite,"gal_path2kwGal")
+    kw_Gal_full     = gal_path2kwGal(gal_dill_path)
+    return kw_Gal_full
 
 def get_rnd_PG(simsuite,kw_galpart={}):
     get_rnd_PG = get_sim_func(simsuite,"get_rnd_SPG")
@@ -98,10 +97,10 @@ def LoadGal(path,if_fail_recompute=True,verbose=True):
     # Try loading galaxy - if fail and fail_recompute==True, try recomputing it
     Gal = LoadClass(path=path,verbose=verbose)
     if not Gal and if_fail_recompute:
-        simsuite   = gal_path2simsuite(gal_pkl_path)
-        kwGal      = gal_path2kwGal(path)
-        SimPartGal = get_sim_func(simsuite,"SimPartGal")
-        Gal        = SimPartGal(**kwGal)
+        print("Recomputing ...")
+        simsuite    = gal_path2simsuite(path)
+        kw_Gal_full = gal_path2kwGal(path)
+        Gal         = PartGal(simsuite=simsuite,**kw_Gal_full)
     return Gal
     
 class PartGal():
@@ -125,14 +124,14 @@ class PartGal():
         self.simsuite     = simsuite
         SimPartGal        = get_sim_func(self.simsuite,"SimPartGal")
         get_kw_SimPartGal = get_sim_func(self.simsuite,"get_kw_SimPartGal")
-        kw_SimPartGal = get_kw_SimPartGal(kw_Gal=kw_Gal,simsuite=simsuite, 
+        kw_SimPartGal     = get_kw_SimPartGal(kw_Gal=kw_Gal,simsuite=simsuite, 
                                           sim=sim,subsim=subsim,
                                           data_dir=data_dir,
                                           z=z,snap=snap,
                                           M=M,Centre=Centre,
                                           reload=reload)
         self._SimPartGal = SimPartGal(**kw_SimPartGal)
-        self._SimPartGal.run(reload=reload)
+        #self._SimPartGal.run(reload=reload)
 
     def __getattr__(self, name):
         return getattr(self._SimPartGal, name)

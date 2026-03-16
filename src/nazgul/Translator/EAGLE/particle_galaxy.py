@@ -36,20 +36,21 @@ def gal_path2kwGal(gal_path):
     """From path extract the ALL required inputs for SimPartGal class
     """
     gal_path     = Path(gal_path)
-    kwGal        = {}
+
     GnSGn_dir    = gal_path.parent.parent
     snap_dir     = GnSGn_dir.parent
     sim_dir      = snap_dir.parent
     #simsuite_dir = sim_dir.parent
     _Gn,SGn      = GnSGn_dir.name.split("SGn")
     Gn           = _Gn.replace("Gn","")
-    snap         = snap_dir.name.replace("snap","")
-    kwGal["Gn"]  = int(Gn)
-    kwGal["SGn"] = int(SGn)
-    kwGal["snap"]= str(snap)
-    kwGal["sim"] = str(sim_dir.name)
+    snap         = snap_dir.name.replace("snap_","").lstrip("0")
+    kw_gal_full  = {}
+    kw_gal_full["kw_Gal"] = {"Gn":int(Gn),
+                             "SGn": int(SGn)}
+    kw_gal_full["snap"]   = str(snap)
+    kw_gal_full["sim"]    = str(sim_dir.name)
     # M,center not necessary
-    return kwGal
+    return kw_gal_full
 
 def get_rnd_gal_indexes(sim=std_sim,
                         min_mass = str(min_mass),
@@ -79,7 +80,7 @@ def get_kw_SimPartGal(kw_Gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload
     
     assert simsuite==simsuite_name
 
-    return {"kw_Gal":kw_Gal,"sim":sim,"snap":snap,"z":z,"M":M,"Centre":Centre,"reload":reload}
+    return {"kw_Gal":kw_Gal,"sim":sim,"snap":snap,"z":z,"M":M,"Centre":Centre}
 
 # index for particle types:
 # gas,dm, stars,bh : 0,1,4,5
@@ -93,8 +94,8 @@ class SimPartGal(BasicPartGal):
                  sim=std_sim, 
                  data_dir=std_data_dir,
                  z=None,snap=None, # define redshift bin
-                 M=None,Centre=None, # these can be recovered
-                 reload=True):    # set to false only for debug
+                 M=None,Centre=None # these can be recovered
+                 ):   
         self.sim      = sim
         z,snap        = get_z_snap(z,snap)
         self.snap     = snap
@@ -120,7 +121,7 @@ class SimPartGal(BasicPartGal):
 
         # all paths are dealt as properties
         mkdir(self.gal_dir)        
-        self.run(reload=reload)
+        #self.run(reload=reload)
     @property
     def Name(self):
         #Note: this is unique only within the snap

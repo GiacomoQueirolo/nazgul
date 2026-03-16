@@ -125,7 +125,7 @@ class LensPartBasic():
         Galaxy             = ProjGal(Galaxy) 
         # setup of data
         self.Gal           = Galaxy
-        self.Gal_path      = Galaxy.pkl_path
+        self.Gal_path      = Galaxy.dill_path
         self.Gal_name      = Galaxy.Name # must be stored
         z_source_max       = kw_prior_z_source["z_source_max"]
         # if reload, check if Gal is a lens - if it isn't, raise error
@@ -332,11 +332,8 @@ class LensPartBasic():
             self.create_lens(verbose=verbose)
             
     def galaxy_projection(self,verbose=True):            
-        # Read particles ONCE
-        # kwargs of Msun, XYZ in kpc (explicitely) centered around Centre of Mass (CM)
-        kw_parts         = Gal2kwMXYZ(self.Gal) 
         # Compute projection
-        kwres_proj_res    = projection_main_AMR(Gal=self.Gal,kw_parts=kw_parts,
+        kwres_proj_res    = projection_main_AMR(Gal=self.Gal,
                                                z_source_max=self.z_source_max,
                                                sample_z_source=self.sample_z_source,
                                                min_thetaE=self.min_thetaE,
