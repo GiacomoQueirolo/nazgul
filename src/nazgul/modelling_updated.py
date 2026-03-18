@@ -196,7 +196,7 @@ if __name__=="__main__":
     if lens_path=="":
         lens = wrapper_get_rnd_lens(kw_lenspart={"min_thetaE":min_thetaE},
                                     kw_galpart={"min_mass":min_mass},
-                                    reload=reload)
+                                    reload=True)
     else:
         print("Loading lens from \n"+lens_path+"\n")
         lens = load_whatever(lens_path)

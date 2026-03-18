@@ -7,17 +7,18 @@ from python_tools.get_res import load_whatever
 
 from nazgul.mount_doom.generate_particle_lens_dom import LensPart
 from nazgul.pathfinder import get_catlensdir
+from nazgul.project_gal import ProjectionError
 actual_lenses= []
 N_actual_lenses= 0
-computed_gals = glob("RingBearer/EAGLE/RefL0025N0752/snap_0??/Gn*SGn*/Sub/Sub_*.pkl")
-N_computed_gals = len(computed_gals)
+computed_sublenses = glob("RingBearer/EAGLE/RefL0025N0752/snap_0??/Gn*SGn*/Sub/Sub_*.pkl")
+N_computed_sublenses = len(computed_sublenses)
 # Study thetaE distribution
 thetaEs = []
 
-for gal in computed_gals:
+for sub_lns in computed_sublenses:
     #Gal = load_whatever(gal)
     
-    ln = load_whatever(gal)
+    ln = load_whatever(sub_lns)
     ln.run()
     try:
         LP  = LensPart(ln.Gal)
@@ -25,15 +26,16 @@ for gal in computed_gals:
         actual_lenses.append(LP.lenspart.pkl_path) # sub-lens
         N_actual_lenses+=1
         thetaEs.append(LP.thetaE.value)
-    except:
+    except ProjectionError as PE:
+        # ignore galaxies which are not lenses
         pass
 print("\n\n")
 print("Actual lenses:"+str(N_actual_lenses))
-print(str(int(N_actual_lenses*100/N_computed_gals))+"% of computed galaxies")
+print(str(int(N_actual_lenses*100/N_computed_sublenses))+"% of computed galaxies")
 catdir = get_catlensdir()
 cat_lens = {"lens_path":actual_lenses,
             "thetaE":thetaEs,
-            "gal_path":computed_gals}
+            "gal_path":computed_sublenses}
 cat_file = catdir/"LensCat.pkl"
 with open(cat_file,"wb") as f:
     dill.dump(cat_lens,f)

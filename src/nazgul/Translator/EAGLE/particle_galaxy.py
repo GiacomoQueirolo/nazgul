@@ -412,10 +412,10 @@ def get_rnd_SPG(sim=std_sim,min_mass=min_mass,min_z=min_z,max_z=max_z,
                                    check_prev=check_prev,save_pkl=save_pkl)
     z        = kw_gal["z"] 
     M        = kw_gal["M"] 
-    Gn,SGn   = kw_gal["Gn"],kw_gal["SGn"]
+    kw_Gal   = {"Gn":kw_gal["Gn"],"SGn":kw_gal["SGn"]}
     Centre   = np.array([kw_gal["CMx"],kw_gal["CMy"],kw_gal["CMz"]]) 
     
-    kwGal    = {"z":z,"kw_gal":kw_gal,"sim":sim,"M":M,"Centre":Centre}
+    kwGal    = {"z":z,"kw_Gal":kw_Gal,"sim":sim,"M":M,"Centre":Centre}
     SPG      = SimPartGal(**kwGal)
     return SPG
 

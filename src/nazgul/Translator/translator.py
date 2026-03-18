@@ -65,6 +65,7 @@ def get_z_snap(simsuite,z=None,snap=None):
     return get_z_snap(z=z,snap=snap)
 
 def Gal2MXYZ(Gal):
+    Gal.run()
     simsuite = Gal.simsuite
     Gal2MXYZ = get_sim_func(simsuite,"Gal2MXYZ")
     return Gal2MXYZ(Gal) 
@@ -88,10 +89,11 @@ def gal_path2kwGal(gal_dill_path,data_dir=std_data_dir):
     kw_Gal_full     = gal_path2kwGal(gal_dill_path)
     return kw_Gal_full
 
-def get_rnd_PG(simsuite,kw_galpart={}):
-    get_rnd_PG = get_sim_func(simsuite,"get_rnd_SPG")
-    return get_rnd_PG(**kw_galpart)
-
+def get_rnd_PG(simsuite,**kw_galpart):
+    get_rnd_SPG = get_sim_func(simsuite,"get_rnd_SPG")
+    SPG = get_rnd_SPG(**kw_galpart)
+    PG  = SPG2PG(simsuite,SPG)
+    return PG
     
 def LoadGal(path,if_fail_recompute=True,verbose=True):
     # Try loading galaxy - if fail and fail_recompute==True, try recomputing it
@@ -102,7 +104,10 @@ def LoadGal(path,if_fail_recompute=True,verbose=True):
         kw_Gal_full = gal_path2kwGal(path)
         Gal         = PartGal(simsuite=simsuite,**kw_Gal_full)
     return Gal
-    
+
+def SPG2PG(simsuite,SPG):
+    return PartGal.from_SimPartGal(simsuite=simsuite,SPG=SPG)
+
 class PartGal():
     """Given the simulation, snap (or z) and galaxy numbers, set up a class
     with all the needed particle properties converted in physical units
@@ -133,8 +138,19 @@ class PartGal():
         self._SimPartGal = SimPartGal(**kw_SimPartGal)
         #self._SimPartGal.run(reload=reload)
 
+    @classmethod
+    def from_SimPartGal(cls, simsuite, SPG):
+        """Construct from an existing SimPartGal instance."""
+        obj = cls.__new__(cls)  # bypass __init__
+        obj.simsuite = simsuite
+        obj._SimPartGal = SPG
+        return obj
+
     def __getattr__(self, name):
-        return getattr(self._SimPartGal, name)
+        try:
+            return getattr(self._SimPartGal, name)
+        except AttributeError:
+            raise AttributeError(f"{type(self).__name__} has no attribute {name}")
 """
         self.sim      = sim
         self.subsim   = subsim

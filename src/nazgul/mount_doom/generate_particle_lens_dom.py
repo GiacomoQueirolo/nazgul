@@ -31,7 +31,7 @@ from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # project galaxy along various axis
 from nazgul.project_gal import get_2Dkappa_map,ProjectionError
 from nazgul.Translator.translator import get_rnd_PG
-
+from nazgul.Translator import std_simsuite
 
 from nazgul.mount_doom.generate_particle_lens_sub import SubLensPart
 from nazgul.mount_doom.cracks_of_doom import pixel_num,min_thetaE
@@ -660,8 +660,12 @@ def wrapper_get_rnd_lens(reload=True,
                      "reload":reload}
     default_kw_lenspart.update(kw_lenspart)
     kw_lenspart = default_kw_lenspart
+    default_kw_galpart={"simsuite":std_simsuite}
+    default_kw_galpart.update(kw_galpart)
+    kw_galpart = default_kw_galpart
     while True:
-        Gal    = get_rnd_PG(**kw_galpart)
+        Gal = get_rnd_PG(**kw_galpart)
+        Gal.run()
         try:
             mod_LP = LensPart(Galaxy=Gal,
                           **kw_lenspart)

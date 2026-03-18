@@ -195,7 +195,7 @@ class SimPartGal(BasicPartGal):
         if not upload_successful:
             self.swift_gal
             self.initialise_parts()
-        self.store_gal()
+            self.store_gal()
 # this function is a wrapper for convenience - it takes the class itself as input
 def ReadGal(Gal,verbose=True):
     if not Path(Gal.dill_path).is_file():
