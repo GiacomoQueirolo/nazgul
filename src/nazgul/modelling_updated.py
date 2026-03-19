@@ -263,7 +263,10 @@ if __name__=="__main__":
     print(kwargs_result)
     # we need to extract the updated multi_band_list object since the coordinate shifts were updated in the kwargs_data portions of it
     multi_band_list_out = fitting_seq.multi_band_list
-    
+    nm_mblo = f"{lens.model_res_dir}/multi_band_list_out.json"
+    with open(nm_mblo,"w") as f:
+        json.dump(multi_band_list_out,f)
+        
     modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
                           arrow_size=0.02, cmap_string="gist_heat",
                           image_likelihood_mask_list=kwargs_likelihood["image_likelihood_mask_list"])
@@ -294,9 +297,13 @@ if __name__=="__main__":
     nm = f'{lens.model_res_dir}/light_model.pdf'
     plt.savefig(nm)
     print(f"Saving {nm}")
-
+    
+    kwargs_result_wo_tracer = deepcopy(kwargs_result)
+    for k in kwargs_result_wo_tracer.keys():
+        if "tracer" in str(k):
+            del kwargs_result_wo_tracer[k]
     ### 
-    logL   = modelPlot._imageModel.likelihood_data_given_model(source_marg=False, linear_prior=None, **kwargs_result)
+    logL   = modelPlot._imageModel.likelihood_data_given_model(source_marg=False, linear_prior=None, **kwargs_result_wo_tracer)
     n_data = modelPlot._imageModel.num_data_evaluate
     print(str(-logL * 2 / n_data)+' reduced X^2 of all evaluated imaging data combined\n')
     print("################################\n")
