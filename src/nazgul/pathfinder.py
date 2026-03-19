@@ -15,15 +15,15 @@ RingBearer
                          |     |_pkl            |     |_pkl
                          |_pkl                  |_pkl
 """
+path_nazgul = Path(__file__).parent
 
-std_data_dir = Path("./RingBearer")
+std_data_dir = path_nazgul/"RingBearer"
 
 std_simsuite_dir = std_data_dir/std_simsuite # which simulation suite
 std_sim_dir      = std_simsuite_dir/std_sim  # which simulation
 
 # path to LensPop directory
-LensPop_dir = Path("./LensPop/LensPop")
-
+LensPop_dir = path_nazgul/"LensPop/LensPop"
 def get_simsuite_dir(simsuite=std_simsuite,data_dir=std_data_dir):
     data_dir     = Path(data_dir)
     simsuite_dir = data_dir/simsuite # which simulation suite

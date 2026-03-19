@@ -11,7 +11,7 @@ from pathlib import Path
 from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass,load_whatever
 
-from nazgul.pathfinder import get_gal_dir
+from nazgul.pathfinder import get_gal_dir,path_nazgul
 from nazgul.Translator.particle_galaxy import BasicPartGal
 from nazgul.Translator.COLIBRE.pathfinder import simsuite_name
 from nazgul.Translator.COLIBRE.get_Gal import get_swiftgal,get_snap,get_z_snap
@@ -204,7 +204,7 @@ def ReadGal(Gal,verbose=True):
 
 def LoadGal(path,if_fail_recompute=True,verbose=True):
     # Try loading galaxy - if fail and fail_recompute==True, try recomputing it
-    Gal = LoadClass(path=path,verbose=verbose)
+    Gal = LoadClass(path=path,verbose=verbose,path_base=path_nazgul)
     if not Gal and if_fail_recompute:
         full_kwgal = gal_path2kwGal(path)
         Gal        = SimPartGal(**full_kwgal)

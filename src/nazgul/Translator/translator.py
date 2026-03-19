@@ -6,7 +6,7 @@ from importlib import import_module
 from python_tools.get_res import LoadClass
 from python_tools.get_res import load_whatever
 
-from nazgul.pathfinder import std_data_dir
+from nazgul.pathfinder import std_data_dir,path_nazgul
 # allowed simulations suites
 from nazgul.Translator import SimSuiteNames
 from nazgul.Translator import std_simsuite,std_sim,min_z,max_z,min_mass
@@ -97,12 +97,15 @@ def get_rnd_PG(simsuite,**kw_galpart):
     
 def LoadGal(path,if_fail_recompute=True,verbose=True):
     # Try loading galaxy - if fail and fail_recompute==True, try recomputing it
-    Gal = LoadClass(path=path,verbose=verbose)
+    Gal = LoadClass(path=path,verbose=verbose,path_base=path_nazgul)
     if not Gal and if_fail_recompute:
-        print("Recomputing ...")
+        if verbose:
+            print("Recomputing ...")
         simsuite    = gal_path2simsuite(path)
         kw_Gal_full = gal_path2kwGal(path)
         Gal         = PartGal(simsuite=simsuite,**kw_Gal_full)
+        if verbose:
+            print("... done computing")
     return Gal
 
 def SPG2PG(simsuite,SPG):

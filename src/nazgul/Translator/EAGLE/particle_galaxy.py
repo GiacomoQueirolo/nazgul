@@ -22,7 +22,7 @@ from nazgul.Translator.EAGLE.get_gal_indexes import get_gals
 from nazgul.Translator.EAGLE.get_gal_indexes import get_catpath
 from nazgul.Translator.EAGLE.fnct import _count_part,_mass_part
 from nazgul.Translator.EAGLE.fnct import get_z_snap,read_snap_header
-from nazgul.pathfinder import get_gal_dir,get_part_dir,std_sim,std_simsuite,std_data_dir
+from nazgul.pathfinder import get_gal_dir,get_part_dir,std_sim,std_simsuite,std_data_dir,path_nazgul
 from nazgul.Translator.EAGLE.fnct import _count_part,_mass_part
 from nazgul.Translator.EAGLE.fnct import get_z_snap,read_snap_header
 
@@ -343,7 +343,7 @@ def ReadGal(Gal,verbose=True):
 
 def LoadGal(path,if_fail_recompute=True,verbose=True):
     # Try loading galaxy - if fail and fail_recompute==True, try recomputing it
-    Gal = LoadClass(path=path,verbose=verbose)
+    Gal = LoadClass(path=path,verbose=verbose,path_base=path_nazgul)
     if not Gal and if_fail_recompute:
         kwGal   = gal_path2kwGal(path)
         Gal     = SimPartGal(**kwGal)

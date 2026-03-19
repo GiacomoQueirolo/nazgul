@@ -10,6 +10,8 @@ from astropy.stats import sigma_clip
 from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass
 
+from nazgul.pathfinder import path_nazgul
+
 class BasicPartGal:
     """Given the simulation, snap (or z) and galaxy numbers, set up a class
     with all the needed particle properties converted in physical units
@@ -130,7 +132,7 @@ class BasicPartGal:
         
 # this function is a wrapper for convenience - it takes the class itself as input
 def ReadGal(Gal,vebose=True):
-    return LoadClass(path=Gal.dill_path,verbose=verbose)
+    return LoadClass(path=Gal.dill_path,verbose=verbose,path_base=path_nazgul)
 
 def clip_coord(m,x,y,z,sigma=10):
     # clip coordinates outliers
