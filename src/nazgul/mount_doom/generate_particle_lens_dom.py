@@ -231,8 +231,7 @@ class LensPart(SubLensPart):
         #print("profile_kwargs_list",profile_kwargs_list)
         print("z_lens",self.z_lens)
         print("z_source",self.z_source)
-        print("DEBUG \nprofile_kwargs_list[lenspart].Gal_path",self.lenspart.Gal_path)
-        self.lens_model        = LensModel(lens_model_list=lens_model_list,
+        self.lens_model = LensModel(lens_model_list=lens_model_list,
                                            profile_kwargs_list = profile_kwargs_list,
                                            **self.kwargs_lensmodel)
         print("... Lensing parameters set up ")

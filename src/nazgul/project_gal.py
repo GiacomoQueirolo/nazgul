@@ -16,10 +16,10 @@ import astropy.units as u
 import astropy.constants as const
 from scipy.interpolate import interp1d
 
-from python_tools.get_res import load_whatever
+from python_tools.get_res import load_whatever,get_path_str
 from python_tools.tools import mkdir,to_dimless,ensure_unit,short_SciNot
 
-from nazgul.pathfinder import get_proj_dir_from_galdir
+from nazgul.pathfinder import get_proj_dir_from_galdir,path_nazgul
 from nazgul.pathfinder import nm_proj_dir as dir_name
 from nazgul.lib_cosmo import SigCrit,DsDds
 from nazgul.AMR2D_PLL import AMR_density_PLL
@@ -118,7 +118,7 @@ def projection_main_AMR(Gal,z_source_max,sample_z_source,min_thetaE,
     if reload:
         try:
             kw_proj_res = load_whatever(Gal.projection_path)
-            print(f"Found and loaded projection from : {Gal.projection_path}")
+            print(f"Found and loaded projection from : {get_path_str(Gal.projection_path,path_nazgul)}")
             return kw_proj_res
         except Exception as e :
             if verbose:

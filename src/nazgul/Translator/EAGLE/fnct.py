@@ -13,13 +13,13 @@ from python_tools.get_res import load_whatever
 from python_tools.tools import mkdir,to_dimless
 
 from nazgul.pathfinder import get_part_dir,get_sim_dir,std_sim,std_simsuite,std_data_dir
-from nazgul.pathfinder import std_sim,test_sim,tutorial_sim
+from nazgul.pathfinder import std_sim,test_sim,tutorial_sim,path_nazgul
 #########
 # Setup # 
 #########
 
 # ./tmp will be a collector of intermediate, mildly useful plots/results, with the advantage of being easily accessible
-mkdir("./tmp")
+mkdir(str(path_nazgul/"tmp"))
 
 # from https://dataweb.cosma.dur.ac.uk:8443/eagle-snapshots/
 # valid fo all sims apart the variable IMF runs
