@@ -16,8 +16,9 @@ from functools import cached_property
 import astropy.units as u
 from lenstronomy.Util.util import array2image,make_grid
 #from lenstronomy.ImSim.Numerics.grid import RegularGrid
+
 # My libs
-from python_tools.tools import mkdir,to_dimless,ensure_unit
+from python_tools.tools import mkdir,to_dimless,ensure_unit,convert_error_to_warning
 # cosmol. params.
 from nazgul.lib_cosmo import SigCrit
 # Get particle from galaxy catalogue
@@ -39,11 +40,6 @@ import nazgul.mount_doom.cracks_of_doom as cod
 
 
 
-
-def convert_error_to_warning(exception):
-    warning = RuntimeWarning(*exception.args)
-    warning.with_traceback(exception.__traceback__)
-    return warning
 
 class SubLensPart(): 
     def __init__(self,
@@ -170,6 +166,8 @@ class SubLensPart():
         """
         print("Unpacking class...")
         # reload Galaxy and cosmology
+        print("self.pkl_path",self.pkl_path)
+        print("(self.Gal_path):",self.Gal_path)
         Galaxy   = LoadGal(self.Gal_path)
         Galaxy   = ProjGal(Galaxy)
         self.Gal = Galaxy
@@ -180,16 +178,15 @@ class SubLensPart():
         # re-define PartLens
         self.PartLens = PartLens(self.kwlens_part)
         self.PartLens.setup(self)
-        
         # Rebuild lens model if missing
         if not hasattr(self, "lens_prof"):
             try:
                 self.setup_lenses()
-            except AttributeError as e:
-                # try ignoring the error
+            except Exception as e:
                 warning = convert_error_to_warning(e)
                 warnings.warn(warning)
-                print("Ignoring AttributeError - likely due to a slimmed down galaxy. Could still work...")
+                print("Ignoring Error - likely due to a slimmed down galaxy. Could still work")
+        print("... unpacked")
 
     def unpack(self):
         """Public wrapper for lazy reconstruction.
@@ -329,7 +326,7 @@ class SubLensPart():
         kwLnsPart,LnsProfPart  = self.PartLens.get_lens_PART(samples=samples,Ms=Ms)
         self.kwargs_lens       = kwLnsPart
         self.lens_prof         = LnsProfPart
-        
+        print("... Lensing params set up")
     def sample_z_source(self,z_source_min,z_source_max):
         # this is here to allow modularity 
         if self.kw_like_zs is None:

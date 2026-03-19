@@ -25,7 +25,7 @@ from lenstronomy.ImSim.image_model import ImageModel
 from lenstronomy.SimulationAPI.sim_api import SimAPI
 from lenstronomy.LensModel.lens_model import LensModel
 # My libs
-from python_tools.tools import mkdir,to_dimless
+from python_tools.tools import mkdir,to_dimless,convert_error_to_warning
 # particle lens class and params.
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # project galaxy along various axis
@@ -74,10 +74,12 @@ class LensPart(SubLensPart):
         kw_sublenspart = {"Galaxy":Galaxy,"kwlens_part":kwlens_part,
                           "pixel_num":pixel_num, "kw_prior_z_source": kw_prior_z_source, 
                           "min_thetaE": min_thetaE,"subdir":subdir,"reload":reload}
+        #print("DEBUG",Galaxy,Galaxy._SimPartGal.__dict__.keys(),Galaxy.dill_path)
         super().__init__(**kw_sublenspart)
-
+        print("DEBUG",self.Gal_path)
         # easiest solution is to "re"-initialise it independently
         self.lenspart  = SubLensPart(**kw_sublenspart)
+        print("DEBUG",self.lenspart.Gal_path)
         self.savedir   = get_lens_highdir_from_galdir(Galaxy.gal_dir)
         mkdir(self.savedir)
         ######
@@ -131,18 +133,7 @@ class LensPart(SubLensPart):
  
     # ------------------------------------------------------------------
     # Lazy reconstruction logic
-    # ------------------------------------------------------------------
-
-    def _unpack(self):
-        """Reconstruct all attributes that were intentionally removed
-        before serialization.
-        """
-        super()._unpack()
-        
-        # Rebuild lens model if missing
-        if not hasattr(self, "lens_model"):
-            self.setup_lenses()
-
+    # ------------------------------------------------------------------        
     def run(self,update_source_pos=False,verbose=True):
         self.unpack()
         # Lens Verification:
@@ -237,12 +228,14 @@ class LensPart(SubLensPart):
         profile_kwargs_list    = [pkwl_part_lens]
         for adlml in add_lens_model_list:
             profile_kwargs_list.append({})
-        print("profile_kwargs_list",profile_kwargs_list)
+        #print("profile_kwargs_list",profile_kwargs_list)
         print("z_lens",self.z_lens)
         print("z_source",self.z_source)
+        print("DEBUG \nprofile_kwargs_list[lenspart].Gal_path",self.lenspart.Gal_path)
         self.lens_model        = LensModel(lens_model_list=lens_model_list,
                                            profile_kwargs_list = profile_kwargs_list,
                                            **self.kwargs_lensmodel)
+        print("... Lensing parameters set up ")
         
     def get_lensed_image(self,imageModel=None,
                          sourceModel=None,kwargs_source=None,
