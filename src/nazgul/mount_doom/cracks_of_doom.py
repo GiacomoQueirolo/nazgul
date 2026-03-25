@@ -3,6 +3,7 @@ General script for helper functions used in the generation of lenses
 """
 
 import dill
+import warnings
 import numpy as np
 from pathlib import Path
 from functools import cached_property 
@@ -17,22 +18,21 @@ from lenstronomy.SimulationAPI.sim_api import SimAPI
 
 # My libs
 from python_tools.get_res import LoadClass
-from python_tools.tools import mkdir,to_dimless,ensure_unit
+from python_tools.tools import mkdir,to_dimless,ensure_unit,convert_error_to_warning
 # general path
 from nazgul.pathfinder import path_nazgul
-# cosmol. params.
-from nazgul.lib_cosmo import SigCrit
+# basic galaxy class
+from nazgul.basic_gal import BasicGal
+
 # Get particle from galaxy catalogue
-from nazgul.Translator.translator import get_rnd_PG,Gal2kwMXYZ,LoadGal
+from nazgul.Translator.translator import LoadGal
 # particle lens class and params.
-from nazgul.particle_lenses import PartLens , PartLensExpanded
+from nazgul.particle_lenses import PartLens
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # likelihood class
-from nazgul.likelihood import Likelihood
 from nazgul.likelihood_z_source import kw_prior_z_source_zl
 # project galaxy along various axis
-from nazgul.project_gal import get_2Dkappa_map,ProjGal,projection_main_AMR
-from nazgul.project_gal import Gal2kw_samples,ProjectionError
+from nazgul.project_gal import ProjGal,ProjectionError,projection_main_AMR
 
 # Define some default parameters:
 pixel_num     = 200 # pix for image
@@ -53,8 +53,6 @@ def get_lens_dir(Gal,sim_lens_path=std_sim_lens_path):
     mkdir(lens_dir)
     Gal.lens_dir = lens_dir
     return lens_dir
-
-
 
 ##########################
 ##########################
@@ -271,3 +269,189 @@ def get_extents(arcXkpc,Model=None,_radec=None):
               "bins_arcsec":bins_arcsec,
               "DRaDec":[Dra01,Ddec01]}
     return kw_extents
+
+
+
+class BasicLensPart(BasicGal):
+    _large_attributes = []
+
+    def __init__(self,
+                 Galaxy,      # class instance of PartGal
+                 kwlens_part=kwlens_part_AS, # if PM or AS, and if so size of the core
+                 pixel_num=pixel_num, # number of pixels 
+                 kw_prior_z_source = kw_prior_z_source_stnd, # could likelihood of z_source
+                 min_thetaE = min_thetaE, # minimum theta observable
+                 subdir="./",           # subdirectory (to differentiate btw versions)
+                 reload=True # reload previous instance
+                 ):
+
+        # Wrapper class of PartGal to extend for projections
+        Galaxy             = ProjGal(Galaxy) 
+        # setup of data
+        self.Gal           = Galaxy
+        self.Gal_path      = Galaxy.dill_path
+        self.Gal_name      = Galaxy.Name # must be stored
+        z_source_max       = kw_prior_z_source["z_source_max"]
+        # if reload, check if Gal is a lens - if it isn't, raise error
+        if reload:
+            if not self.Gal.is_lens(z_source_max=z_source_max,
+                                   min_thetaE=min_thetaE):
+                raise ProjectionError(f"Previously defined as not a lens given z_(s, max)={z_source_max} and min_thetaE={min_thetaE}")
+
+        self.reload   = reload
+        ######
+        # lensing params
+        self.pixel_num     = pixel_num      
+        self.kwlens_part   = kwlens_part
+        self.PartLens      = PartLens(kwlens_part)
+        self.PartLens_name = self.PartLens.name
+        # cosmo params
+        self.z_lens        = self.Gal.z
+        self.cosmo         = self.Gal.cosmo
+        self.arcXkpc       = self.cosmo.arcsec_per_kpc_proper(self.z_lens)
+
+        # criteria for supercriticality of the lens
+        self.z_source_max  = z_source_max
+        self.kw_like_zs    = kw_prior2like_zs(kw_prior_z_source=kw_prior_z_source,
+                                              z_lens=self.z_lens)
+        self.min_thetaE    = ensure_unit(min_thetaE,u.arcsec) #arcsec
+
+
+    def __str__(self): 
+        """Human-readable identifier.
+
+        Lazily initializes the name if it has not been generated yet.
+        """
+        return self.name
+        
+    def ReadClass(self,cl):
+        return ReadLens(cl)
+
+    def _unpack(self):
+        """Reconstruct all attributes that were intentionally removed
+        before serialization.
+        """
+        print("Unpacking class...")
+        # reload Galaxy and cosmology
+        Galaxy   = LoadGal(self.Gal_path)
+        Galaxy   = ProjGal(Galaxy)
+        self.Gal = Galaxy
+        # verify that we load the correct galaxy
+        assert self.Gal_name == Galaxy.Name
+        self.cosmo = Galaxy.cosmo
+        
+        # re-define PartLens
+        self.PartLens = PartLens(self.kwlens_part)
+        self.PartLens.setup(self)
+        """
+        # skip this because too long and in principle not necessary
+        # Rebuild lens model if missing
+        if not hasattr(self, "lens_prof"):
+            try:
+                self.setup_lenses()
+            except Exception as e:
+                warning = convert_error_to_warning(e)
+                warnings.warn(warning)
+                print("Ignoring Error - likely due to a slimmed down galaxy. Could still work")
+        """
+        print("... unpacked")
+        
+    def store(self):
+        """Serialize the current object to disk using dill.
+        """
+        with open(self.pkl_path, "wb") as f:
+            dill.dump(self, f)
+        print(f"Saved {self.pkl_path}")
+        
+    @property
+    def pkl_path(self):
+        return self.savedir/f"{self.name}.pkl"
+
+    def is_precomputed(self):
+        if self.pkl_path.exists():
+            return True
+        return False
+        
+    @property
+    def deltaPix(self):
+        Diam_arcsec = 2*self.radius #diameter in arcsec
+        deltaPix    = Diam_arcsec/self.pixel_num # ''/pix
+        return deltaPix
+        
+    #
+    # Coordinates 
+    # 
+    @property
+    def _radec(self):
+        return util.make_grid(self.pixel_num,to_dimless(self.deltaPix))
+
+    @property
+    def kw_extents(self):
+        kw_extents = get_extents(arcXkpc=self.arcXkpc,Model=self,
+                                     _radec=self._radec)
+        return kw_extents
+        
+    def get_RADEC(self):
+        _ra,_dec = self._radec
+        RA,DEC   = array2image(_ra),array2image(_dec)
+        return RA,DEC
+    #
+    # Lensing computations
+    #
+    @cached_property
+    def alpha_map(self):
+        return self._alpha_map(_radec=None)
+    @cached_property
+    def kappa_map(self):
+        return self._kappa_map(_radec=None)
+    @cached_property
+    def hessian(self):
+        return self._hessian(_radec=None)
+    @cached_property
+    def psi_map(self):
+        return self._psi_map(_radec=None)
+
+    def sample_z_source(self,z_source_min,z_source_max):
+        # this is here to allow modularity 
+        if self.kw_like_zs is None:
+            # simple uniform sample btw the ranges
+            z_source = np.random.uniform(z_source_min,z_source_max,1)[0]
+        elif "fixed" in self.kw_like_zs.keys():
+            # if fixed, we don't sample it
+            z_source = self.kw_like_zs["fixed"]
+            # ensure it is still acceptable
+            assert z_source>=z_source_min and z_source<z_source_max
+        else:
+            # else we follow the given likelihood
+            Lkl_source = Likelihood(var_range=[[z_source_min,z_source_max]],
+                                    kw_like = self.kw_like_zs)
+            # the following still has shape = n_walkers
+            z_source_list = Lkl_source.sample(n_samples=1,progress=False)
+            z_source      = np.random.choice(z_source_list)
+        return z_source
+    
+    def galaxy_projection(self,verbose=True):          
+        # Compute projection
+        kwres_proj_res    = projection_main_AMR(Gal=self.Gal,
+                                               z_source_max=self.z_source_max,
+                                               sample_z_source=self.sample_z_source,
+                                               min_thetaE=self.min_thetaE,
+                                               arcXkpc=self.arcXkpc,verbose=verbose,
+                                               reload=self.reload)
+        # load latest successful projection
+        kwres_proj = kwres_proj_res["projs"][-1]
+        # store results
+        self.proj_index   = kwres_proj["proj_index"]
+        self.z_source_min = kwres_proj["z_source_min"]
+        self.z_source     = kwres_proj["z_source"]
+        self.MD_coords    = kwres_proj["MD_coords"]
+        if verbose:
+            print("Z source sampled:",self.z_source)
+        self.thetaE    = kwres_proj["thetaE"]
+        if verbose:
+            print("Approx. thetaE:",np.round(self.thetaE,3))
+   
+        # the following can only be computed once we know the z_source:
+        self.SigCrit       = SigCrit(cosmo=self.cosmo,
+                                     z_lens=self.z_lens,
+                                     z_source=self.z_source) # Msun/kpc^2

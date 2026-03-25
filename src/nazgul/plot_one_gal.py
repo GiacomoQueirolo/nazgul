@@ -1,10 +1,8 @@
 #WIP
 import numpy as np
-from fnct import Galaxy,std_sim,sim_path
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from nazgul.get_gal_indexes import get_rnd_gal
 # obtained from http://virgodb.dur.ac.uk:8080/Eagle/MyDB
 # with the followin command:
 """
@@ -31,10 +29,11 @@ SELECT
 
 #centre3,gn,sgn = np.array([14.434582,24.12927,19.225077]),22,0
 
-gl = get_rnd_gal(sim=std_sim,min_z=1.9,max_z=2.02,reuse_previous=True)
+#gl = get_rnd_gal(sim=std_sim,min_z=1.9,max_z=2.02,reuse_previous=True)
 # Galaxy(Gn=gn,SGn=sgn,CntX=cntre3[0],CntY=centre3[1],CntZ=centre3[2],z=0)
 
 def plot_gal(gl):
+    sim_path = "./tmp/"
     xyz_dm  = gl.dm["coords"].T
     xyz_str = gl.stars["coords"].T
     xyz_gas = gl.gas["coords"].T
@@ -47,7 +46,7 @@ def plot_gal(gl):
     
     
     m_str = gl.stars["mass"]
-    m_dm  =  gl.dm["mass"]
+    m_dm  = gl.dm["mass"]
     m_gas = gl.gas["mass"]
     m_bh  = gl.bh["mass"]
     

@@ -12,6 +12,8 @@ import astropy.units as u
 from decimal import Decimal
 import matplotlib.pyplot as plt
 from astropy.stats import sigma_clip
+from functools import cached_property
+from multiprocessing import Pool,cpu_count
 
 from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass
@@ -89,6 +91,11 @@ class SimPartGal(BasicPartGal):
     with all the needed particle properties converted in physical units
     """
     _large_attributes = ["stars","gas","dm","bh"]
+    # indexes of particles: gas,dm,stars,bh:
+    indexes = [0,1,4,5]
+    # n* of files per snapshot:
+    nfiles  = 16
+
     def __init__(self, 
                  kw_Gal, # identity of the galaxy: Gn,SGn
                  sim=std_sim, 
@@ -215,73 +222,69 @@ class SimPartGal(BasicPartGal):
         self.stars = self.read_part(4)
         self.bh    = self.read_part(5)
         return 0
+        
+    ## Loading particles #
+    ######################
     
-    def read_part(self,itype):
-        """Read the particles properties and returns them in physical units
+    def _get_files(self):
+        files = [glob.glob(f"{self.part_dir}/snap*.{i}.hdf5")[0] for i in range(self.nfiles)]
+        if len(files) != self.nfiles:
+            raise RuntimeError(f"Expected {self.nfiles} files, got {len(files)}")
+        return files
+
+    def build_index(self, itype):
         """
-        kw   = {}
-        atts = ["GroupNumber","SubGroupNumber","Coordinates"]
+        Return mapping: {file_id: particle_indices}
+        """
+        files = self._get_files()
+        index_map = {}
+
+        for i, fl in enumerate(files):
+            with h5py.File(fl, "r") as f:
+                grp = f[f"PartType{itype}/GroupNumber"][:]
+                sub = f[f"PartType{itype}/SubGroupNumber"][:]
+                
+                mask = np.logical_and(grp==self.Gn,sub==self.SGn)
+                idx  = np.where(mask)[0]
+                
+                if len(idx) > 0:
+                    # sort them to speed up the hdf5 readout:
+                    idx = np.sort(idx)
+                    index_map[i] = idx
+        return index_map
+        
+    @cached_property
+    def kw_index_maps(self):
+        index_maps = {f'{itype}':self.build_index(itype) for itype in self.indexes}
+        return index_maps
+        
+    def read_part(self, itype):
+        """
+        Load only selected particles using index_map
+        """
+        files = self._get_files()
+        tasks = [(files[i], idx, itype,self.boxsize,self.centre) for i, idx in self.kw_index_maps[str(itype)].items()]
+
+        nproc = min(cpu_count(), len(files))
+
+        with Pool(nproc) as pool:
+            results = pool.map(_load_one_file, tasks)
+
+        # ---- merge ----
+        output = {"coords":[],"mass":[]}
         if itype!=1:
-            atts.append("Mass")
-            atts.append("SmoothingLength")
-        else:
-            """Special case for the mass of dark matter particles."""   
-            fl =  glob.glob(f"{self.part_dir}/*.0.hdf5")
-            if len(fl)!=1:
-                raise RuntimeError(f"{fl} found to be not of lenght 1 from glob({self.part_dir}/*.0.hdf5): len={len(fl)}")
-            fl = fl[0]
-            with h5py.File(fl, 'r') as f:
-                h = f['Header'].attrs.get('HubbleParam')
-                a = f['Header'].attrs.get('Time')
-                dm_mass = f['Header'].attrs.get('MassTable')[1]
-                n_particles = f['Header'].attrs.get('NumPart_Total')[1]
-                # Create an array of lenght n_particles each set to dm_mass
-                m = np.ones(n_particles, dtype='f8') *dm_mass
-                # Use the conversion factors from the mass entry in the gas particles.
-                cgs  = f['PartType0/Mass'].attrs.get('CGSConversionFactor')
-                aexp = f['PartType0/Mass'].attrs.get('aexp-scale-exponent')
-                hexp = f['PartType0/Mass'].attrs.get('h-scale-exponent')
-            # Convert to proper/physical mass 
-            kw["Mass"] = np.multiply(m, cgs*(a**aexp)*(h**hexp), dtype='f8')
+            output["smooth"] = []
+        for r in results:
+            output["coords"].append(r["coords"])
+            output["mass"].append(r["mass"])
+            if "smooth" in r:
+                output["smooth"].append(r["smooth"])
+        
+        output["coords"] = np.vstack(output["coords"])
+        output["mass"]   = np.hstack(output["mass"])
+        if itype != 1:
+            output["smooth"] = np.hstack(output["smooth"])
             
-        nfiles = 16
-        files = [glob.glob(f"{self.part_dir}/snap*.{i}.hdf5")[0] for i in range(nfiles)]
-        if len(files)!=nfiles:
-                raise RuntimeError(f"Found {len(files)} files instead of {nfiles}\nFiles:\n{files}\nFile str:\n{file_str}")
-        for att in atts:
-            data = []
-            for i in range(nfiles):
-                fl =  files[i]
-                with h5py.File(fl,'r') as f:
-                    tmp = f['PartType%i/%s'%(itype,att)][...]
-                    data.append(tmp)
-                    # Get conversion factors
-                    cgs  = f['PartType%i/%s'%(itype,att)].attrs.get('CGSConversionFactor')
-                    aexp = f['PartType%i/%s'%(itype,att)].attrs.get('aexp-scale-exponent')
-                    hexp = f['PartType%i/%s'%(itype,att)].attrs.get('h-scale-exponent')
-                    # Get expansion factor and Hubble parameter from the header
-                    a = f['Header'].attrs.get('Time')
-                    h = f['Header'].attrs.get('HubbleParam')
-            if len(tmp.shape) > 1:
-                data = np.vstack(data)
-            else:
-                data = np.concatenate(data)
-            # Convert to physical/proper
-            if data.dtype!=np.int32 and data.dtype!=np.int64:
-                # note: it IS multiply by 1/h (h**hexp)
-                data = np.multiply(data,cgs*(a**aexp)*(h**hexp),dtype='f8')
-            kw[att] = data
-        #print("self.Gn,self.SGn",self.Gn,self.SGn)
-        mask   = np.logical_and(kw["GroupNumber"]==self.Gn,kw["SubGroupNumber"]==self.SGn)
-        output         = {}
-        output["mass"] = kw["Mass"][mask] * u.g.to(u.Msun)
-        coords         = kw["Coordinates"][mask]*u.cm.to(u.Mpc)
-        # Periodic wrap coordinates around centre.
-        boxsize        = self.boxsize*(h**hexp)
-        centre         = self.centre*(a**aexp) # given in comoving (but not 1/h)
-        output['coords'] = np.mod(coords-centre+0.5*boxsize,boxsize)+centre-0.5*boxsize
-        if itype!=1:
-            output["smooth"] = kw["SmoothingLength"][mask]*u.cm.to(u.Mpc)
         return output
         
     def _count_tot_part(self):
@@ -334,6 +337,73 @@ class SimPartGal(BasicPartGal):
         center_desired = self.centre
         #np.testing.assert_almost_equal(center_desired,center_desired,decimal=2)
         self.verbose_assert_almost_equal(center_desired,center_desired,decimal=2,msg_title="Centre") 
+
+def _load_one_file(args):
+    fl, indices, itype,boxsize,centre = args
+    results = {}
+    with h5py.File(fl, "r") as f:
+        # Coordinates
+        #############
+        splits = np.split(indices, np.where(np.diff(indices) != 1)[0] + 1)
+        
+        _coords = []
+        for chunk in splits:
+            start, end = chunk[0], chunk[-1] + 1
+            data = f[f"PartType{itype}/Coordinates"][start:end]
+            _coords.append(data[chunk - start])
+        coords = np.vstack(_coords)
+        # conversion
+        cgs  = f[f"PartType{itype}/Coordinates"].attrs["CGSConversionFactor"]
+        aexp = f[f"PartType{itype}/Coordinates"].attrs["aexp-scale-exponent"]
+        hexp = f[f"PartType{itype}/Coordinates"].attrs["h-scale-exponent"]
+        a    = f["Header"].attrs["Time"]
+        h    = f["Header"].attrs["HubbleParam"]
+
+        coords = coords * cgs * (a ** aexp) * (h ** hexp)*u.cm.to(u.Mpc)
+        # Periodic wrap coordinates around centre.
+        boxsize           = boxsize*(h**hexp)
+        centre            = centre*(a**aexp) # given in comoving (but not 1/h)
+        results['coords'] = np.mod(coords-centre+0.5*boxsize,boxsize)+centre-0.5*boxsize       
+        
+        # Mass
+        ######
+        if itype != 1:
+            _mass2scale = []
+            for chunk in splits:
+                start, end = chunk[0], chunk[-1] + 1
+                data = f[f"PartType{itype}/Mass"][start:end]
+                _mass2scale.append(data[chunk - start])
+            mass2scale = np.hstack(_mass2scale)
+            cgs  = f[f"PartType{itype}/Mass"].attrs["CGSConversionFactor"]
+            aexp = f[f"PartType{itype}/Mass"].attrs["aexp-scale-exponent"]
+            hexp = f[f"PartType{itype}/Mass"].attrs["h-scale-exponent"]
+            mass = mass2scale * cgs * (a ** aexp) * (h ** hexp)*u.g.to(u.Msun)
+            results["mass"] = mass
+            # Smoothness
+            ############
+            _smooth2scale = []
+            for chunk in splits:
+                start, end = chunk[0], chunk[-1] + 1
+                data = f[f"PartType{itype}/SmoothingLength"][start:end]
+                _smooth2scale.append(data[chunk - start])
+            smooth2scale = np.hstack(_smooth2scale)
+
+            smooth = smooth2scale * cgs * (a ** aexp) * (h ** hexp)*u.cm.to(u.Mpc)
+            results["smooth"] = smooth
+        else:
+            dm_mass = f['Header'].attrs.get('MassTable')[1]
+            n_particles = f['Header'].attrs.get('NumPart_Total')[1]
+            # Create an array of lenght n_particles each set to dm_mass
+            print("len(indices),n_particles",len(indices),n_particles)
+            mass2scale = np.ones(len(indices), dtype='f8') * dm_mass
+            # Use the conversion factors from the mass entry in the gas particles.
+            cgs  = f['PartType0/Mass'].attrs.get('CGSConversionFactor')
+            aexp = f['PartType0/Mass'].attrs.get('aexp-scale-exponent')
+            hexp = f['PartType0/Mass'].attrs.get('h-scale-exponent')
+            # Convert to proper/physical mass 
+            results["mass"] = np.multiply(mass2scale, cgs*(a**aexp)*(h**hexp), dtype='f8')*u.g.to(u.Msun)
+ 
+    return results
 
 # this function is a wrapper for convenience - it takes the class itself as input
 def ReadGal(Gal,verbose=True):

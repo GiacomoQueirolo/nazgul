@@ -18,7 +18,7 @@ from lenstronomy.Util.util import array2image,make_grid
 #from lenstronomy.ImSim.Numerics.grid import RegularGrid
 
 # My libs
-from python_tools.tools import mkdir,to_dimless,ensure_unit,convert_error_to_warning
+from python_tools.tools import mkdir,to_dimless,ensure_unit
 # cosmol. params.
 from nazgul.lib_cosmo import SigCrit
 # Get particle from galaxy catalogue
@@ -29,19 +29,17 @@ from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # likelihood class
 from nazgul.likelihood import Likelihood
 # project galaxy along various axis
-from nazgul.project_gal import get_2Dkappa_map,ProjGal,projection_main_AMR,ProjectionError
+from nazgul.project_gal import get_2Dkappa_map,ProjGal
 from nazgul.project_gal import Gal2kw_samples
 from nazgul.pathfinder import get_lens_lowdir_from_galdir
 
-from nazgul.mount_doom.cracks_of_doom import pixel_num,min_thetaE
+from nazgul.mount_doom.cracks_of_doom import BasicLensPart
 from nazgul.mount_doom.cracks_of_doom import kw_prior_z_source_stnd
-from nazgul.mount_doom.cracks_of_doom import ReadLens
-import nazgul.mount_doom.cracks_of_doom as cod
+from nazgul.mount_doom.cracks_of_doom import pixel_num,min_thetaE,get_extents
 
-
-
-
-class SubLensPart(): 
+class SubLensPart(BasicLensPart): 
+    _large_attributes = ["kwargs_lens","lens_prof","Gal","PartLens","cosmo"]
+    
     def __init__(self,
                  Galaxy,      # class instance of PartGal
                  kwlens_part=kwlens_part_AS, # if PM or AS, and if so size of the core
@@ -51,39 +49,15 @@ class SubLensPart():
                  subdir="./",           # subdirectory (to differentiate btw versions)
                  reload=True # reload previous instance
                  ):
-
-        # Wrapper class of PartGal to extend for projections
-        Galaxy             = ProjGal(Galaxy) 
-        # setup of data
-        self.Gal           = Galaxy
-        self.Gal_path      = Galaxy.dill_path
-        self.Gal_name      = Galaxy.Name # must be stored
-        z_source_max       = kw_prior_z_source["z_source_max"]
-        # if reload, check if Gal is a lens - if it isn't, raise error
-        if reload:
-            if not self.Gal.is_lens(z_source_max=z_source_max,
-                                   min_thetaE=min_thetaE):
-                raise ProjectionError(f"Previously defined as not a lens given z_(s, max)={z_source_max} and min_thetaE={min_thetaE}")
-
+        super().__init__(Galaxy=Galaxy,
+                         kwlens_part=kwlens_part,
+                         pixel_num=pixel_num,
+                         kw_prior_z_source=kw_prior_z_source,
+                         min_thetaE=min_thetaE,
+                         subdir=subdir,
+                         reload=reload)
         self.savedir  = get_lens_lowdir_from_galdir(galdir=self.Gal.gal_dir)
-        self.reload   = reload
         mkdir(self.savedir)
-        ######
-        # lensing params
-        self.pixel_num     = pixel_num      
-        self.kwlens_part   = kwlens_part
-        self.PartLens      = PartLens(kwlens_part)
-        self.PartLens_name = self.PartLens.name
-        # cosmo params
-        self.z_lens        = self.Gal.z
-        self.cosmo         = self.Gal.cosmo
-        self.arcXkpc       = self.cosmo.arcsec_per_kpc_proper(self.z_lens)
-
-        # criteria for supercriticality of the lens
-        self.z_source_max  = z_source_max
-        self.kw_like_zs    = cod.kw_prior2like_zs(kw_prior_z_source=kw_prior_z_source,
-                                              z_lens=self.z_lens)
-        self.min_thetaE    = ensure_unit(min_thetaE,u.arcsec) #arcsec
 
     ### Class Structure ####
     ########################
@@ -100,133 +74,12 @@ class SubLensPart():
             self.kwlens_part,
             )
     
-    def __hash__(self):
-        """ Simplified hash based exclusively on the immutable identity tuple.
-        """
-        return hash(self._identity())
-
-    def __eq__(self, other):
-        """LensPart instances are equal if and only if they share
-        the same conceptual identity.
-        """
-        if not isinstance(other, SubLensPart):
-            return NotImplemented
-        return self._identity() == other._identity()
-
-    def __str__(self): 
-        """Human-readable identifier.
-
-        Lazily initializes the name if it has not been generated yet.
-        """
-        return self.name
-
-    # ------------------------------------------------------------------
-    # Pickling support (dill / pickle)
-    # ------------------------------------------------------------------
-
-    # the following struct. is more clear and allow a slimmer stored class
-    def __getstate__(self):
-        """Return a slimmed-down state dictionary for serialization.
-
-        Reconstruction is handled by `unpack()`.
-        """
-        state = self.__dict__.copy()
-        # Large / recomputable lensing structures
-        state.pop('kwargs_lens', None)
-        state.pop('lens_prof', None)
-        #state.pop('grid',None)
-        # These are reloaded / reconstructed
-        state.pop('Gal',None)
-        state.pop('PartLens',None)
-        state.pop('cosmo',None)
-        return state
-
-    def __setstate__(self, state):
-        """Restore object state from a serialized dictionary.
-
-        NOTE:
-        - This does *not* automatically reconstruct heavy attributes.
-        - Lazy reconstruction is deferred until explicitly needed.
-        """
-        self.__dict__.update(state)
- 
-    # ------------------------------------------------------------------
-    # Lazy reconstruction logic
-    # ------------------------------------------------------------------
-    def _needs_unpacking(self):
-        """Check whether the object is missing reconstructed attributes.
-        """
-        return not all(
-            hasattr(self, attr)
-            for attr in ("Gal", "PartLens", "cosmo")
-        )
-    def _unpack(self):
-        """Reconstruct all attributes that were intentionally removed
-        before serialization.
-        """
-        print("Unpacking class...")
-        # reload Galaxy and cosmology
-        print("self.pkl_path",self.pkl_path)
-        print("(self.Gal_path):",self.Gal_path)
-        Galaxy   = LoadGal(self.Gal_path)
-        Galaxy   = ProjGal(Galaxy)
-        self.Gal = Galaxy
-        # verify that we load the correct galaxy
-        assert self.Gal_name == Galaxy.Name
-        self.cosmo = Galaxy.cosmo
-        
-        # re-define PartLens
-        self.PartLens = PartLens(self.kwlens_part)
-        self.PartLens.setup(self)
-        # Rebuild lens model if missing
-        if not hasattr(self, "lens_prof"):
-            try:
-                self.setup_lenses()
-            except Exception as e:
-                warning = convert_error_to_warning(e)
-                warnings.warn(warning)
-                print("Ignoring Error - likely due to a slimmed down galaxy. Could still work")
-        print("... unpacked")
-
-    def unpack(self):
-        """Public wrapper for lazy reconstruction.
-        """
-        if self._needs_unpacking():
-            self._unpack()
-        return self
-        
-    def store(self):
-        """Serialize the current object to disk using dill.
-        """
-        with open(self.pkl_path, "wb") as f:
-            dill.dump(self, f)
-        print(f"Saved {self.pkl_path}")
-    ########################
     ########################
     @property
     def name(self):
         # define name and path of savefile
         return f"Sub_{self.Gal_name}_Npix{self.pixel_num}_Part{self.PartLens_name}"
-    @property
-    def pkl_path(self):
-        return self.savedir/f"{self.name}.pkl"
-
-    def is_precomputed(self):
-        if self.pkl_path.exists():
-            return True
-        return False
     #############################
-    # Run:
-    def upload_prev(self):
-        if not self.reload:
-            return False
-        prev_mod = ReadLens(self)
-        if prev_mod is False or prev_mod != self:
-            return False
-        # if common attribute, they are overwritten by previous:
-        self.__dict__ = {**self.__dict__,**prev_mod.__dict__}
-        return True
-
     def run(self,read_prev=True,verbose=True):
         """Main function that computes the deflection map:
             - read the particles
@@ -260,37 +113,6 @@ class SubLensPart():
             #######################
             self.create_lens(verbose=verbose)
             
-    def galaxy_projection(self,verbose=True):          
-        # Compute projection
-        kwres_proj_res    = projection_main_AMR(Gal=self.Gal,
-                                               z_source_max=self.z_source_max,
-                                               sample_z_source=self.sample_z_source,
-                                               min_thetaE=self.min_thetaE,
-                                               arcXkpc=self.arcXkpc,verbose=verbose,
-                                               reload=self.reload)
-        # load latest successful projection
-        kwres_proj = kwres_proj_res["projs"][-1]
-        # store results
-        self.proj_index   = kwres_proj["proj_index"]
-        self.z_source_min = kwres_proj["z_source_min"]
-        self.z_source     = kwres_proj["z_source"]
-        self.MD_coords    = kwres_proj["MD_coords"]
-        if verbose:
-            print("Z source sampled:",self.z_source)
-        self.thetaE    = kwres_proj["thetaE"]
-        if verbose:
-            print("Approx. thetaE:",np.round(self.thetaE,3))
-   
-        # the following can only be computed once we know the z_source:
-        self.SigCrit       = SigCrit(cosmo=self.cosmo,
-                                     z_lens=self.z_lens,
-                                     z_source=self.z_source) # Msun/kpc^2
-    @property
-    def deltaPix(self):
-        Diam_arcsec = 2*self.radius #diameter in arcsec
-        deltaPix    = Diam_arcsec/self.pixel_num # ''/pix
-        return deltaPix
-
     def create_lens(self,verbose=True):
         # setup lensing keywords
         self.PartLens.setup(self) # only run now as it needs z_source 
@@ -327,39 +149,7 @@ class SubLensPart():
         self.kwargs_lens       = kwLnsPart
         self.lens_prof         = LnsProfPart
         print("... Lensing params set up")
-    def sample_z_source(self,z_source_min,z_source_max):
-        # this is here to allow modularity 
-        if self.kw_like_zs is None:
-            # simple uniform sample btw the ranges
-            z_source = np.random.uniform(z_source_min,z_source_max,1)[0]
-        elif "fixed" in self.kw_like_zs.keys():
-            # if fixed, we don't sample it
-            z_source = self.kw_like_zs["fixed"]
-            # ensure it is still acceptable
-            assert z_source>=z_source_min and z_source<z_source_max
-        else:
-            # else we follow the given likelihood
-            Lkl_source = Likelihood(var_range=[[z_source_min,z_source_max]],
-                                    kw_like = self.kw_like_zs)
-            # the following still has shape = n_walkers
-            z_source_list = Lkl_source.sample(n_samples=1,progress=False)
-            z_source      = np.random.choice(z_source_list)
-        return z_source
-    #
-    # Lensing computations
-    #
-    @cached_property
-    def alpha_map(self):
-        return self._alpha_map(_radec=None)
-    @cached_property
-    def kappa_map(self):
-        return self._kappa_map(_radec=None)
-    @cached_property
-    def hessian(self):
-        return self._hessian(_radec=None)
-    @cached_property
-    def psi_map(self):
-        return self._psi_map(_radec=None)
+        
         
     def _psi_map(self,_radec=None):
         print("Computing particles lensing potential...")
@@ -388,7 +178,7 @@ class SubLensPart():
         if _radec is None:
             kw_extents = self.kw_extents
         else:
-            kw_extents = cod.get_extents(arcXkpc=self.arcXkpc,Model=self,_radec=_radec)
+            kw_extents = get_extents(arcXkpc=self.arcXkpc,Model=self,_radec=_radec)
         kappa = get_2Dkappa_map(Gal=self.Gal,proj_index=self.proj_index,
                                 MD_coords=self.MD_coords,kwargs_extents=kw_extents,
                                 SigCrit=self.SigCrit,arcXkpc=self.arcXkpc)
@@ -413,37 +203,3 @@ class SubLensPart():
         dalpha_y_dy, dalpha_y_dx = np.gradient(alpha_y, RA0,DEC0)
         f_xx,f_xy,f_yx,f_yy  = dalpha_x_dx,dalpha_x_dy,dalpha_y_dx,dalpha_y_dy
         return f_xx,f_xy,f_yx,f_yy
-    #
-    # Coordinates 
-    # 
-    @property
-    def _radec(self):
-        return make_grid(self.pixel_num,to_dimless(self.deltaPix))
-    
-    """
-    @property
-    def grid(self):
-        transform_pix2angle = np.array([[to_dimless(self.deltaPix),0],
-                                        [0,to_dimless(self.deltaPix)]] )
-        radec_at_xy_0       = -to_dimless(self.deltaPix)*(self.pixel_num-1)/2
-        grid = RegularGrid(
-                self.pixel_num,
-                self.pixel_num,
-                transform_pix2angle,
-                radec_at_xy_0,
-                radec_at_xy_0,
-                supersampling_factor=1,
-                flux_evaluate_indexes=None,
-            )
-        return grid
-    """
-    @property
-    def kw_extents(self):
-        kw_extents = cod.get_extents(arcXkpc=self.arcXkpc,Model=self,
-                                     _radec=self._radec)
-        return kw_extents
-        
-    def get_RADEC(self):
-        _ra,_dec = self._radec
-        RA,DEC   = array2image(_ra),array2image(_dec)
-        return RA,DEC

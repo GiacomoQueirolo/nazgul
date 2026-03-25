@@ -10,9 +10,10 @@ from astropy.stats import sigma_clip
 from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass
 
+from nazgul.basic_gal import BasicGal
 from nazgul.pathfinder import path_nazgul
 
-class BasicPartGal:
+class BasicPartGal(BasicGal):
     """Given the simulation, snap (or z) and galaxy numbers, set up a class
     with all the needed particle properties converted in physical units
     """
@@ -32,19 +33,6 @@ class BasicPartGal:
         
     ### Class Structure ####
     ########################
-    def _identity(self):
-        # Returns tuple to identify uniquely this galaxy
-        raise NotImplementedError
-        
-    def __hash__(self):
-        # simplify the hash method
-        return hash(self._identity())
-
-    def __eq__(self, other):
-        #if not isinstance(other, SimPartGal):
-        #    return NotImplemented
-        return self._identity() == other._identity()
-
     def __str__(self):
         str_gal = f"Sim {self.sim}"
         str_gal = f"Gal {self.Name}"
@@ -52,39 +40,8 @@ class BasicPartGal:
         str_gal += f" with \nN={'%.1E'%Decimal(self.N_part)} part.\nof \ntot Mass={'%.1E'%Decimal(self.M)} [M_sun]\n"
         return str_gal 
         
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        # remove large attributes (if present, can be loaded again)
-        for lg_att in self._large_attributes:
-            state.pop(lg_att, None)
-        return state
-
-    def __setstate__(self, state):
-        # Optional: restore defaults or trigger rebuild of heavy attributes
-        self.__dict__.update(state)
-
-    def _needs_unpacking(self):
-        """Check whether the object is missing reconstructed attributes.
-        """
-        return not all(
-            hasattr(self, attr)
-            for attr in self._large_attributes
-        )
-        
-    def unpack(self):
-        """Public wrapper for lazy reconstruction.
-        """
-        if self._needs_unpacking():
-            self._unpack()
-        return self
-
-    def _unpack(self):
-        """Reconstruct all attributes that were intentionally removed
-        before serialization.
-        """
-        print("Unpacking class...")
-        raise NotImplementedError
-
+    def ReadClass(self,cl):
+        return ReadGal(cl)
     ########################
     ########################
     
@@ -94,30 +51,9 @@ class BasicPartGal:
         
     def run(self,reload=True):
         raise NotImplementedError
-        
-    def upload_prev(self,reload=True):
-        if not reload:
-            return False
-        prev_Gal = ReadGal(self)
-        if prev_Gal is False or prev_Gal != self:
-            return False
-        # if common attribute, they are overwritten by previous:
-        self.__dict__ = {**self.__dict__,**prev_Gal.__dict__}
-        return True
             
     def initialise_parts(self):
         raise NotImplementedError
-        
-    def verbose_assert_almost_equal(self,value1,value2=1,decimal=3,msg_title=None):
-        # a verbose way of giving info if if fails
-        try:
-            np.testing.assert_almost_equal(value1,value2,decimal=decimal)
-        except AssertionError as AssErr:
-            if msg_title:
-                print(msg_title)
-            print("Error for \n"+str(self))
-            raise AssertionError(AssErr)
-        return 0
         
     def _verify_cnt(self):
         """verify that the center of mass is indeed correct
