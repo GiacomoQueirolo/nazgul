@@ -30,7 +30,7 @@ from nazgul.Translator.EAGLE.fnct import get_z_snap,read_snap_header
 
 from nazgul.Translator.translator import min_z,max_z,min_mass
 
-from nazgul.Translator.particle_galaxy import BasicPartGal,clip_coord
+from nazgul.Translator.particle_galaxy import BasicPartGal,store_class,clip_coord
 
 from nazgul.Translator.EAGLE.pathfinder import simsuite_name
 
@@ -174,6 +174,9 @@ class SimPartGal(BasicPartGal):
     @property 
     def cosmo(self):
         return FlatLambdaCDM(H0=self.h*100, Om0=1-self.h)
+    def store_gal(self):
+        # store class instance 
+        store_class(self,path=self.dill_path)
 
     def run(self,reload=True):
         upload_successful = False
@@ -188,20 +191,24 @@ class SimPartGal(BasicPartGal):
             self._count_tot_part()
             self._mass_tot_part()
             self._verify_cnt()
-            self.store_gal()
+            #self.store_gal()
 
-    def upload_prev(self,reload=True):
-        if not reload:
-            return False
+    def _upload_prev(self,reload=True):
         prev_Gal = ReadGal(self)
         if prev_Gal is False or prev_Gal != self:
             return False
         # if common attribute, they are overwritten by previous:
         self.__dict__ = {**self.__dict__,**prev_Gal.__dict__}
-        if not getattr(self,"stars",False):
-            self.initialise_parts()
         return True
-            
+    
+    def upload_prev(self,reload=True):
+        if not reload:
+            return False
+        # Verify if necessary to reload prev.
+        for large_att in self._large_attributes:
+            if not hasattr(self,large_att):
+                return self._upload_prev(reload=reload)
+        return True
     
     def prop2comov(self,varType):
         """Proper coordinate/mass to comoving
@@ -217,10 +224,14 @@ class SimPartGal(BasicPartGal):
         return read_snap_header(z=self.z,snap=self.snap,sim=self.sim)
 
     def initialise_parts(self):
-        self.gas   = self.read_part(0)
-        self.dm    = self.read_part(1)
-        self.stars = self.read_part(4)
-        self.bh    = self.read_part(5)
+        if not hasattr(self,"gas"):
+            self.gas   = self.read_part(0)
+        if not hasattr(self,"dm"):
+            self.dm    = self.read_part(1)
+        if not hasattr(self,"stars"):
+            self.stars = self.read_part(4)
+        if not hasattr(self,"bh"):
+            self.bh    = self.read_part(5)
         return 0
         
     ## Loading particles #
@@ -289,23 +300,33 @@ class SimPartGal(BasicPartGal):
         
     def _count_tot_part(self):
         """Count total particle number"""
-        self.N_gas      = _count_part(self.gas)
-        self.N_dm       = _count_part(self.dm)
-        self.N_stars    = _count_part(self.stars)
-        self.N_bh       = _count_part(self.bh)
-        self.N_part     =  self.N_gas+self.N_dm+self.N_stars+self.N_bh
+        if not hasattr(self,"N_gas"):
+            self.N_gas      = _count_part(self.gas)
+        if not hasattr(self,"N_dm"):
+            self.N_dm       = _count_part(self.dm)
+        if not hasattr(self,"N_stars"):
+            self.N_stars    = _count_part(self.stars)
+        if not hasattr(self,"N_bh"):
+            self.N_bh       = _count_part(self.bh)
+        if not hasattr(self,"N_part"):
+            self.N_part     =  self.N_gas+self.N_dm+self.N_stars+self.N_bh
         return self.N_part
 
     def _mass_tot_part(self):
         """Count total particle mass and verify it's the same as 
         the input one
         """
-        self.M_gas   = _mass_part(self.gas)
-        self.M_dm    = _mass_part(self.dm)
-        self.M_stars = _mass_part(self.stars)
-        self.M_bh    = _mass_part(self.bh)
+        if not hasattr(self,"M_gas"):
+            self.M_gas   = _mass_part(self.gas)
+        if not hasattr(self,"M_dm"):
+            self.M_dm    = _mass_part(self.dm)
+        if not hasattr(self,"M_stars"):
+            self.M_stars = _mass_part(self.stars)
+        if not hasattr(self,"M_bh"):
+            self.M_bh    = _mass_part(self.bh)
         
-        self.M_tot   =  self.M_gas+self.M_dm+self.M_stars +self.M_bh
+        if not hasattr(self,"M_tot"):
+            self.M_tot   =  self.M_gas+self.M_dm+self.M_stars +self.M_bh
         self.verbose_assert_almost_equal(float(self.M_tot)/float(self.M),1,decimal=3,msg_title="The summed mass and the expected mass differs")
         return self.M_tot
                 
@@ -394,7 +415,6 @@ def _load_one_file(args):
             dm_mass = f['Header'].attrs.get('MassTable')[1]
             n_particles = f['Header'].attrs.get('NumPart_Total')[1]
             # Create an array of lenght n_particles each set to dm_mass
-            print("len(indices),n_particles",len(indices),n_particles)
             mass2scale = np.ones(len(indices), dtype='f8') * dm_mass
             # Use the conversion factors from the mass entry in the gas particles.
             cgs  = f['PartType0/Mass'].attrs.get('CGSConversionFactor')

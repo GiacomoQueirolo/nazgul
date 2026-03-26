@@ -10,6 +10,7 @@ Notes: will have to point toward the SubLensPart instance, so not to store the h
 """
 
 import dill
+import warnings
 import numpy as np
 from pathlib import Path
 from functools import cached_property 
@@ -25,7 +26,7 @@ from lenstronomy.ImSim.image_model import ImageModel
 from lenstronomy.SimulationAPI.sim_api import SimAPI
 from lenstronomy.LensModel.lens_model import LensModel
 # My libs
-from python_tools.tools import mkdir,to_dimless
+from python_tools.tools import mkdir,to_dimless,convert_error_to_warning
 # particle lens class and params.
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # project galaxy along various axis
@@ -43,11 +44,10 @@ from nazgul.pathfinder import get_lens_highdir_from_galdir
 import nazgul.mount_doom.cracks_of_doom as cod
 
 verbose = True
-
 empty_kwargs_add_lenses = {"lens_model_list":[],"kwargs_lens":[]}
 
 class LensPart(BasicLensPart): 
-    _large_attributes = ['lens_model','kw_shear','imageModel', 'lenspart']
+    _large_attributes = ['lens_model','kw_shear', 'lenspart']
     def __init__(self,
                  Galaxy,
                  kwlens_part=kwlens_part_AS, # if PM or AS, and if so size of the core
@@ -86,7 +86,8 @@ class LensPart(BasicLensPart):
                           "pixel_num":pixel_num, "kw_prior_z_source": kw_prior_z_source, 
                           "min_thetaE": min_thetaE,"subdir":subdir,"reload":reload}
         # initialise it independently
-        self.lenspart  = SubLensPart(**kw_sublenspart)
+        self.lenspart    = SubLensPart(**kw_sublenspart)
+        self.id_lenspart = self.lenspart._identity()
         ######
         # lensing params 
         if kwargs_add_lenses is None:
@@ -107,7 +108,7 @@ class LensPart(BasicLensPart):
 
         The identity is used for hashing, equality, and cache keys.
         """
-        lnp_id  = self.lenspart._identity()
+        lnp_id  = self.id_lenspart
         self_id = (self.kwargs_add_lenses,)
         return lnp_id + self_id
  
@@ -115,7 +116,9 @@ class LensPart(BasicLensPart):
     # Lazy reconstruction logic
     # ------------------------------------------------------------------        
     def run(self,update_source_pos=False,verbose=True):
-        self.unpack()
+        # verify we have the Galaxy
+        self._unpack_Gal()
+        
         # Lens Verification:
         ####################
         # project and check if it is a lens
@@ -125,10 +128,12 @@ class LensPart(BasicLensPart):
         #######################
         self.create_lens(verbose=verbose)
 
-        # Image creation
+        # Image creation:
+        #################
         self.sample_source_pos(update=update_source_pos)
         self.image_sim  = self.get_lensed_image()
-        #self.store()
+        self.store()
+        
     ########################
     ########################
     @property
@@ -183,6 +188,9 @@ class LensPart(BasicLensPart):
         """
         Setup lensing parameters tailored for lenstronomy
         """
+        if hasattr(self,"lens_model") and hasattr(self,"kwargs_lens"):
+            print("Lens model already setup")
+            return 0
         print("Setting up lensing parameters...")
         add_lens_model_list    = self.kwargs_add_lenses["lens_model_list"]
         add_kwargs_lens        = self.kwargs_add_lenses["kwargs_lens"]
@@ -202,8 +210,8 @@ class LensPart(BasicLensPart):
         print("z_lens",self.z_lens)
         print("z_source",self.z_source)
         self.lens_model = LensModel(lens_model_list=lens_model_list,
-                                           profile_kwargs_list = profile_kwargs_list,
-                                           **self.kwargs_lensmodel)
+                                    profile_kwargs_list = profile_kwargs_list,
+                                    **self.kwargs_lensmodel)
         print("... Lensing parameters set up ")
         
     def get_lensed_image(self,imageModel=None,

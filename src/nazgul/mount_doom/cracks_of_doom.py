@@ -22,14 +22,16 @@ from python_tools.tools import mkdir,to_dimless,ensure_unit,convert_error_to_war
 # general path
 from nazgul.pathfinder import path_nazgul
 # basic galaxy class
-from nazgul.basic_gal import BasicGal
-
+from nazgul.basic_gal import BasicGal,store_class
+# cosmology
+from nazgul.lib_cosmo import SigCrit
 # Get particle from galaxy catalogue
 from nazgul.Translator.translator import LoadGal
 # particle lens class and params.
 from nazgul.particle_lenses import PartLens
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # likelihood class
+from nazgul.likelihood import Likelihood
 from nazgul.likelihood_z_source import kw_prior_z_source_zl
 # project galaxy along various axis
 from nazgul.project_gal import ProjGal,ProjectionError,projection_main_AMR
@@ -327,23 +329,34 @@ class BasicLensPart(BasicGal):
     def ReadClass(self,cl):
         return ReadLens(cl)
 
+    def _unpack_Gal(self):
+        # reload Galaxy and cosmology
+        if not hasattr(self,"Gal"):
+            Galaxy   = LoadGal(self.Gal_path)
+            Galaxy   = ProjGal(Galaxy)
+            self.Gal = Galaxy
+            # verify that we load the correct galaxy
+            assert self.Gal_name == Galaxy.Name
+        if not hasattr(self,"cosmo"):
+            self.cosmo = Galaxy.cosmo
+
+    def _unpack_PartLens(self):
+        if not hasattr(self,"PartLens"):
+            self.PartLens = PartLens(self.kwlens_part)
+        # the setup is very fast 
+        self.PartLens.setup(self)
+  
     def _unpack(self):
         """Reconstruct all attributes that were intentionally removed
         before serialization.
         """
         print("Unpacking class...")
-        # reload Galaxy and cosmology
-        Galaxy   = LoadGal(self.Gal_path)
-        Galaxy   = ProjGal(Galaxy)
-        self.Gal = Galaxy
-        # verify that we load the correct galaxy
-        assert self.Gal_name == Galaxy.Name
-        self.cosmo = Galaxy.cosmo
+        # Gal & cosmo
+        self._unpack_Gal()
         
         # re-define PartLens
-        self.PartLens = PartLens(self.kwlens_part)
-        self.PartLens.setup(self)
-        """
+        self._unpack_PartLens()
+        
         # skip this because too long and in principle not necessary
         # Rebuild lens model if missing
         if not hasattr(self, "lens_prof"):
@@ -353,15 +366,11 @@ class BasicLensPart(BasicGal):
                 warning = convert_error_to_warning(e)
                 warnings.warn(warning)
                 print("Ignoring Error - likely due to a slimmed down galaxy. Could still work")
-        """
+        
         print("... unpacked")
         
     def store(self):
-        """Serialize the current object to disk using dill.
-        """
-        with open(self.pkl_path, "wb") as f:
-            dill.dump(self, f)
-        print(f"Saved {self.pkl_path}")
+        store_class(self,path=self.pkl_path)
         
     @property
     def pkl_path(self):
@@ -393,7 +402,7 @@ class BasicLensPart(BasicGal):
         
     def get_RADEC(self):
         _ra,_dec = self._radec
-        RA,DEC   = array2image(_ra),array2image(_dec)
+        RA,DEC   = util.array2image(_ra),util.array2image(_dec)
         return RA,DEC
     #
     # Lensing computations

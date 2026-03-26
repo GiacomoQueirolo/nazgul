@@ -38,6 +38,12 @@ class ProjGal:
     def __getattr__(self,name):
         return getattr(self._gal,name)
 
+    def __getstate__(self):
+        return {"_gal": self._gal}
+        
+    def __setstate__(self, state):
+        self._gal = state["_gal"]
+        
     # useful check if it is a lens:
     def is_lens(self,z_source_max,min_thetaE):
         try:

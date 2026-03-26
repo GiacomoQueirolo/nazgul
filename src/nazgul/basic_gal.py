@@ -1,4 +1,15 @@
+import dill
 import numpy as np
+
+
+def store_class(ist_class,path=None):
+    """Serialize the current object to disk using dill.
+    """
+    if path is None:
+        path = ist_class.pkl_path
+    with open(path, "wb") as f:
+        dill.dump(ist_class, f)
+    print(f"Saved {path}")
 
 class BasicGal:
     """General useful class for galaxies (being ensemble of particles or already lenses)
@@ -27,7 +38,7 @@ class BasicGal:
         state = self.__dict__.copy()
         # remove large attributes (if present, can be loaded again)
         if self._large_attributes == []:
-            raise NotImplementedError("Implement a list of     _large_attributes to delete before storing")
+            raise NotImplementedError("Implement a list of _large_attributes to delete before storing")
         for lg_att in self._large_attributes:
             state.pop(lg_att, None)
         return state
@@ -39,10 +50,13 @@ class BasicGal:
     def _needs_unpacking(self):
         """Check whether the object is missing reconstructed attributes.
         """
+
+        """
         print("DEBUG")
         for attr in self._large_attributes:
             if not hasattr(self,attr):
                 print(f"missing {attr}")
+        """
         return not all(
             hasattr(self, attr)
             for attr in self._large_attributes

@@ -10,7 +10,7 @@ from astropy.stats import sigma_clip
 from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass
 
-from nazgul.basic_gal import BasicGal
+from nazgul.basic_gal import BasicGal,store_class
 from nazgul.pathfinder import path_nazgul
 
 class BasicPartGal(BasicGal):
@@ -61,11 +61,7 @@ class BasicPartGal(BasicGal):
         raise NotImplementedError
 
     def store_gal(self):
-        # store this galaxy 
-        with open(self.dill_path,"wb") as f:
-            dill.dump(self,f)
-        print(f"Saved {self.dill_path}")
-        
+        raise NotImplementedError
 # this function is a wrapper for convenience - it takes the class itself as input
 def ReadGal(Gal,vebose=True):
     return LoadClass(path=Gal.dill_path,verbose=verbose,path_base=path_nazgul)

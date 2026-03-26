@@ -99,7 +99,7 @@ class SubLensPart(BasicLensPart):
             - create the lensed image given the source and simulated observation conditions
             - store the results
         """
-        self.unpack()
+        self._unpack_Gal()
         upload_successful = False
         if read_prev:
             upload_successful = self.upload_prev()

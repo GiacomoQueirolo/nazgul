@@ -11,6 +11,7 @@ from nazgul.pathfinder import std_data_dir,path_nazgul
 from nazgul.Translator import SimSuiteNames
 from nazgul.Translator import std_simsuite,std_sim,min_z,max_z,min_mass
 from nazgul.pathfinder import get_part_dir,get_gal_dir
+from nazgul.Translator.particle_galaxy import store_class
 from nazgul.Translator.pathfinder import translate_galname
 
 def check_simsuite(simsuite):
@@ -77,7 +78,12 @@ def Gal2kwMXYZ(Gal):
 # from path to kw of Gal
 
 def gal_path2simsuite(gal_dill_path,data_dir=std_data_dir):
-    simsuite       = Path(gal_dill_path).parts[1]
+    path_split       = np.array(Path(gal_dill_path).parts)
+    data_dir_name    = Path(data_dir).name
+    index_data_dir   = np.where(path_split==data_dir_name)[0][0]
+    index_simsuite   = index_data_dir+1
+    simsuite         = path_split[index_simsuite]
+    check_simsuite(simsuite)
     return simsuite
     
 def gal_path2kwGal(gal_dill_path,data_dir=std_data_dir):
@@ -111,7 +117,8 @@ def LoadGal(path,if_fail_recompute=True,verbose=True):
 def SPG2PG(simsuite,SPG):
     return PartGal.from_SimPartGal(simsuite=simsuite,SPG=SPG)
 
-class PartGal():
+
+class PartGal(): #(BasicPartGal):
     """Given the simulation, snap (or z) and galaxy numbers, set up a class
     with all the needed particle properties converted in physical units
 
@@ -149,6 +156,22 @@ class PartGal():
         obj._SimPartGal = SPG
         return obj
 
+    def __getstate__(self):
+        return {"_SimPartGal": self._SimPartGal}
+    def __setstate__(self, state):
+        self._SimPartGal = state["_SimPartGal"]
+        
+    def store_gal(self):
+        # store class instance 
+        store_class(self,path=self.dill_path)
+    
+    def run(self,reload=True):
+        self._SimPartGal.run(reload=reload)
+        self.store_gal()
+    
+    def __str__(self):
+        return self._SimPartGal.__str__()
+        
     def __getattr__(self, name):
         try:
             return getattr(self._SimPartGal, name)
@@ -186,4 +209,31 @@ class PartGal():
         # all paths are dealt as properties
         mkdir(self.gal_dir)        
         self.run(reload=reload)
+
+    @property
+    def cosmo(self):
+        return self._SimPartGal.cosmo
+        
+    @property
+    def Name(self):
+        return self._SimPartGal.Name
+    @property
+    def dill_path(self):
+        return self._SimPartGal.dill_path
+        
+    def run(self,**kwargs):
+        return self._SimPartGal.run(**kwargs)
+    def initialise_parts(self,**kwargs):
+        return self._SimPartGal.initialise_parts(**kwargs)
+    def store_gal(self):
+        return self._SimPartGal.store_gal()
+    def _verify_cnt(self,**kwargs):
+        return self._SimPartGal._verify_cnt(**kwargs)
+    def __str__(self):
+        return self._SimPartGal.__str__
+    def ReadClass(self,cl):
+        return self._SimPartGal.ReadClass(cl)
+    
+        
+        
 """

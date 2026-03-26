@@ -12,7 +12,7 @@ from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass,load_whatever
 
 from nazgul.pathfinder import get_gal_dir,path_nazgul
-from nazgul.Translator.particle_galaxy import BasicPartGal
+from nazgul.Translator.particle_galaxy import BasicPartGal,store_class
 from nazgul.Translator.COLIBRE.pathfinder import simsuite_name
 from nazgul.Translator.COLIBRE.get_Gal import get_swiftgal,get_snap,get_z_snap
 from nazgul.Translator.COLIBRE.get_Gal import std_sim,std_subsim,colibre_base_path
@@ -162,6 +162,10 @@ class SimPartGal(BasicPartGal):
         # if common attribute, they are overwritten by previous:
         self.__dict__ = {**self.__dict__,**prev_Gal.__dict__}
         return True
+    
+    def store_gal(self):
+        # store class instance 
+        store_class(self,path=self.dill_path)
 
     # ------------------------------------------------------------------
     # Lazy reconstruction logic
