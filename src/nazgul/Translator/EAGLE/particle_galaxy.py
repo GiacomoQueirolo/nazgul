@@ -182,45 +182,31 @@ class SimPartGal(BasicPartGal):
         store_class(self,path=self.dill_path)
 
     def run(self,reload=True,verbose=True):
-        upload_successful = False
         if reload:
-            upload_successful = self.upload_prev(reload=reload,verbose=verbose)
-        if not upload_successful:
-            # actually store the gal
-            self.initialise_parts()
-            self._count_tot_part()
-            self._mass_tot_part()
-            self._verify_cnt()
-            #self.store_gal()
+            self.upload_prev(verbose=verbose)
+        # actually store the gal
+        self.initialise_parts()
+        self._count_tot_part()
+        self._mass_tot_part()
+        self._verify_cnt()
+        #self.store_gal()
 
-    def _upload_prev(self,verbose=True):
-        prev_Gal = ReadGal(self,verbose=verbose)
+    def upload_prev(self,verbose=True):
+        prev_Gal = ReadGal_nounpack(self,verbose=verbose)
         if prev_Gal is False:
             if verbose:
                 print("Failed loading of prev. gal.")
-            return False
+            return
         if prev_Gal != self:
             if verbose:
                 print(f"Prev. Gal not equal to self: {not prev_Gal._identity()==self._identity()}")
                 print(f"Prev. Gal: {prev_Gal._identity()}")
                 print(f"Self:      {self._identity()}")
-            return False
+            return
         # if common attribute, they are overwritten by previous:
-        print("DEBUG",self.__dict__.keys(),prev_Gal.__dict__.keys()) 
         self.__dict__ = {**self.__dict__,**prev_Gal.__dict__}
-        print("DEBUG",self.__dict__.keys())
-        if verbose:
-            print("Loaded prev. gal.")
-        return True
+        return
     
-    def upload_prev(self,reload=True,verbose=True):
-        if not reload:
-            return False
-        # Verify if necessary to reload prev.
-        for large_att in self._large_attributes:
-            if not hasattr(self,large_att):
-                return self._upload_prev(verbose)
-        return True
     
     @property
     def xy_propr2comov(self):
@@ -454,6 +440,12 @@ def _load_one_file(args):
 
 # this function is a wrapper for convenience - it takes the class itself as input
 def ReadGal(Gal,verbose=True):
+    other_Gal = ReadGal_nounpack(Gal,verbose=verbose)
+    other_Gal.unpack()
+    return other_Gal
+
+def ReadGal_nounpack(Gal,verbose=True):
+    "This Reads store galaxy but doesn't unpack it"
     if not Path(Gal.dill_path).is_file():
         return False
     other_Gal = LoadClass(path=Gal.dill_path,verbose=verbose,path_base=path_nazgul)
@@ -469,7 +461,6 @@ def ReadGal(Gal,verbose=True):
             print(f"Prev. Gal: {other_Gal._identity()}")
             print(f"Self:      {Gal._identity()}")
         return False
-    other_Gal.unpack()
     return other_Gal
     
 def LoadGal(path,if_fail_recompute=True,verbose=True):

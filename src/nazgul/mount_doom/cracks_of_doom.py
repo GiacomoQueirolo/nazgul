@@ -333,12 +333,11 @@ class BasicLensPart(BasicGal):
         kw_sublenspart = {}
         kw_sublenspart["Galaxy"] = self.Gal
         kw_sublenspart["reload"] = self.reload
-        kw_sublenspart["min_thetaE"] = self.min_thetaE
         kw_sublenspart["pixel_num"] = self.pixel_num
+        kw_sublenspart["min_thetaE"] = self.min_thetaE
         kw_sublenspart["kwlens_part"] = self.kwlens_part
         kw_sublenspart["projection_index"] = self.proj_index
         kw_sublenspart["kw_prior_z_source"] = self.kw_prior_z_source
-        #kw_sublenspart["subdir"] = self.subdir
         return kw_sublenspart
 
     def ReadClass(self,cl):
@@ -347,14 +346,16 @@ class BasicLensPart(BasicGal):
     def _unpack_Gal(self):
         # reload Galaxy and cosmology
         if not hasattr(self,"Gal"):
+            print("DEBUG Loading Galaxy ... again?")
             Galaxy   = LoadGal(self.Gal_path)
-            Galaxy   = ProjGal(Gal=Galaxy,
+            if not isinstance(Galaxy,ProjGal):
+                Galaxy   = ProjGal(Gal=Galaxy,
                                projection_index=self.proj_index)
             self.Gal = Galaxy
             # verify that we load the correct galaxy
             assert self.Gal_name == Galaxy.Name
         if not hasattr(self,"cosmo"):
-            self.cosmo = Galaxy.cosmo
+            self.cosmo = self.Gal.cosmo
 
     def _unpack_PartLens(self):
         if not hasattr(self,"PartLens"):
@@ -366,7 +367,7 @@ class BasicLensPart(BasicGal):
         """Reconstruct all attributes that were intentionally removed
         before serialization.
         """
-        print("Unpacking class...")
+        print("Unpacking basic lens...")
         # Gal & cosmo
         self._unpack_Gal()
         
@@ -382,8 +383,8 @@ class BasicLensPart(BasicGal):
                 warning = convert_error_to_warning(e)
                 warnings.warn(warning)
                 print("Ignoring Error - likely due to a slimmed down galaxy. Could still work")
-        
-        print("... unpacked")
+
+        print("... unpacked basic lens")
         
     def store(self):
         store_class(self,path=self.pkl_path)
@@ -455,7 +456,22 @@ class BasicLensPart(BasicGal):
             z_source      = np.random.choice(z_source_list)
         return z_source
     
-    def galaxy_projection(self,verbose=True,**kwargs_proj):          
+    def galaxy_projection(self,verbose=True,**kwargs_proj):       
+        # we should not recompute it if it already has the solutions 
+        recompute = False
+        list_att_gal_prj = ["z_source_min",
+                           "z_source",
+                           "MD_coords",
+                            "thetaE",
+                            "SigCrit"]
+        for att_gal_prj in list_att_gal_prj:
+            if not hasattr(self,att_gal_prj):
+                recompute = True
+                break
+        if not recompute:
+            
+            return
+            
         # Compute projection
         kwres_proj_res    = project_Gal(GalProj=self.Gal,
                                         z_source_max=self.z_source_max,
