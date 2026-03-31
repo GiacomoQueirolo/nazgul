@@ -211,18 +211,9 @@ def plot_AMR_cells(kw_2Ddens):
     vmax,vmin = np.max(dns.value),np.min(dns.value)
     cmap = plt.get_cmap("hot")
     norm = Normalize(vmin=vmin, vmax=vmax)
-    def add_patch_pll(i):
-        ax.add_patch(patches.Rectangle((x0[i].value,y0[i].value),x1[i].value-x0[i].value,y1[i].value-y0[i].value,fill=True,linewidth=0.5,facecolor=cmap(norm(dns[i].value))))
-        
-    with Pool(cpu_count()) as pool:
-        _ = pool.map(add_patch_pll, np.arange(len(cells)))
-
-    #_ = [ax.add_patch(patches.Rectangle((x0[i].value,y0[i].value),x1[i].value-x0[i].value,y1[i].value-y0[i].value,fill=True,linewidth=0.5,facecolor=cmap(norm(dns[i].value)))) for i in range(len(cells))]
-
-    
 
     patches_list = [
-        Rectangle(
+        patches.Rectangle(
             (x0[i].value, y0[i].value),
             x1[i].value - x0[i].value,
             y1[i].value - y0[i].value)
@@ -234,9 +225,7 @@ def plot_AMR_cells(kw_2Ddens):
     pc = PatchCollection(
         patches_list,
         facecolor=colors,
-        linewidth=0.5,
-        fill=True
-    )
+        linewidth=0.5)
 
     ax.add_collection(pc)
     ax.set_xlim(np.min(x0.value),np.max(x0.value))

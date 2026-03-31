@@ -66,6 +66,7 @@ def get_z_snap(simsuite,z=None,snap=None):
     return get_z_snap(z=z,snap=snap)
 
 def Gal2MXYZ(Gal):
+    print("DEBUG: Running gal in translator Gal2MXYZ")
     Gal.run()
     simsuite = Gal.simsuite
     Gal2MXYZ = get_sim_func(simsuite,"Gal2MXYZ")
@@ -98,7 +99,7 @@ def gal_path2kwGal(gal_dill_path,data_dir=std_data_dir):
 def get_rnd_PG(simsuite,**kw_galpart):
     get_rnd_SPG = get_sim_func(simsuite,"get_rnd_SPG")
     SPG = get_rnd_SPG(**kw_galpart)
-    PG  = SPG2PG(simsuite,SPG)
+    PG  = SPG2PG(SPG)
     return PG
 
 def get_all_PG(simsuite,**kw_galpart):
@@ -106,7 +107,7 @@ def get_all_PG(simsuite,**kw_galpart):
     all_SPG = get_all_SPG(**kw_galpart)
     all_PG  = []
     for SPG in all_SPG:
-        PG  = SPG2PG(simsuite,SPG)
+        PG  = SPG2PG(SPG)
         all_PG.append(PG)
     return all_PG
     
@@ -115,19 +116,21 @@ def LoadGal(path,if_fail_recompute=True,verbose=True):
     Gal = LoadClass(path=path,verbose=verbose,path_base=path_nazgul)
     if not Gal and if_fail_recompute:
         if verbose:
-            print("Recomputing ...")
+            print("Recomputing Galaxy ...")
         simsuite    = gal_path2simsuite(path)
         kw_Gal_full = gal_path2kwGal(path)
         Gal         = PartGal(simsuite=simsuite,**kw_Gal_full)
         if verbose:
-            print("... done computing")
+            print("... done computing Galaxy")
+    if Gal:
+        Gal.unpack()
     return Gal
 
 def SPG2PG(simsuite,SPG):
-    return PartGal.from_SimPartGal(simsuite=simsuite,SPG=SPG)
+    return PartGal.from_SimPartGal(SPG=SPG)
 
 
-class PartGal(): #(BasicPartGal):
+class PartGal():
     """Given the simulation, snap (or z) and galaxy numbers, set up a class
     with all the needed particle properties converted in physical units
 
@@ -145,9 +148,8 @@ class PartGal(): #(BasicPartGal):
                 ):
         
         check_simsuite(simsuite)
-        self.simsuite     = simsuite
-        SimPartGal        = get_sim_func(self.simsuite,"SimPartGal")
-        get_kw_SimPartGal = get_sim_func(self.simsuite,"get_kw_SimPartGal")
+        SimPartGal        = get_sim_func(simsuite,"SimPartGal")
+        get_kw_SimPartGal = get_sim_func(simsuite,"get_kw_SimPartGal")
         kw_SimPartGal     = get_kw_SimPartGal(kw_Gal=kw_Gal,simsuite=simsuite, 
                                           sim=sim,subsim=subsim,
                                           data_dir=data_dir,
@@ -157,16 +159,20 @@ class PartGal(): #(BasicPartGal):
         self._SimPartGal = SimPartGal(**kw_SimPartGal)
         #self._SimPartGal.run(reload=reload)
 
+    @property
+    def simsuite(self):
+        return self._SimPartGal.simsuite
+        
     @classmethod
-    def from_SimPartGal(cls, simsuite, SPG):
+    def from_SimPartGal(cls, SPG):
         """Construct from an existing SimPartGal instance."""
         obj = cls.__new__(cls)  # bypass __init__
-        obj.simsuite = simsuite
         obj._SimPartGal = SPG
         return obj
 
     def __getstate__(self):
         return {"_SimPartGal": self._SimPartGal}
+        
     def __setstate__(self, state):
         self._SimPartGal = state["_SimPartGal"]
         
@@ -176,7 +182,7 @@ class PartGal(): #(BasicPartGal):
     
     def run(self,reload=True):
         self._SimPartGal.run(reload=reload)
-        self.store_gal()
+        #self.store_gal()
     
     def __str__(self):
         return self._SimPartGal.__str__()
@@ -186,63 +192,3 @@ class PartGal(): #(BasicPartGal):
             return getattr(self._SimPartGal, name)
         except AttributeError:
             raise AttributeError(f"{type(self).__name__} has no attribute {name}")
-"""
-        self.sim      = sim
-        self.subsim   = subsim
-        self.simsuite = simsuite
-        kw_sim        = {"sim":sim,"subsim":subsim,"simsuite":simsuite}
-        z,snap        = get_z_snap(z=z,snap=snap,simsuite=simsuite)
-        self.snap     = snap
-        self.z        = z
-        self.Name     = translate_galname(kw_Gal=kw_Gal,simsuite=simsuite) 
-        # Input Dir:
-        self.part_dir = get_part_dir(snap,data_dir=data_dir,**kw_sim)
-        # Output dir:
-        self.gal_dir  = get_gal_dir(kw_Gal,snap=snap,data_dir=data_dir,**kw_sim)# data and simsuite are for now fixed
-
-        
-        # Mass and Centre can be recovered
-        kw_MCntr      = get_kwMCntr(kw_Gal,z=z,**kw_sim)
-        _M            = kw_MCntr["M"]
-        _Centre       = kw_MCntr["Centre"]
-        if M is not None:
-            assert M  == _M
-        if Centre is not None:
-            assert np.all(Centre == _Centre)
-        self.M        = _M
-        self.centre   = _Centre
-
-        
-        self.a,self.h,self.boxsize = self.read_snap_header()
-
-        # all paths are dealt as properties
-        mkdir(self.gal_dir)        
-        self.run(reload=reload)
-
-    @property
-    def cosmo(self):
-        return self._SimPartGal.cosmo
-        
-    @property
-    def Name(self):
-        return self._SimPartGal.Name
-    @property
-    def dill_path(self):
-        return self._SimPartGal.dill_path
-        
-    def run(self,**kwargs):
-        return self._SimPartGal.run(**kwargs)
-    def initialise_parts(self,**kwargs):
-        return self._SimPartGal.initialise_parts(**kwargs)
-    def store_gal(self):
-        return self._SimPartGal.store_gal()
-    def _verify_cnt(self,**kwargs):
-        return self._SimPartGal._verify_cnt(**kwargs)
-    def __str__(self):
-        return self._SimPartGal.__str__
-    def ReadClass(self,cl):
-        return self._SimPartGal.ReadClass(cl)
-    
-        
-        
-"""
