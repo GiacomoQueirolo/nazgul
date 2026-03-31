@@ -13,7 +13,7 @@ from python_tools.get_res import LoadClass,load_whatever
 
 from nazgul.pathfinder import get_gal_dir,path_nazgul
 from nazgul.Translator.particle_galaxy import BasicPartGal,store_class
-from nazgul.Translator.COLIBRE.pathfinder import simsuite_name
+from nazgul.Translator.COLIBRE import simsuite_name
 from nazgul.Translator.COLIBRE.get_Gal import get_swiftgal,get_snap,get_z_snap
 from nazgul.Translator.COLIBRE.get_Gal import std_sim,std_subsim,colibre_base_path
 from nazgul.Translator.COLIBRE.get_Gal import min_z,max_z,min_mass,get_rnd_kw_swiftgal
@@ -80,8 +80,11 @@ class SimPartGal(BasicPartGal):
     # particles (get from Gal2MXYZ)
     # identity
     # name
+    
+    # define name to verify identity
+    _type_id = "SimPartGal_"+simsuite_name
     _large_attributes=["stars","gas","dark_matter","black_holes","swift_gal","_swift_gal"]
-
+    simsuite = simsuite_name
     def __init__(self,kw_Gal,sim=std_sim,subsim=std_subsim):
         #kw_Gal: soap_index,snap and/or z
         #self.kw_Gal     = kw_Gal
@@ -103,7 +106,7 @@ class SimPartGal(BasicPartGal):
 
         self.gal_dir  = get_gal_dir(kw_Gal,snap=self.snap,
                                     sim=self.sim,subsim=self.subsim,
-                                    simsuite=simsuite_name)
+                                    simsuite=self.simsuite)
         mkdir(self.gal_dir)
         
         # total mass
@@ -149,18 +152,28 @@ class SimPartGal(BasicPartGal):
     ########################
     def _identity(self):
         # Returns tuple to identify uniquely this galaxy
-        Id = (self.sim,self.subsim,
+        Id = (self._type_id,self.sim,self.subsim,
             self.snap,self.soap_index)
         return Id 
         
-    def upload_prev(self,reload=True):
+    def upload_prev(self,reload=True,verbose=True):
         if not reload:
             return False
         prev_Gal = ReadGal(self)
-        if prev_Gal is False or prev_Gal != self:
+        if prev_Gal is False:
+            if verbose:
+                print("Failed loading of prev. gal.")
+            return False
+        if prev_Gal != self:
+            if verbose:
+                print(f"Prev. Gal not equal to self: {prev_Gal._identity()==self._identity()}")
+                print(f"Prev. Gal: {prev_Gal._identity()}")
+                print(f"Self:      {self._identity()}")
             return False
         # if common attribute, they are overwritten by previous:
         self.__dict__ = {**self.__dict__,**prev_Gal.__dict__}
+        if verbose:
+            print("Loaded prev. gal.")
         return True
     
     def store_gal(self):
@@ -174,9 +187,10 @@ class SimPartGal(BasicPartGal):
         """Reconstruct all attributes that were intentionally removed
         before serialization.
         """
-        print("Unpacking class...")
+        print("Unpacking Particle Galaxy ...")
         self.swift_gal
         self.initialise_parts()
+        print("... unpacked Particle Galaxy")
 
     ########################     
     @property
@@ -204,7 +218,22 @@ class SimPartGal(BasicPartGal):
 def ReadGal(Gal,verbose=True):
     if not Path(Gal.dill_path).is_file():
         return False
-    return LoadGal(path=Gal.dill_path,verbose=verbose)
+    other_Gal = LoadClass(path=Gal.dill_path,verbose=verbose,path_base=path_nazgul)
+
+    # If failed, return False
+    if not other_Gal: 
+        if verbose:
+            print("Failed loading of prev.")       
+        return False
+    # check that loaded Gal would be indeed the same
+    if Gal!=other_Gal:
+        if verbose:
+                print(f"Prev. Gal not equal to self: {other_Gal._identity()==Gal._identity()}")
+                print(f"Prev. Gal: {other_Gal._identity()}")
+                print(f"Self:      {Gal._identity()}")
+        return False
+    other_Gal.unpack()
+    return other_Gal
 
 def LoadGal(path,if_fail_recompute=True,verbose=True):
     # Try loading galaxy - if fail and fail_recompute==True, try recomputing it
@@ -222,7 +251,8 @@ def get_rnd_SPG(sim=std_sim,subsim=std_subsim,
                min_z=min_z,
                max_z=max_z
               ):
-    
+    """Randomly sample a galaxy from the simulation 
+    """
     kw_swiftgal = get_rnd_kw_swiftgal(colibre_base_path=colibre_base_path,
                             sim=sim,
                             subsim=subsim,
@@ -236,3 +266,12 @@ def get_rnd_SPG(sim=std_sim,subsim=std_subsim,
                        subsim=subsim)
     return SPG
 
+def get_all_SPG(sim=std_sim,subsim=std_subsim,
+               colibre_base_path=colibre_base_path,
+               min_mass= min_mass,
+               min_z=min_z,
+               max_z=max_z,
+               limit_n=1e3
+               ):
+    """Get all possible galaxies in the range"""
+    raise NotImplementedError("Still to write up")

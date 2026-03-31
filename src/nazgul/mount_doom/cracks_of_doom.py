@@ -34,7 +34,7 @@ from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 from nazgul.likelihood import Likelihood
 from nazgul.likelihood_z_source import kw_prior_z_source_zl
 # project galaxy along various axis
-from nazgul.project_gal import ProjGal,ProjectionError,projection_main_AMR
+from nazgul.project_gal import ProjGal,ProjectionError,project_Gal
 
 # Define some default parameters:
 pixel_num     = 200 # pix for image
@@ -279,16 +279,18 @@ class BasicLensPart(BasicGal):
 
     def __init__(self,
                  Galaxy,      # class instance of PartGal
+                 projection_index, # projection index
                  kwlens_part=kwlens_part_AS, # if PM or AS, and if so size of the core
                  pixel_num=pixel_num, # number of pixels 
                  kw_prior_z_source = kw_prior_z_source_stnd, # could likelihood of z_source
                  min_thetaE = min_thetaE, # minimum theta observable
-                 subdir="./",           # subdirectory (to differentiate btw versions)
+                 #subdir="./",           # subdirectory (to differentiate btw versions)
                  reload=True # reload previous instance
                  ):
 
+        self.proj_index   = projection_index
         # Wrapper class of PartGal to extend for projections
-        Galaxy             = ProjGal(Galaxy) 
+        Galaxy             = ProjGal(Gal=Galaxy,projection_index=self.proj_index) 
         # setup of data
         self.Gal           = Galaxy
         self.Gal_path      = Galaxy.dill_path
@@ -313,10 +315,11 @@ class BasicLensPart(BasicGal):
         self.arcXkpc       = self.cosmo.arcsec_per_kpc_proper(self.z_lens)
 
         # criteria for supercriticality of the lens
-        self.z_source_max  = z_source_max
-        self.kw_like_zs    = kw_prior2like_zs(kw_prior_z_source=kw_prior_z_source,
+        self.z_source_max      = z_source_max
+        self.kw_prior_z_source = kw_prior_z_source
+        self.kw_like_zs        = kw_prior2like_zs(kw_prior_z_source=kw_prior_z_source,
                                               z_lens=self.z_lens)
-        self.min_thetaE    = ensure_unit(min_thetaE,u.arcsec) #arcsec
+        self.min_thetaE        = ensure_unit(min_thetaE,u.arcsec) #arcsec
 
 
     def __str__(self): 
@@ -325,7 +328,19 @@ class BasicLensPart(BasicGal):
         Lazily initializes the name if it has not been generated yet.
         """
         return self.name
-        
+
+    def get_kw_sublenspart(self):
+        kw_sublenspart = {}
+        kw_sublenspart["Galaxy"] = self.Gal
+        kw_sublenspart["reload"] = self.reload
+        kw_sublenspart["min_thetaE"] = self.min_thetaE
+        kw_sublenspart["pixel_num"] = self.pixel_num
+        kw_sublenspart["kwlens_part"] = self.kwlens_part
+        kw_sublenspart["projection_index"] = self.proj_index
+        kw_sublenspart["kw_prior_z_source"] = self.kw_prior_z_source
+        #kw_sublenspart["subdir"] = self.subdir
+        return kw_sublenspart
+
     def ReadClass(self,cl):
         return ReadLens(cl)
 
@@ -333,7 +348,8 @@ class BasicLensPart(BasicGal):
         # reload Galaxy and cosmology
         if not hasattr(self,"Gal"):
             Galaxy   = LoadGal(self.Gal_path)
-            Galaxy   = ProjGal(Galaxy)
+            Galaxy   = ProjGal(Gal=Galaxy,
+                               projection_index=self.proj_index)
             self.Gal = Galaxy
             # verify that we load the correct galaxy
             assert self.Gal_name == Galaxy.Name
@@ -439,24 +455,23 @@ class BasicLensPart(BasicGal):
             z_source      = np.random.choice(z_source_list)
         return z_source
     
-    def galaxy_projection(self,verbose=True):          
+    def galaxy_projection(self,verbose=True,**kwargs_proj):          
         # Compute projection
-        kwres_proj_res    = projection_main_AMR(Gal=self.Gal,
-                                               z_source_max=self.z_source_max,
-                                               sample_z_source=self.sample_z_source,
-                                               min_thetaE=self.min_thetaE,
-                                               arcXkpc=self.arcXkpc,verbose=verbose,
-                                               reload=self.reload)
-        # load latest successful projection
-        kwres_proj = kwres_proj_res["projs"][-1]
+        kwres_proj_res    = project_Gal(GalProj=self.Gal,
+                                        z_source_max=self.z_source_max,
+                                        sample_z_source=self.sample_z_source,
+                                        min_thetaE=self.min_thetaE,
+                                        arcXkpc=self.arcXkpc,verbose=verbose,
+                                        reload=self.reload,
+                                       **kwargs_proj)
         # store results
-        self.proj_index   = kwres_proj["proj_index"]
-        self.z_source_min = kwres_proj["z_source_min"]
-        self.z_source     = kwres_proj["z_source"]
-        self.MD_coords    = kwres_proj["MD_coords"]
+        assert self.proj_index == kwres_proj_res["proj_index"]
+        self.z_source_min = kwres_proj_res["z_source_min"]
+        self.z_source     = kwres_proj_res["z_source"]
+        self.MD_coords    = kwres_proj_res["MD_coords"]
         if verbose:
-            print("Z source sampled:",self.z_source)
-        self.thetaE    = kwres_proj["thetaE"]
+            print("Z source sampled:",np.round(self.z_source,2))
+        self.thetaE    = kwres_proj_res["thetaE"]
         if verbose:
             print("Approx. thetaE:",np.round(self.thetaE,3))
    

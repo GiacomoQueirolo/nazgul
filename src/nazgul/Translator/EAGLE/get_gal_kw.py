@@ -59,7 +59,7 @@ def get_gals(sim=std_sim,simsuite=std_simsuite,min_mass = "1e12",min_z="0",max_z
     if not check_prev:
         # loads only if needed (avoid issues for tutorial)
         # TODO: implement more secure way to deal with password handling
-        from sql_connect import exec_query
+        from nazgul.Translator.EAGLE.sql_connect import exec_query
         myData = exec_query(myQuery)
         # Store it/update 
         with open(cat_path,"wb") as f:

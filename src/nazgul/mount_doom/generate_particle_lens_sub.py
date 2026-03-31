@@ -29,7 +29,7 @@ from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # likelihood class
 from nazgul.likelihood import Likelihood
 # project galaxy along various axis
-from nazgul.project_gal import get_2Dkappa_map,ProjGal
+from nazgul.project_gal import get_2Dkappa_map
 from nazgul.project_gal import Gal2kw_samples
 from nazgul.pathfinder import get_lens_lowdir_from_galdir
 
@@ -42,19 +42,21 @@ class SubLensPart(BasicLensPart):
     
     def __init__(self,
                  Galaxy,      # class instance of PartGal
+                 projection_index, # projection index of the galaxy
                  kwlens_part=kwlens_part_AS, # if PM or AS, and if so size of the core
                  pixel_num=pixel_num, # number of pixels 
                  kw_prior_z_source = kw_prior_z_source_stnd, # could likelihood of z_source
                  min_thetaE = min_thetaE, # minimum theta observable
-                 subdir="./",           # subdirectory (to differentiate btw versions)
+                 #subdir="./",           # subdirectory (to differentiate btw versions)
                  reload=True # reload previous instance
                  ):
         super().__init__(Galaxy=Galaxy,
+                         projection_index=projection_index,
                          kwlens_part=kwlens_part,
                          pixel_num=pixel_num,
                          kw_prior_z_source=kw_prior_z_source,
                          min_thetaE=min_thetaE,
-                         subdir=subdir,
+                         #subdir=subdir,
                          reload=reload)
         self.savedir  = get_lens_lowdir_from_galdir(galdir=self.Gal.gal_dir)
         mkdir(self.savedir)
@@ -73,12 +75,12 @@ class SubLensPart(BasicLensPart):
             self.z_source_max,
             self.kwlens_part,
             )
-    
     ########################
     @property
     def name(self):
         # define name and path of savefile
-        return f"Sub_{self.Gal_name}_Npix{self.pixel_num}_Part{self.PartLens_name}"
+        name =  f"Sub_{self.Gal_name}_Npix{self.pixel_num}_Part{self.PartLens_name}_Prj{self.proj_index}"
+        return name
     #############################
     def run(self,read_prev=True,verbose=True):
         """Main function that computes the deflection map:

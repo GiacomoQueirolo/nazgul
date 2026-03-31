@@ -11,7 +11,7 @@ from nazgul.pathfinder import std_data_dir,path_nazgul
 from nazgul.Translator import SimSuiteNames
 from nazgul.Translator import std_simsuite,std_sim,min_z,max_z,min_mass
 from nazgul.pathfinder import get_part_dir,get_gal_dir
-from nazgul.Translator.particle_galaxy import store_class
+from nazgul.basic_gal import store_class
 from nazgul.Translator.pathfinder import translate_galname
 
 def check_simsuite(simsuite):
@@ -100,6 +100,15 @@ def get_rnd_PG(simsuite,**kw_galpart):
     SPG = get_rnd_SPG(**kw_galpart)
     PG  = SPG2PG(simsuite,SPG)
     return PG
+
+def get_all_PG(simsuite,**kw_galpart):
+    get_all_SPG = get_sim_func(simsuite,"get_all_SPG")
+    all_SPG = get_all_SPG(**kw_galpart)
+    all_PG  = []
+    for SPG in all_SPG:
+        PG  = SPG2PG(simsuite,SPG)
+        all_PG.append(PG)
+    return all_PG
     
 def LoadGal(path,if_fail_recompute=True,verbose=True):
     # Try loading galaxy - if fail and fail_recompute==True, try recomputing it
@@ -163,7 +172,7 @@ class PartGal(): #(BasicPartGal):
         
     def store_gal(self):
         # store class instance 
-        store_class(self,path=self.dill_path)
+        store_class(self._SimPartGal,path=self.dill_path)
     
     def run(self,reload=True):
         self._SimPartGal.run(reload=reload)

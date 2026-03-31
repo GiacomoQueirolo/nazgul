@@ -27,8 +27,6 @@ class BasicGal:
         return hash(self._identity())
 
     def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return NotImplemented
         return self._identity() == other._identity()
 
     def __str__(self):
@@ -73,7 +71,7 @@ class BasicGal:
         """Reconstruct all attributes that were intentionally removed
         before serialization.
         """
-        print("Unpacking class...")
+        print("Unpacking basic gal ...")
         raise NotImplementedError
 
     ########################
@@ -92,13 +90,13 @@ class BasicGal:
         self.__dict__ = {**self.__dict__,**prev_Class.__dict__}
         return True
         
-    def verbose_assert_almost_equal(self,value1,value2=1,decimal=3,msg_title=None):
+    def verbose_assert_almost_equal(self,value1,value2=1,decimal=3,msg=None):
         # a verbose way of giving info if if fails
         try:
             np.testing.assert_almost_equal(value1,value2,decimal=decimal)
         except AssertionError as AssErr:
-            if msg_title:
-                print(msg_title)
-            print("Error for \n"+str(self))
-            raise AssertionError(AssErr)
+            if msg:
+                AssErr.add_note(msg)
+            #print("Error for \n"+str(self))
+            raise AssErr
         return 0

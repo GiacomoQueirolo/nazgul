@@ -5,8 +5,6 @@ Revolves around the LensPart class, plus several helper functions
 -> restructured to be "dominant" w.r.t. LensModel
     -> set z_lens and sample z_s
     -> can have additional lens models
-
-Notes: will have to point toward the SubLensPart instance, so not to store the heavy comp. twice
 """
 
 import dill
@@ -31,7 +29,7 @@ from python_tools.tools import mkdir,to_dimless,convert_error_to_warning
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # project galaxy along various axis
 from nazgul.project_gal import get_2Dkappa_map,ProjectionError
-from nazgul.Translator.translator import get_rnd_PG
+from nazgul.Translator.translator import get_rnd_PG,get_all_PG
 from nazgul.Translator import std_simsuite
 
 from nazgul.mount_doom.generate_particle_lens_sub import SubLensPart
@@ -50,6 +48,7 @@ class LensPart(BasicLensPart):
     _large_attributes = ['lens_model','kw_shear', 'lenspart']
     def __init__(self,
                  Galaxy,
+                 projection_index, # projection index of the galaxy
                  kwlens_part=kwlens_part_AS, # if PM or AS, and if so size of the core
                  pixel_num=pixel_num, # sim prms 
                  kwargs_add_lenses = empty_kwargs_add_lenses, # additional lenses (e.g. LOS)
@@ -58,7 +57,7 @@ class LensPart(BasicLensPart):
                  source_model_list=source_model_list, # this might not be the most efficient way to do it..
                  kwargs_band_sim=kwargs_band_sim,
                  kwargs_lensmodel={}, #additional kwargs to pass to LensModel (e.g. z_lens, as != then of the galaxy one)
-                 subdir="./",
+                 #subdir="./",
                  reload=True # reload previous lens
                  ):
         """
@@ -72,19 +71,13 @@ class LensPart(BasicLensPart):
             min_thetaE:        float (ideally with units of arcsec), define the minumum thetaE for which the galaxy is considered a lens
             
         """
-        super().__init__(Galaxy=Galaxy,
-                         kwlens_part=kwlens_part,
-                         pixel_num=pixel_num,
-                         kw_prior_z_source=kw_prior_z_source,
-                         min_thetaE=min_thetaE,
-                         subdir=subdir,
-                         reload=reload)
+        kw_sublenspart = {"Galaxy":Galaxy,"projection_index":projection_index,"kwlens_part":kwlens_part,
+                          "pixel_num":pixel_num, "kw_prior_z_source": kw_prior_z_source, 
+                          "min_thetaE": min_thetaE,"reload":reload}#"subdir":subdir,
+        super().__init__(**kw_sublenspart)
         self.savedir  = get_lens_highdir_from_galdir(galdir=self.Gal.gal_dir)
         mkdir(self.savedir)
-        # initialise it as if it was SubLensPart
-        kw_sublenspart = {"Galaxy":Galaxy,"kwlens_part":kwlens_part,
-                          "pixel_num":pixel_num, "kw_prior_z_source": kw_prior_z_source, 
-                          "min_thetaE": min_thetaE,"subdir":subdir,"reload":reload}
+
         # initialise it independently
         self.lenspart    = SubLensPart(**kw_sublenspart)
         self.id_lenspart = self.lenspart._identity()
@@ -114,7 +107,14 @@ class LensPart(BasicLensPart):
  
     # ------------------------------------------------------------------
     # Lazy reconstruction logic
-    # ------------------------------------------------------------------        
+    # ------------------------------------------------------------------    
+    @classmethod
+    def from_SubLens(cls, SubLens):
+        """Construct from an existing SimPartGal instance."""
+        kw_sublenspart = SubLens.get_kw_sublenspart()
+        obj = cls.__init__(**kw_sublenspart)
+        return obj
+        
     def run(self,update_source_pos=False,verbose=True):
         # verify we have the Galaxy
         self._unpack_Gal()
@@ -122,7 +122,7 @@ class LensPart(BasicLensPart):
         # Lens Verification:
         ####################
         # project and check if it is a lens
-        self.galaxy_projection()
+        self.galaxy_projection(verbose=verbose)
         
         # Lensing computations:
         #######################
@@ -139,7 +139,8 @@ class LensPart(BasicLensPart):
     @property
     def name(self):
         # define name and path of savefile
-        return f"{self.Gal_name}_Npix{self.pixel_num}_Part{self.PartLens_name}"
+        name= f"{self.Gal_name}_Npix{self.pixel_num}_Part{self.PartLens_name}_Prj{self.proj_index}"
+        return name
     #############################
 
     def create_lens(self,verbose=True):
@@ -207,8 +208,6 @@ class LensPart(BasicLensPart):
         for adlml in add_lens_model_list:
             profile_kwargs_list.append({})
         #print("profile_kwargs_list",profile_kwargs_list)
-        print("z_lens",self.z_lens)
-        print("z_source",self.z_source)
         self.lens_model = LensModel(lens_model_list=lens_model_list,
                                     profile_kwargs_list = profile_kwargs_list,
                                     **self.kwargs_lensmodel)
@@ -624,10 +623,11 @@ def wrapper_get_rnd_lens(reload=True,
     """
     
     default_kw_lenspart={"kwlens_part":kwlens_part_AS,
-                     "kw_prior_z_source":kw_prior_z_source_stnd,
-                     "kwargs_band_sim":kwargs_band_sim,
-                     "pixel_num":pixel_num,
-                     "reload":reload}
+                         "projection_index":0,
+                         "kw_prior_z_source":kw_prior_z_source_stnd,
+                         "kwargs_band_sim":kwargs_band_sim,
+                         "pixel_num":pixel_num,
+                         "reload":reload}
     default_kw_lenspart.update(kw_lenspart)
     kw_lenspart = default_kw_lenspart
     default_kw_galpart={"simsuite":std_simsuite}
@@ -636,12 +636,54 @@ def wrapper_get_rnd_lens(reload=True,
     while True:
         Gal = get_rnd_PG(**kw_galpart)
         Gal.run()
-        try:
-            mod_LP = LensPart(Galaxy=Gal,
-                          **kw_lenspart)
-            mod_LP.run()
-            break
-        except ProjectionError as PE:
-            print("This galaxy failed:\n# ",PE," #\n","Trying different galaxy")
-            pass
-    return mod_LP
+        while kw_lenspart["projection_index"]<3:
+            try:
+                mod_LP = LensPart(Galaxy=Gal,
+                              **kw_lenspart)
+                mod_LP.run()
+                return mod_LP            
+            except ProjectionError as PE:
+                kw_lenspart["projection_index"]+=1
+        print("All projections of this galaxy are not supercritical #\n","Trying different galaxy")
+
+            
+# get ALL possible lenses
+def wrapper_get_all_lens(reload=True,
+                        kw_lenspart={},
+                        kw_galpart={},
+                        verbose=True):
+    """Get a lens from all available galaxies"""
+    
+    default_kw_lenspart={"kwlens_part":kwlens_part_AS,
+                         "projection_index":0,
+                         "kw_prior_z_source":kw_prior_z_source_stnd,
+                         "kwargs_band_sim":kwargs_band_sim,
+                         "pixel_num":pixel_num,
+                         "reload":reload}
+    default_kw_lenspart.update(kw_lenspart)
+    kw_lenspart = default_kw_lenspart
+    default_kw_galpart={"simsuite":std_simsuite}
+    default_kw_galpart.update(kw_galpart)
+    kw_galpart = default_kw_galpart
+    all_Gal    = get_all_PG(**kw_galpart)
+    all_lenses = []
+    if verbose:
+        print(f"Found n={len(all_Gal)} Galaxies")
+    for Gal in all_Gal:
+        Gal.run(reload=reload)
+        while kw_lenspart["projection_index"]<3:
+            try:
+                mod_LP = LensPart(Galaxy=Gal,
+                              **kw_lenspart)
+                mod_LP.run()
+                all_lenses.append(mod_LP)
+            except ProjectionError as PE:
+                kw_lenspart["projection_index"]+=1
+        print(f"All projections of Galaxy {Gal.name} are not supercritical \nTrying different galaxy.")
+        kw_lenspart["projection_index"] = 0
+
+    if verbose:
+        print(f"Found n={len(all_lenses)} Lenses")
+        print(f"i.e. {np.round(len(all_lenses)/len(all_Gal)*100,1)}% of Galaxies")
+        
+    return all_lenses

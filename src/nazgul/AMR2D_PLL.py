@@ -6,10 +6,12 @@ import astropy.units as u
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib.collections import PatchCollection
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
 
 import numba
+from time  import time
 from numba import njit, prange
 
 @njit
@@ -96,20 +98,6 @@ def build_AMR(x, y, m,
                             max_particles, min_area, dens_thresh):
 
             c0,c1,c2,c3 = split_indices(x, y, pts, x0, x1, y0, y1)
-            """
-            for child in (c0,c1,c2,c3):
-                if len(child)>0 and len(child)<len(pts):  
-                    xm = 0.5*(x0+x1)
-                    ym = 0.5*(y0+y1)
-                    if child is c0:
-                        stack.append((x0, xm, y0, ym, np.array(child)))
-                    elif child is c1:
-                        stack.append((xm, x1, y0, ym, np.array(child)))
-                    elif child is c2:
-                        stack.append((x0, xm, ym, y1, np.array(child)))
-                    else:
-                        stack.append((xm, x1, ym, y1, np.array(child)))
-            """
             for i, child in enumerate((c0, c1, c2, c3)):
                 #if len(child) > 0 and len(child) < len(pts):
                 if len(child) > 0 and (x1 - x0)*(y1 - y0) > min_area:
@@ -142,7 +130,6 @@ def validate_no_duplicates(cells, N,verbose=False):
              print("OK: No duplicates, each particle appears once.")
      else:
          assert("ERROR: Some particles appear multiple times or not at all.")
-         #print("Counts:", seen)
     
 def AMR_density_PLL(x, y, m, max_particles=300, min_area=None,dens_thresh=None,Sigma_crit=None):
     # numba strips units; if present, store them and add them a posteriori
@@ -193,37 +180,77 @@ def AMR_density_PLL(x, y, m, max_particles=300, min_area=None,dens_thresh=None,S
     cells = [c[:4] + c[5:] for c in cells]
     # cells: x0,x1,y0,y1,m,density
     return cells
-"""
-# check project_gal
-def plot_amr_cells(cells):
+
+
+def plot_AMR_cells(kw_2Ddens):
     fig, ax = plt.subplots(figsize=(8,8))
     a,b= [],[]
-    dns = [c[-1] for c in cells]
-    vmax,vmin = np.max(dns),np.min(dns)
+    
+    xc,yc = kw_2Ddens["MD_coords"] #kpc
+    cells = kw_2Ddens["AMR_cells"]
+    # to speed up the code I need to vectorise it -
+    # but then I need to ingore the units
+
+    x0,x1,y0,y1,mass,dns  = np.array([[cc.value for cc in c] for c in cells]).T
+    x0_unit,x1_unit,y0_unit,y1_unit,mass_unit,dns_unit  = [c.unit for c in cells[0]]
+    # verify that the units are consistent
+    assert x0_unit==x1_unit
+    assert x0_unit==y0_unit
+    assert x0_unit==y1_unit
+    assert x0_unit==xc.unit
+    assert x0_unit==yc.unit
+    
+    length_unit = x0_unit
+    x0 *=length_unit
+    x1 *=length_unit
+    y0 *=length_unit
+    y1 *=length_unit
+    mass *=mass_unit
+    dns  *=dns_unit
+    
+    vmax,vmin = np.max(dns.value),np.min(dns.value)
     cmap = plt.get_cmap("hot")
     norm = Normalize(vmin=vmin, vmax=vmax)
-    for cell in cells:
-        w = cell[1] - cell[0]
-        h = cell[3] - cell[2]
-        a.append( cell[0])
-        b.append(cell[2])
-        color = cmap(norm(cell[-1]))
-        rect = patches.Rectangle(( cell[0], cell[2]), w, h,
-                                 fill=True, linewidth=0.5,facecolor=color)
-        ax.add_patch(rect)
-    ax.set_xlim(np.min(a),np.max(a))
-    ax.set_ylim(np.min(b),np.max(b))
+    def add_patch_pll(i):
+        ax.add_patch(patches.Rectangle((x0[i].value,y0[i].value),x1[i].value-x0[i].value,y1[i].value-y0[i].value,fill=True,linewidth=0.5,facecolor=cmap(norm(dns[i].value))))
+        
+    with Pool(cpu_count()) as pool:
+        _ = pool.map(add_patch_pll, np.arange(len(cells)))
+
+    #_ = [ax.add_patch(patches.Rectangle((x0[i].value,y0[i].value),x1[i].value-x0[i].value,y1[i].value-y0[i].value,fill=True,linewidth=0.5,facecolor=cmap(norm(dns[i].value)))) for i in range(len(cells))]
+
+    
+
+    patches_list = [
+        Rectangle(
+            (x0[i].value, y0[i].value),
+            x1[i].value - x0[i].value,
+            y1[i].value - y0[i].value)
+        for i in range(len(cells))
+    ]
+
+    colors = cmap(norm([d.value for d in dns]))
+
+    pc = PatchCollection(
+        patches_list,
+        facecolor=colors,
+        linewidth=0.5,
+        fill=True
+    )
+
+    ax.add_collection(pc)
+    ax.set_xlim(np.min(x0.value),np.max(x0.value))
+    ax.set_ylim(np.min(y0.value),np.max(y0.value))
     ax.set_aspect("equal")
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
+    ax.set_xlabel("x ["+str(x0.unit)+"]")
+    ax.set_ylabel("y ["+str(y0.unit)+"]")
     
     sm = ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])  # required for colorbar
     cbar = fig.colorbar(sm, ax=ax)
-    cbar.set_label("Density")
+    cbar.set_label(f"Density [{dns_unit}]")
     return fig,ax
-"""
-from time  import time
+    
 def _test_AMR():
     N = int(1e6)
     M = int(N/10)
@@ -244,7 +271,7 @@ def _test_AMR():
     print(len(cells))
     t1 = time()
     print(t1-t0)
-    plot_amr_cells(cells)
+    fig,ax=plot_AMR_cells(cells)
     nm_test = "tmp/AMR_pll_test.pdf"
     plt.savefig(nm_test)
     print(f"Saving {nm_test}")

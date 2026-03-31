@@ -18,6 +18,7 @@ from python_tools.get_res import load_whatever
 
 from nazgul.plot_PL import plot_all
 from nazgul.masking import mask_SEAGLE,mask_max_dens
+from nazgul.mount_doom.cracks_of_doom import LoadLens
 from nazgul.mount_doom.generate_particle_lens_dom import wrapper_get_rnd_lens,LensPart
 
 lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
@@ -199,10 +200,10 @@ if __name__=="__main__":
                                     reload=True)
     else:
         print("Loading lens from \n"+lens_path+"\n")
-        lens = load_whatever(lens_path)
+        lens = LoadLens(lens_path)
         lens.run()
         if "/Sub/" in lens_path:
-            lens = LensPart(lens.Gal)
+            lens = LensPart.from_SubLens(lens)
             lens.run()
         if lens.thetaE.value<min_thetaE:
             raise RuntimeError("Ensure that the thetaE of the input lens is larger than min_thetaE")
@@ -261,6 +262,8 @@ if __name__=="__main__":
     print(f"Saving result output in kw:{nm_res}")
 
     print(kwargs_result)
+
+    
     # we need to extract the updated multi_band_list object since the coordinate shifts were updated in the kwargs_data portions of it
     multi_band_list_out = fitting_seq.multi_band_list
     nm_mblo = f"{lens.model_res_dir}/multi_band_list_out.json"

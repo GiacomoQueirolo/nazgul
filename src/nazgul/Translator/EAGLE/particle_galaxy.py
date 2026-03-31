@@ -32,7 +32,7 @@ from nazgul.Translator.translator import min_z,max_z,min_mass
 
 from nazgul.Translator.particle_galaxy import BasicPartGal,store_class,clip_coord
 
-from nazgul.Translator.EAGLE.pathfinder import simsuite_name
+from nazgul.Translator.EAGLE import simsuite_name
 
 def gal_path2kwGal(gal_path):
     """From path extract the ALL required inputs for SimPartGal class
@@ -90,12 +90,14 @@ class SimPartGal(BasicPartGal):
     """Given the simulation, snap (or z) and galaxy numbers, set up a class
     with all the needed particle properties converted in physical units
     """
+    # define name to verify identity
+    _type_id = "SimPartGal_"+simsuite_name
     _large_attributes = ["stars","gas","dm","bh"]
     # indexes of particles: gas,dm,stars,bh:
     indexes = [0,1,4,5]
     # n* of files per snapshot:
     nfiles  = 16
-
+    simsuite = simsuite_name
     def __init__(self, 
                  kw_Gal, # identity of the galaxy: Gn,SGn
                  sim=std_sim, 
@@ -110,10 +112,10 @@ class SimPartGal(BasicPartGal):
         self.Gn       = kw_Gal["Gn"]
         self.SGn      = kw_Gal["SGn"]
         # Input Dir:
-        self.part_dir = get_part_dir(snap,sim=sim,simsuite=simsuite_name,data_dir=data_dir)
+        self.part_dir = get_part_dir(snap,sim=sim,simsuite=self.simsuite,data_dir=data_dir)
         # Output dir:
         self.gal_dir  = get_gal_dir(kw_gal=kw_Gal,snap=snap,sim=sim,
-                                    simsuite=simsuite_name,data_dir=data_dir)# data and simsuite are for now fixed
+                                    simsuite=self.simsuite,data_dir=data_dir)# data and simsuite are for now fixed
         # Mass and Centre can be recovered
         kw_MCntr      = get_kwMCntr(self.Gn,self.SGn,z=z,sim=sim)
         _M            = kw_MCntr["M"]
@@ -138,7 +140,7 @@ class SimPartGal(BasicPartGal):
     ########################
     def _identity(self):
         # Returns tuple to identify uniquely this galaxy
-        Id = (self.sim,self.snap,self.Name)
+        Id = (self._type_id,self.sim,self.snap,self.Name)
         return Id
         
     def __str__(self):
@@ -165,8 +167,9 @@ class SimPartGal(BasicPartGal):
         """Reconstruct all attributes that were intentionally removed
         before serialization.
         """
-        print("Unpacking class...")
+        print("Unpacking Particle Galaxy ...")
         self.initialise_parts()
+        print("... unpacked Particle Galaxy")
 
     ########################
     ########################
@@ -178,14 +181,11 @@ class SimPartGal(BasicPartGal):
         # store class instance 
         store_class(self,path=self.dill_path)
 
-    def run(self,reload=True):
+    def run(self,reload=True,verbose=True):
         upload_successful = False
         if reload:
-            upload_successful = self.upload_prev(reload=reload)
+            upload_successful = self.upload_prev(reload=reload,verbose=verbose)
         if not upload_successful:
-            # useful to check Center of Mass
-            self.xy_propr2comov = self.prop2comov("Coordinates") 
-            self.m_propr2comov  = self.prop2comov("Mass") 
             # actually store the gal
             self.initialise_parts()
             self._count_tot_part()
@@ -193,23 +193,45 @@ class SimPartGal(BasicPartGal):
             self._verify_cnt()
             #self.store_gal()
 
-    def _upload_prev(self,reload=True):
-        prev_Gal = ReadGal(self)
-        if prev_Gal is False or prev_Gal != self:
+    def _upload_prev(self,verbose=True):
+        prev_Gal = ReadGal(self,verbose=verbose)
+        if prev_Gal is False:
+            if verbose:
+                print("Failed loading of prev. gal.")
+            return False
+        if prev_Gal != self:
+            if verbose:
+                print(f"Prev. Gal not equal to self: {not prev_Gal._identity()==self._identity()}")
+                print(f"Prev. Gal: {prev_Gal._identity()}")
+                print(f"Self:      {self._identity()}")
             return False
         # if common attribute, they are overwritten by previous:
+        print("DEBUG",self.__dict__.keys(),prev_Gal.__dict__.keys()) 
         self.__dict__ = {**self.__dict__,**prev_Gal.__dict__}
+        print("DEBUG",self.__dict__.keys())
+        if verbose:
+            print("Loaded prev. gal.")
         return True
     
-    def upload_prev(self,reload=True):
+    def upload_prev(self,reload=True,verbose=True):
         if not reload:
             return False
         # Verify if necessary to reload prev.
         for large_att in self._large_attributes:
             if not hasattr(self,large_att):
-                return self._upload_prev(reload=reload)
+                return self._upload_prev(verbose)
         return True
     
+    @property
+    def xy_propr2comov(self):
+        # useful to check Center of Mass
+        return self.prop2comov("Coordinates") 
+
+    @property
+    def m_propr2comov(self):
+        # useful to check Center of Mass
+        return self.prop2comov("Mass") 
+
     def prop2comov(self,varType):
         """Proper coordinate/mass to comoving
         physically motivated 
@@ -238,7 +260,7 @@ class SimPartGal(BasicPartGal):
     ######################
     
     def _get_files(self):
-        files = [glob.glob(f"{self.part_dir}/snap*.{i}.hdf5")[0] for i in range(self.nfiles)]
+        files = [glob.glob(f"{self.part_dir}/snap_*.{i}.hdf5")[0] for i in range(self.nfiles)]
         if len(files) != self.nfiles:
             raise RuntimeError(f"Expected {self.nfiles} files, got {len(files)}")
         return files
@@ -291,7 +313,12 @@ class SimPartGal(BasicPartGal):
             if "smooth" in r:
                 output["smooth"].append(r["smooth"])
         
-        output["coords"] = np.vstack(output["coords"])
+        coords = np.vstack(output["coords"])
+        # Raise error if the particles are "split"
+        if np.any(np.std(coords,axis=0)>1.5):
+            raise RuntimeError("The galaxy is split, to investigate - likely a conversion error (by h or a, or both)")
+            
+        output["coords"] = coords
         output["mass"]   = np.hstack(output["mass"])
         if itype != 1:
             output["smooth"] = np.hstack(output["smooth"])
@@ -327,7 +354,7 @@ class SimPartGal(BasicPartGal):
         
         if not hasattr(self,"M_tot"):
             self.M_tot   =  self.M_gas+self.M_dm+self.M_stars +self.M_bh
-        self.verbose_assert_almost_equal(float(self.M_tot)/float(self.M),1,decimal=3,msg_title="The summed mass and the expected mass differs")
+        self.verbose_assert_almost_equal(float(self.M_tot)/float(self.M),1,decimal=3,msg="The summed and the total expected mass differ:")
         return self.M_tot
                 
     def _verify_cnt(self):
@@ -357,7 +384,7 @@ class SimPartGal(BasicPartGal):
         center_actual  = np.array(cnt_m)
         center_desired = self.centre
         #np.testing.assert_almost_equal(center_desired,center_desired,decimal=2)
-        self.verbose_assert_almost_equal(center_desired,center_desired,decimal=2,msg_title="Centre") 
+        self.verbose_assert_almost_equal(center_actual,center_desired,decimal=2,msg="The expected and measured CM centre differ:") 
 
 def _load_one_file(args):
     fl, indices, itype,boxsize,centre = args
@@ -382,10 +409,10 @@ def _load_one_file(args):
 
         coords = coords * cgs * (a ** aexp) * (h ** hexp)*u.cm.to(u.Mpc)
         # Periodic wrap coordinates around centre.
-        boxsize           = boxsize*(h**hexp)
+        # -> boxsize is given in cMpc/h, must correct for both scaling effects
+        boxsize           = boxsize* (a ** aexp)*(h**hexp)
         centre            = centre*(a**aexp) # given in comoving (but not 1/h)
         results['coords'] = np.mod(coords-centre+0.5*boxsize,boxsize)+centre-0.5*boxsize       
-        
         # Mass
         ######
         if itype != 1:
@@ -429,8 +456,22 @@ def _load_one_file(args):
 def ReadGal(Gal,verbose=True):
     if not Path(Gal.dill_path).is_file():
         return False
-    return LoadGal(path=Gal.dill_path,verbose=verbose)
-
+    other_Gal = LoadClass(path=Gal.dill_path,verbose=verbose,path_base=path_nazgul)
+    # If failed, return False
+    if not other_Gal: 
+        if verbose:
+            print("Failed loading of prev.")       
+        return False
+    # check that loaded Gal would be indeed the same
+    if Gal!=other_Gal:
+        if verbose:
+            print(f"Prev. Gal not equal to self: {not other_Gal._identity()==Gal._identity()}")
+            print(f"Prev. Gal: {other_Gal._identity()}")
+            print(f"Self:      {Gal._identity()}")
+        return False
+    other_Gal.unpack()
+    return other_Gal
+    
 def LoadGal(path,if_fail_recompute=True,verbose=True):
     # Try loading galaxy - if fail and fail_recompute==True, try recomputing it
     Gal = LoadClass(path=path,verbose=verbose,path_base=path_nazgul)
@@ -509,7 +550,35 @@ def get_rnd_SPG(sim=std_sim,min_mass=min_mass,min_z=min_z,max_z=max_z,
     SPG      = SimPartGal(**kwGal)
     return SPG
 
-
+def get_all_SPG(sim=std_sim,min_mass=min_mass,min_z=min_z,max_z=max_z,
+               check_prev=True,save_pkl=True,limit_n=1e3):
+    """Get all possible galaxies in the range"""
+    min_mass = str(min_mass)
+    min_z    = str(min_z)
+    max_z    = str(max_z)
+    data     = get_gals(sim=sim,min_mass=min_mass,max_z=max_z,min_z=min_z,\
+                        check_prev=check_prev,plot=False,save_pkl=save_pkl)
+    n_data   = len(data["z"])
+    if n_data>limit_n:
+        raise RuntimeError(f"Too many galaxy loaded (N={n_data}). Aborted")
+    all_SPG  = []
+    for i in range(n_data):
+        kw_gal = {}
+        for k in data.keys():
+            if k=="query" or k=="sim":
+                kw_gal[k] = data[k]
+            else:
+                kw_gal[k] = data[k][i]
+        z        = kw_gal["z"] 
+        M        = kw_gal["M"] 
+        kw_Gal   = {"Gn":kw_gal["Gn"],"SGn":kw_gal["SGn"]}
+        Centre   = np.array([kw_gal["CMx"],kw_gal["CMy"],kw_gal["CMz"]]) 
+        
+        kwGal    = {"z":z,"kw_Gal":kw_Gal,"sim":sim,"M":M,"Centre":Centre}
+        SPG      = SimPartGal(**kwGal)
+        all_SPG.append(SPG)
+    return all_SPG
+    
 def Gal2MXYZ(Gal): 
     """Given the galaxy, return Masses (in Msun) and
     XY coords. of particles in kpc  centered around center

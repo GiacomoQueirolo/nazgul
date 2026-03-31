@@ -1,10 +1,10 @@
 from python_tools.get_res import load_whatever
 from nazgul.Translator.EAGLE import usnm_pwd_file
-
+from nazgul.pathfinder import path_nazgul 
 try:
-    usnm_pwd = load_whatever(usnm_pwd_file)
+    usnm_pwd = load_whatever(path_nazgul/usnm_pwd_file)
 except FileNotFoundError:
-    raise FileNotFoundError("To automate the connection, first run Translator/EAGLE/setup_eagle_data.py")
+    raise FileNotFoundError("To automate the connection, first run nazgul/Translator/EAGLE/setup_eagle_data.py")
 
 import eagleSqlTools as sql
 

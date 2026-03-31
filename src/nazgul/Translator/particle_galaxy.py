@@ -39,9 +39,6 @@ class BasicPartGal(BasicGal):
         str_gal += f", at z={str(np.round(self.z,3))}/snap={self.snap},"
         str_gal += f" with \nN={'%.1E'%Decimal(self.N_part)} part.\nof \ntot Mass={'%.1E'%Decimal(self.M)} [M_sun]\n"
         return str_gal 
-        
-    def ReadClass(self,cl):
-        return ReadGal(cl)
     ########################
     ########################
     
@@ -62,9 +59,6 @@ class BasicPartGal(BasicGal):
 
     def store_gal(self):
         raise NotImplementedError
-# this function is a wrapper for convenience - it takes the class itself as input
-def ReadGal(Gal,vebose=True):
-    return LoadClass(path=Gal.dill_path,verbose=verbose,path_base=path_nazgul)
 
 def clip_coord(m,x,y,z,sigma=10):
     # clip coordinates outliers

@@ -1,3 +1,5 @@
+simsuite_name ="EAGLE"
+
 # Available simulations:
 sim     = ["RefL0025N0752","RefL0012N0188","RefTuto"]
 

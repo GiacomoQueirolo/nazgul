@@ -9,7 +9,7 @@ from swiftgalaxy import SWIFTGalaxy, SOAP
 from swiftsimio import SWIFTDataset, cosmo_quantity
 
 from nazgul.Translator import min_z,max_z,min_mass
-from nazgul.Translator.COLIBRE.pathfinder import simsuite_name
+from nazgul.Translator.COLIBRE import simsuite_name
 
 # the following is, so far, not a variable
 colibre_base_path = Path("/cosma8/data/dp004/colibre/Runs/")

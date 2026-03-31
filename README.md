@@ -14,6 +14,6 @@ mamba env create -f nazgul_env.yaml
 mamba activate nazgul_env
 python -m pip install -e .
 cd src/nazgul
-print("If you will be using EAGLE simulated lenses, follow the following script: setup_eagle_data.py")
+echo "If you will be using EAGLE simulated lenses, follow the following script: setup_eagle_data.py"
 jupyter notebook Tutorial.ipynb 
 ```

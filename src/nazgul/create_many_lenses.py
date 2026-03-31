@@ -7,7 +7,10 @@ n_lenses = 0
 failed_lenses=0
 while n_lenses<aim_n_lenses:
     try:
-        lns = wrapper_get_rnd_lens(reload=True)
+        lns = wrapper_get_rnd_lens(kw_galpart={"min_z":.4,
+                                               "max_z":0.51,
+                                               "min_mass":1e12},
+                                   reload=True)
         perc = n_lenses*100/aim_n_lenses
         if perc%10==0:
             print(f"\n\n###########\n{np.round(perc,2)}% completed\n###############\n\n")

@@ -4,13 +4,12 @@ a maximum source redshift and a minimum Einstein angle
 Uses Adaptime Mesh Refinement for the estimation of the density map
 """
 import dill
+import warnings
 import numpy as np
 from copy import copy
 from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from matplotlib.colors import  Normalize
-from matplotlib.cm import ScalarMappable
 
 import astropy.units as u
 import astropy.constants as const
@@ -19,49 +18,52 @@ from scipy.interpolate import interp1d
 from python_tools.get_res import load_whatever,get_path_str
 from python_tools.tools import mkdir,to_dimless,ensure_unit,short_SciNot
 
+import nazgul.pathfinder as pthf 
 from nazgul.pathfinder import get_proj_dir_from_galdir,path_nazgul
 from nazgul.pathfinder import nm_proj_dir as dir_name
 from nazgul.lib_cosmo import SigCrit,DsDds
-from nazgul.AMR2D_PLL import AMR_density_PLL
+from nazgul.AMR2D_PLL import AMR_density_PLL,plot_AMR_cells
 from nazgul.Translator.translator import Gal2kwMXYZ,get_CM
 # standard directory 
 # Wrapper class of PartGal that extend it to
 # deal with the projection components
 
 class ProjGal:
-    def __init__(self,Gal,proj_dir_name=dir_name):
-        self._gal = Gal
-        self.proj_dir      = get_proj_dir_from_galdir(Gal.gal_dir)
+    def __init__(self,Gal,projection_index):
+        self._gal            = Gal
+        self.proj_dir        = get_proj_dir_from_galdir(Gal.gal_dir)
         mkdir(self.proj_dir)
-        self.projection_path = self.proj_dir/"projection.pkl"
+        self.proj_index      = projection_index
+        self.projection_path = self.proj_dir/f"projection_{projection_index}.pkl"
         
     def __getattr__(self,name):
         return getattr(self._gal,name)
+    ########################
+    def _identity(self):
+        """Return an immutable tuple uniquely identifying this galaxy.
 
-    def __getstate__(self):
-        return {"_gal": self._gal}
-        
-    def __setstate__(self, state):
-        self._gal = state["_gal"]
-        
+        The identity is used for hashing, equality, and cache keys.
+        """
+        return (
+            self._gal._identity(),
+            self.proj_index
+            )
+    ########################
     # useful check if it is a lens:
     def is_lens(self,z_source_max,min_thetaE):
         try:
             kw_res_proj = load_whatever(self.projection_path)
             is_lens = False
-            # simply check if at least one proj. is supercritical
-            for kw_prj in kw_res_proj["projs"]:
-                verify_if_lens = kw_prj["verify_lens"]
-                if verify_if_lens(self,z_source_max=z_source_max,
-                                  min_thetaE=min_thetaE) is not np.nan:
-                    is_lens = True                    
-                    break
+            # simply check if projection is supercritical
+            verify_if_lens = kw_res_proj["verify_lens"]
+            if verify_if_lens(self,z_source_max=z_source_max,
+                              min_thetaE=min_thetaE) is not np.nan:
+                is_lens = True                    
         except FileNotFoundError:
             # If file is not there, we assume it is 
             # (rather, could be) a lens
             is_lens = True
-        return is_lens
-        
+        return is_lens      
 
 
 def proj_parts(kw_parts,proj_index):    
@@ -99,101 +101,113 @@ class ProjectionError(Exception):
     def __str__(self):
         return self.message
         
-def projection_main_AMR(Gal,z_source_max,sample_z_source,min_thetaE,
-                    arcXkpc=None,verbose=True,reload=True):
+def project_Gal(GalProj,z_source_max,sample_z_source,min_thetaE,
+                    arcXkpc=None,plot_2Ddens=False,verbose=True,reload=True,**kwargs):
     """
     Main projection function:
-    - iteratively, for each projection:
         - project particles on plane
         - create AMR
         - find center (coord of densest cell):
                - MD (mode/maximum density) coord
                - MD value
                - AMR cells
-        - 
-           - return:
-                  - projection
-                  - z_min
-                  - MD coord
-                  - theta_E (approx) centered around MD -
+    - Input: 
+        - GalProj: ProjGal instance, Galaxy projection
+        - z_source_max: float, maximum redshift allowed for the source (z_source)
+        - sample_z_source: func, given the range, will sample the z_source
+        - min_thetaE: arcsec, min. threshold theta_E for the gal to be considered a lens
+        - arcXkpc: arcsec/kpc, physical conversion scale (can be recomputed from the Gal)
+        - plot_2Ddens: bool, if True plot the 2D density map from the AMR
+        - reload: bool, if True tries to reload previous results and return them
+        - verbose: bool
+        
+   - return:
+       - kw_proj_res: kwargs, contains:
+          - proj_index: int, projection index
+          - z_source_min: float, minimum z source
+          - verify_lens: func, function to verify if the gal is lens given min_thetaE and z_source_max
+          - MD coord: array, coordinates of Maximum Density 
+          - theta_E (approx) centered around MD
     """
-    proj_index = 0
-    
-    kw_proj_res = {"projs":[]} 
     # if present and reload:
     if reload:
         try:
-            kw_proj_res = load_whatever(Gal.projection_path)
-            print(f"Found and loaded projection from : {get_path_str(Gal.projection_path,path_nazgul)}")
+            kw_proj_res = load_whatever(GalProj.projection_path)
+            print(f"Found and loaded projection from : {get_path_str(GalProj.projection_path,path_nazgul)}")
             return kw_proj_res
         except Exception as e :
             if verbose:
                 print("Failed to load because "+str(e))
                 print("Recomputing projection ...")
+                kw_proj_res = {} 
             pass
     # else compute it
     if arcXkpc is None:
-        arcXkpc = Gal.cosmo.arcsec_per_kpc_proper(Gal.z)
+        arcXkpc = GalProj.cosmo.arcsec_per_kpc_proper(Gal.z)
   
     # Read particles ONCE
     # kwargs of Msun, XYZ in kpc (explicitely) centered around Centre of Mass (CM)
-    kw_parts         = Gal2kwMXYZ(Gal) 
+    kw_parts       = Gal2kwMXYZ(GalProj)
 
     min_thetaE_kpc = min_thetaE/arcXkpc 
     proj_supercrit = False
-    while proj_index<3:
-        kw_proj = {"proj_index":proj_index}
-        # Project the particles 
-        kw_parts_proj = project_kw_parts(kw_parts=kw_parts,proj_index=proj_index)
+    proj_index = GalProj.proj_index
+    kw_proj = {"proj_index":proj_index}
 
-        # compute 2D density AMR density map (parallelised)
-        kw_2Ddens = dens_map_AMR(kw_parts_proj=kw_parts_proj,
-                                  verbose=verbose)
-        
-        savenameSigmaEnc =Gal.proj_dir/f"Sigma_enc_proj{proj_index}.png"
+    # Project the particles 
+    kw_parts_proj = project_kw_parts(kw_parts=kw_parts,proj_index=proj_index)
 
-        # get range of source redshift
-        kw_z_min = get_min_z_source(Gal=Gal,min_thetaE_kpc=min_thetaE_kpc,
-                                  kw_2Ddens=kw_2Ddens,
-                                  z_source_max=z_source_max,
-                                  savenameSigmaEnc=savenameSigmaEnc,verbose=verbose)
-        if kw_z_min["z_source_min"] is np.nan:
-            if verbose:
-                print("This projection of the galaxy does not lead to a supercritical lens. \
-Rerun trying different projection")
-            # store the kw_z_min
-            kw_res = kw_proj | kw_z_min 
-            kw_proj_res["projs"].append(kw_res)
-            proj_index+=1
-        else:
-            # sample z_source
-            z_source = sample_z_source(z_source_min = kw_z_min["z_source_min"],z_source_max=z_source_max)
-            kw_z_min["z_source"] = z_source
-            
-            # get an estimate of theta_E 
-            thetaE = get_rough_thetaE(kw_2Ddens,Gal.cosmo,Gal.z,z_source,path=Gal.proj_dir,fig_Sig=kw_z_min["fig_Sig"])
+    # compute 2D density AMR density map (parallelised)
+    kw_2Ddens = dens_map_AMR(kw_parts_proj=kw_parts_proj,
+                              verbose=verbose)
     
-            # AMR is not stored bc fairly large and not too long to compute
-            del kw_2Ddens["AMR_cells"] 
-            del kw_z_min["fig_Sig"]
-            kw_thetaE = {"thetaE":thetaE} 
-                        
-            kw_res  = kw_proj|kw_2Ddens|kw_z_min|kw_thetaE
-            kw_proj_res["projs"].append(kw_res)
-            proj_supercrit = True
-            break
+    savenameSigmaEnc =GalProj.proj_dir/f"Sigma_enc_proj{proj_index}.png"
 
-    with open(Gal.projection_path,"wb") as f:
+    # get range of source redshift
+    kw_z_min = get_min_z_source(GalProj=GalProj,min_thetaE_kpc=min_thetaE_kpc,
+                              kw_2Ddens=kw_2Ddens,
+                              z_source_max=z_source_max,
+                              savenameSigmaEnc=savenameSigmaEnc,verbose=verbose)
+    if plot_2Ddens:
+        fig,ax = plot_AMR_cells(kw_2Ddens)
+        nm = f"{pthf.tmp_dir}/AMR_2DDens_{GalProj.Name}_prj{proj_index}.png"
+        fig.savefig(nm)
+        print(f"Saved {nm}") 
+        
+    if kw_z_min["z_source_min"] is np.nan:
+        if verbose:
+            print("This projection of the galaxy does not lead to a supercritical lens. \
+Rerun trying different projection")
+        # store the kw_z_min
+        kw_proj_res = kw_proj | kw_z_min
+        pass
+    else:
+        # sample z_source
+        z_source = sample_z_source(z_source_min = kw_z_min["z_source_min"],z_source_max=z_source_max)
+        kw_z_min["z_source"] = z_source
+        
+        # get an estimate of theta_E 
+        thetaE = get_rough_thetaE(kw_2Ddens,GalProj.cosmo,GalProj.z,z_source,path=GalProj.proj_dir,fig_Sig=kw_z_min["fig_Sig"])
+
+        # AMR is not stored bc fairly large and not too long to compute
+        del kw_2Ddens["AMR_cells"] 
+        del kw_z_min["fig_Sig"]
+        kw_thetaE = {"thetaE":thetaE} 
+                    
+        kw_proj_res  = kw_proj|kw_2Ddens|kw_z_min|kw_thetaE
+
+        proj_supercrit = True
+            
+    with open(GalProj.projection_path,"wb") as f:
         dill.dump(kw_proj_res,f)
-    print(f"Saved {Gal.projection_path}")
+    print(f"Saved {GalProj.projection_path}")
 
     if proj_supercrit is False:
         if verbose:
-            print("M(gal)",short_SciNot(Gal.M_tot))
-            print("z_gal",Gal.z)
-        proj_message = "\nThere is no projection of the galaxy that create a lens given the constraints\n"
+            print("M(gal)",short_SciNot(GalProj.M_tot))
+            print("z_gal",GalProj.z)
+        proj_message = "\nThis projection of the galaxy does not create a lens given the constraints\n"
         raise ProjectionError(proj_message)
-
     return kw_proj_res
 
 
@@ -203,6 +217,8 @@ def dens_map_AMR(kw_parts_proj,
                   dens_thresh = 0.*u.Msun/(u.kpc**2),
                   verbose=True):
     """ 
+    Compute density Adaptive Mesh Refinement map
+    input  :  
     returns: kw_2Ddens["MD_value"][u.Msun/(u.kpc**2),1] 
              kw_2Ddens["MD_coord"][arcsec,2]
              kw_2Ddens["AMR_cells"][cells,N]
@@ -219,7 +235,7 @@ def dens_map_AMR(kw_parts_proj,
     kw_2Ddens = {"MD_value":MD_value,"MD_coords":MD_coords,"AMR_cells":AMR_cells}
     return kw_2Ddens
 
-def get_min_z_source(Gal,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,savenameSigmaEnc = "tmp/Sigma_enc.png"):
+def get_min_z_source(GalProj,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,savenameSigmaEnc = "tmp/Sigma_enc.png"):
     """Given a projection, return the minimal z_source
     fails if it can't produce a supercritical lens w. z_source<z_source_max and 
     Sigma(theta_min)>Sigma_crit
@@ -230,10 +246,10 @@ def get_min_z_source(Gal,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,save
     # compute surface density within minimum theta_E 
     dens_at_thetamin = getDensAtRad(kw_2Ddens,min_thetaE_kpc)
     # add plot Sigma_encl vs theta
-    Sigma_crit_min   = SigCrit(z_lens=Gal.z,z_source=z_source_max,cosmo=Gal.cosmo)
+    Sigma_crit_min   = SigCrit(z_lens=GalProj.z,z_source=z_source_max,cosmo=GalProj.cosmo)
     r,Sigma_encl     = cells2SigRad(kw_2Ddens)
     
-    arcXkpc = Gal.cosmo.arcsec_per_kpc_proper(Gal.z)
+    arcXkpc = GalProj.cosmo.arcsec_per_kpc_proper(GalProj.z)
     theta = r*arcXkpc
     Sigma_encl_arc = Sigma_encl/(arcXkpc**2)
 
@@ -271,9 +287,9 @@ def get_min_z_source(Gal,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,save
     # to be considered a lens, the dens. threshold has to be larger than the critical density 
 
     # convert it into a ratio of angular diameter distances Ds / Dds
-    thresh_DsDds = dens_at_thetamin*4*np.pi*const.G*Gal.cosmo.angular_diameter_distance(Gal.z)/(const.c**2) 
+    thresh_DsDds = dens_at_thetamin*4*np.pi*const.G*GalProj.cosmo.angular_diameter_distance(GalProj.z)/(const.c**2) 
 
-    z_source_min = _get_min_z_source(cosmo=Gal.cosmo,z_lens=Gal.z,
+    z_source_min = _get_min_z_source(cosmo=GalProj.cosmo,z_lens=GalProj.z,
                                     thresh_DsDds=thresh_DsDds,
                                     z_source_max=z_source_max,verbose=verbose)
 
@@ -290,7 +306,7 @@ def create_verify_lens_fnc(interpSigEncArc2):
         cosmo   = gal_class.cosmo 
         arcXkpc = cosmo.arcsec_per_kpc_proper(z_lens)
         if min_thetaE is None:
-            min_thetaE = gallens_class.min_thetaE
+            min_thetaE = gal_class.min_thetaE
         min_thetaE = ensure_unit(min_thetaE,u.arcsec)
         if z_source_max is None:
             z_source_max = gallens_class.z_source_max
@@ -488,19 +504,22 @@ def Gal2MRADEC(Gal,proj_index,arcXkpc):
     RAs,DECs = Xs.to("kpc")*arcXkpc,Ys.to("kpc")*arcXkpc
     return kw_parts["Ms"],RAs,DECs
 
-def Gal2kw_samples(Gal,proj_index,MD_coords,arcXkpc):
+def Gal2kw_samples(Gal,proj_index,MD_coords,arcXkpc,dist_thresh=50*u.arcsec):
     # we scale the radius by a factor to be sure to include the center
     Ms,RAs,DECs = Gal2MRADEC(Gal,proj_index,arcXkpc=arcXkpc)
     # RA,DEC= arcsec, Ms = Msun
     #print("Some galaxy have a 'shifted' CM")
     RA_cm,DEC_cm = get_CM(Ms,RAs,DECs)
-    print(f"We recenter around the densest point (MD) obtained with AMR") 
+    print(f"We recenter around the maximum density point (MD) obtained with AMR") 
     RA_MD,DEC_MD = MD_coords.to("kpc")*arcXkpc
-    print("Info:  CM vs Densest ")
+    print("Info:  CM vs MD ")
     print("CM:",np.round(RA_cm,2),np.round(DEC_cm,2))
-    print("Dns:",np.round(RA_MD,2),np.round(DEC_MD,2))
-    print("Dist:",np.round(np.sqrt((RA_cm-RA_MD)**2+(DEC_cm-DEC_MD)**2),2))
-
+    print("MD:",np.round(RA_MD,2),np.round(DEC_MD,2))
+    dist = np.sqrt((RA_cm-RA_MD)**2+(DEC_cm-DEC_MD)**2)
+    print("Dist:",np.round(dist,2))
+    dist = ensure_unit(dist,u.arcsec)
+    if dist>dist_thresh:
+        warnings.warn(RuntimeWarning(f"The distance between MD and CM {np.round(dist,2)} is larger then {np.round(dist_thresh,2)}."))
     kw_samples   = {}
     kw_samples["RAs"]  = RAs-RA_MD   #arcsec
     kw_samples["DECs"] = DECs-DEC_MD  #arcsec
@@ -528,50 +547,3 @@ def get_2Dkappa_map(Gal,proj_index,MD_coords,SigCrit,kwargs_extents,arcXkpc=None
     kappa = density/SigCrit
     kappa = kappa.to("").value
     return kappa
-
-
-
-
-
-def plot_amr_cells(kw_2Ddens):
-    fig, ax = plt.subplots(figsize=(8,8))
-    a,b= [],[]
-    
-    xc,yc = kw_2Ddens["MD_coords"] #kpc
-    cells = kw_2Ddens["AMR_cells"]
-    # to speed up the code I need to vectorise it -
-    # but then I need to ingore the units
-    #x0,x1,y0,y1,mass  = np.array([[c[0].value,c[1].value,c[2].value,c[3].value,c[4].value] for c in kw_2Ddens["AMR_cells"]]).T
-    x0,x1,y0,y1,mass,dns  = np.array([[cc.value for cc in c] for c in cells]).T
-    x0_unit,x1_unit,y0_unit,y1_unit,mass_unit,dns_unit  = [c.unit for c in cells[0]]
-    # verify that the units are consistent
-    assert x0_unit==x1_unit
-    assert x0_unit==y0_unit
-    assert x0_unit==y1_unit
-    assert x0_unit==xc.unit
-    assert x0_unit==yc.unit
-    
-    length_unit = x0_unit
-    x0 *=length_unit
-    x1 *=length_unit
-    y0 *=length_unit
-    y1 *=length_unit
-    mass *=mass_unit
-    dns  *=dns_unit
-    
-    vmax,vmin = np.max(dns.value),np.min(dns.value)
-    cmap = plt.get_cmap("hot")
-    norm = Normalize(vmin=vmin, vmax=vmax)
-    _ = [ax.add_patch(patches.Rectangle((x0[i].value,y0[i].value),x1[i].value-x0[i].value,y1[i].value-y0[i].value,fill=True,linewidth=0.5,facecolor=cmap(norm(dns[i].value)))) for i in range(len(cells))]
-    
-    ax.set_xlim(np.min(x0.value),np.max(x0.value))
-    ax.set_ylim(np.min(y0.value),np.max(y0.value))
-    ax.set_aspect("equal")
-    ax.set_xlabel("x ["+str(x0.unit)+"]")
-    ax.set_ylabel("y ["+str(y0.unit)+"]")
-    
-    sm = ScalarMappable(norm=norm, cmap=cmap)
-    sm.set_array([])  # required for colorbar
-    cbar = fig.colorbar(sm, ax=ax)
-    cbar.set_label(f"Density [{dns_unit}]")
-    return fig,ax

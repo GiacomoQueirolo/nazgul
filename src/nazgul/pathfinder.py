@@ -18,6 +18,9 @@ RingBearer
 path_nazgul = Path(__file__).parent
 
 std_data_dir = path_nazgul/"RingBearer"
+# (base)/tmp will be a collector of intermediate, mildly useful plots/results, with the advantage of being easily accessible
+tmp_dir = path_nazgul/"tmp"
+mkdir(tmp_dir)
 
 std_simsuite_dir = std_data_dir/std_simsuite # which simulation suite
 std_sim_dir      = std_simsuite_dir/std_sim  # which simulation
