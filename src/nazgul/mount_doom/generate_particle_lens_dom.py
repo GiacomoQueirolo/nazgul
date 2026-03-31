@@ -181,6 +181,7 @@ class LensPart(BasicLensPart):
         if kwargs_lensmodel is None or kwargs_lensmodel=={}:
             # for consistency, we set z_lens==z_gal and z_source == z_source_sampled
             kwargs_lensmodel     = default_kw_lm
+        
         # update default_kw_lm with input kwargs_lensmodel if present
         default_kw_lm |= kwargs_lensmodel
         self.kwargs_lensmodel = default_kw_lm
@@ -208,6 +209,7 @@ class LensPart(BasicLensPart):
         for adlml in add_lens_model_list:
             profile_kwargs_list.append({})
         #print("profile_kwargs_list",profile_kwargs_list)
+        #print("DEBUG",self.kwargs_lensmodel)
         self.lens_model = LensModel(lens_model_list=lens_model_list,
                                     profile_kwargs_list = profile_kwargs_list,
                                     **self.kwargs_lensmodel)

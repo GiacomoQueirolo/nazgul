@@ -101,11 +101,11 @@ class SubLensPart(BasicLensPart):
             - create the lensed image given the source and simulated observation conditions
             - store the results
         """
-        self._unpack_Gal()
         upload_successful = False
         if read_prev:
             upload_successful = self.upload_prev()
         if not upload_successful:
+            self._unpack_Gal()
             # Lens Verification:
             ####################
             # project and check if it is a lens
@@ -140,17 +140,19 @@ class SubLensPart(BasicLensPart):
         """
         Setup lensing parameters tailored for lenstronomy
         """
-        print("Setting up lensing parameters...")
-        # Convert x,y,z in samples and get masses
-        kw_samples = Gal2kw_samples(Gal=self.Gal,proj_index=self.proj_index,
-                                    MD_coords=self.MD_coords,arcXkpc=self.arcXkpc)
-        samples    = kw_samples["RAs"],kw_samples["DECs"]
-        Ms         = kw_samples["Ms"]
-        # Convert in lenses parameters 
-        kwLnsPart,LnsProfPart  = self.PartLens.get_lens_PART(samples=samples,Ms=Ms)
-        self.kwargs_lens       = kwLnsPart
-        self.lens_prof         = LnsProfPart
-        print("... Lensing params set up")
+        if not hasattr(self,"kwargs_lens") and not hasattr(self,"lens_prof"):
+            print("Setting up lensing parameters...")
+            # Convert x,y,z in samples and get masses
+            self._unpack_Gal()
+            kw_samples = Gal2kw_samples(Gal=self.Gal,proj_index=self.proj_index,
+                                        MD_coords=self.MD_coords,arcXkpc=self.arcXkpc)
+            samples    = kw_samples["RAs"],kw_samples["DECs"]
+            Ms         = kw_samples["Ms"]
+            # Convert in lenses parameters 
+            kwLnsPart,LnsProfPart  = self.PartLens.get_lens_PART(samples=samples,Ms=Ms)
+            self.kwargs_lens       = kwLnsPart
+            self.lens_prof         = LnsProfPart
+            print("... Lensing params set up")
         
         
     def _psi_map(self,_radec=None):
