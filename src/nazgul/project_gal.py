@@ -31,10 +31,27 @@ from nazgul.Translator.translator import Gal2kwMXYZ,get_CM
 class ProjGal:
     def __init__(self,Gal,projection_index):
         self._gal            = Gal
-        self.proj_dir        = get_proj_dir_from_galdir(Gal.gal_dir)
-        mkdir(self.proj_dir)
         self.proj_index      = projection_index
-        self.projection_path = self.proj_dir/f"projection_{projection_index}.pkl"
+        mkdir(self.proj_dir)
+
+    @property
+    def projection_path(self):
+        return self.proj_dir/f"projection_{self.proj_index}.pkl"
+
+    @property
+    def proj_dir(self):
+        return get_proj_dir_from_galdir(self._gal.gal_dir)
+
+    def __getstate__(self):
+        return {"_gal": self._gal,
+                "proj_index":self.proj_index}
+        
+    def __setstate__(self, state):
+        self._gal       = state["_gal"]
+        self.proj_index = state["proj_index"]
+        
+    def __str__(self):
+        return self._gal.__str__()
         
     def __getattr__(self,name):
         return getattr(self._gal,name)
