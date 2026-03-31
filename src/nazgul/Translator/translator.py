@@ -122,8 +122,10 @@ def LoadGal(path,if_fail_recompute=True,verbose=True):
         Gal         = PartGal(simsuite=simsuite,**kw_Gal_full)
         if verbose:
             print("... done computing Galaxy")
-    if Gal:
-        Gal.unpack()
+    #if Gal:
+    #    Gal.unpack()
+    # maybe we can slim it down s.t. it's basically only
+    # a pointer to the gal (and load the particles only if needed)
     return Gal
 
 def SPG2PG(simsuite,SPG):

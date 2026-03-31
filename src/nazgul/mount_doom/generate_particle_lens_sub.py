@@ -105,7 +105,6 @@ class SubLensPart(BasicLensPart):
         if read_prev:
             upload_successful = self.upload_prev()
         if not upload_successful:
-            self._unpack_Gal()
             # Lens Verification:
             ####################
             # project and check if it is a lens
@@ -144,6 +143,7 @@ class SubLensPart(BasicLensPart):
             print("Setting up lensing parameters...")
             # Convert x,y,z in samples and get masses
             self._unpack_Gal()
+            self.Gal.run()
             kw_samples = Gal2kw_samples(Gal=self.Gal,proj_index=self.proj_index,
                                         MD_coords=self.MD_coords,arcXkpc=self.arcXkpc)
             samples    = kw_samples["RAs"],kw_samples["DECs"]
@@ -183,6 +183,7 @@ class SubLensPart(BasicLensPart):
             kw_extents = self.kw_extents
         else:
             kw_extents = get_extents(arcXkpc=self.arcXkpc,Model=self,_radec=_radec)
+        self.Gal.run()
         kappa = get_2Dkappa_map(Gal=self.Gal,proj_index=self.proj_index,
                                 MD_coords=self.MD_coords,kwargs_extents=kw_extents,
                                 SigCrit=self.SigCrit,arcXkpc=self.arcXkpc)

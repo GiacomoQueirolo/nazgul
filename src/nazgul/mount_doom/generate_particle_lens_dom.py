@@ -45,7 +45,8 @@ verbose = True
 empty_kwargs_add_lenses = {"lens_model_list":[],"kwargs_lens":[]}
 
 class LensPart(BasicLensPart): 
-    _large_attributes = ['lens_model','kw_shear', 'lenspart']
+    _large_attributes = ['lens_model','kw_shear', 'lenspart','_Sim','PartLens',
+                         'Gal','data_class','psf_class','source_model_class','cosmo']
     def __init__(self,
                  Galaxy,
                  projection_index, # projection index of the galaxy
@@ -117,7 +118,7 @@ class LensPart(BasicLensPart):
         
     def run(self,update_source_pos=False,verbose=True):
         # verify we have the Galaxy
-        self._unpack_Gal()
+        self._unpack_Gal() # now not fully deployed
         
         # Lens Verification:
         ####################
@@ -346,6 +347,7 @@ class LensPart(BasicLensPart):
             kw_extents = self.kw_extents
         else:
             kw_extents = cod.get_extents(arcXkpc=self.arcXkpc,Model=self,_radec=_radec)
+        self.Gal.run()
         kappa = get_2Dkappa_map(Gal=self.Gal,proj_index=self.proj_index,MD_coords=self.MD_coords,kwargs_extents=kw_extents,
                                 SigCrit=self.SigCrit,arcXkpc=self.arcXkpc)
 

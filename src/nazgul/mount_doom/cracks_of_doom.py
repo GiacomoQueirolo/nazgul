@@ -346,7 +346,6 @@ class BasicLensPart(BasicGal):
     def _unpack_Gal(self):
         # reload Galaxy and cosmology
         if not hasattr(self,"Gal"):
-            print("DEBUG Loading Galaxy ... again?")
             Galaxy   = LoadGal(self.Gal_path)
             if not isinstance(Galaxy,ProjGal):
                 Galaxy   = ProjGal(Gal=Galaxy,
@@ -471,7 +470,8 @@ class BasicLensPart(BasicGal):
         if not recompute:
             
             return
-            
+        # now Gal really has to be deployed
+        self.Gal.run()
         # Compute projection
         kwres_proj_res    = project_Gal(GalProj=self.Gal,
                                         z_source_max=self.z_source_max,
