@@ -7,6 +7,7 @@ import glob
 import dill
 import h5py
 import numpy as np
+from copy import copy
 from pathlib import Path
 import astropy.units as u
 from decimal import Decimal
@@ -192,7 +193,7 @@ class SimPartGal(BasicPartGal):
         #self.store_gal()
 
     def upload_prev(self,verbose=True):
-        prev_Gal = ReadGal_nounpack(self,verbose=verbose)
+        prev_Gal = ReadGal_nounpack(self,verbose=False)
         if prev_Gal is False:
             if verbose:
                 print("Failed loading of prev. gal.")
@@ -203,8 +204,12 @@ class SimPartGal(BasicPartGal):
                 print(f"Prev. Gal: {prev_Gal._identity()}")
                 print(f"Self:      {self._identity()}")
             return
+        k0 = copy(list(self.__dict__.keys()))
         # if common attribute, they are overwritten by previous:
         self.__dict__ = {**self.__dict__,**prev_Gal.__dict__}
+        k1 = copy(list(self.__dict__.keys()))
+        if k1!=k0 and verbose:
+            print("Loaded previosly computed galaxy")
         return
     
     
@@ -233,6 +238,7 @@ class SimPartGal(BasicPartGal):
 
     def initialise_parts(self):
         if not hasattr(self,"gas"):
+            print("DEBUG- here we are loading particles")
             self.gas   = self.read_part(0)
         if not hasattr(self,"dm"):
             self.dm    = self.read_part(1)
@@ -272,7 +278,7 @@ class SimPartGal(BasicPartGal):
                     index_map[i] = idx
         return index_map
         
-    @cached_property
+    @property
     def kw_index_maps(self):
         index_maps = {f'{itype}':self.build_index(itype) for itype in self.indexes}
         return index_maps

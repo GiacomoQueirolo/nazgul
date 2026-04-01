@@ -116,24 +116,42 @@ class LensPart(BasicLensPart):
         obj = cls.__init__(**kw_sublenspart)
         return obj
         
-    def run(self,update_source_pos=False,verbose=True):
-        # verify we have the Galaxy
-        self._unpack_Gal() # now not fully deployed
-        
-        # Lens Verification:
-        ####################
-        # project and check if it is a lens
-        self.galaxy_projection(verbose=verbose)
-        
-        # Lensing computations:
-        #######################
-        self.create_lens(verbose=verbose)
-
-        # Image creation:
-        #################
-        self.sample_source_pos(update=update_source_pos)
-        self.image_sim  = self.get_lensed_image()
-        self.store()
+    def run(self,read_prev=True,update_source_pos=False,verbose=True):
+        upload_successful = False
+        if read_prev:
+            upload_successful = self.upload_prev()
+        if not upload_successful:
+            # verify we have the Galaxy
+            if verbose:
+                print("DEBUG - Unpacking gal (but not load part)...")
+            self._unpack_Gal() # now not fully deployed
+            if verbose:
+                print("DEBUG - Gal unpacked")
+            # Lens Verification:
+            ####################
+            # project and check if it is a lens
+            if verbose:
+                print("DEBUG - Gal Projection ...")
+            self.galaxy_projection(verbose=verbose)
+            if verbose:
+                print("DEBUG - Projected Gal")
+            
+            # Lensing computations:
+            #######################
+            if verbose:
+                print("DEBUG - Create lensed...")
+            self.create_lens(verbose=verbose)
+            if verbose:
+                print("DEBUG - Lens created")
+            # Image creation:
+            #################
+            if verbose:
+                print("DEBUG - Create Image ...")
+            self.sample_source_pos(update=update_source_pos)
+            self.image_sim  = self.get_lensed_image()
+            if verbose:
+                print("DEBUG - Image created")
+            self.store()
         
     ########################
     ########################
