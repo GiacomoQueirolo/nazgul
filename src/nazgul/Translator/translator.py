@@ -99,7 +99,7 @@ def gal_path2kwGal(gal_dill_path,data_dir=std_data_dir):
 def get_rnd_PG(simsuite,**kw_galpart):
     get_rnd_SPG = get_sim_func(simsuite,"get_rnd_SPG")
     SPG = get_rnd_SPG(**kw_galpart)
-    PG  = SPG2PG(SPG)
+    PG  = PartGal.SPG2PG(SPG)
     return PG
 
 def get_all_PG(simsuite,**kw_galpart):
@@ -107,7 +107,7 @@ def get_all_PG(simsuite,**kw_galpart):
     all_SPG = get_all_SPG(**kw_galpart)
     all_PG  = []
     for SPG in all_SPG:
-        PG  = SPG2PG(SPG)
+        PG  = PartGal.SPG2PG(SPG)
         all_PG.append(PG)
     return all_PG
     
@@ -127,9 +127,6 @@ def LoadGal(path,if_fail_recompute=True,verbose=True):
     # maybe we can slim it down s.t. it's basically only
     # a pointer to the gal (and load the particles only if needed)
     return Gal
-
-def SPG2PG(simsuite,SPG):
-    return PartGal.from_SimPartGal(SPG=SPG)
 
 
 class PartGal():
@@ -166,7 +163,7 @@ class PartGal():
         return self._SimPartGal.simsuite
         
     @classmethod
-    def from_SimPartGal(cls, SPG):
+    def SPG2PG(cls, SPG):
         """Construct from an existing SimPartGal instance."""
         obj = cls.__new__(cls)  # bypass __init__
         obj._SimPartGal = SPG

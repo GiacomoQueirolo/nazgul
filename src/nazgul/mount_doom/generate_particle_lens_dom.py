@@ -20,7 +20,8 @@ from scipy.ndimage import zoom
 from scipy.interpolate import RectBivariateSpline
 
 from lenstronomy.Util.util import array2image,image2array 
-from lenstronomy.ImSim.image_model import ImageModel
+#from lenstronomy.ImSim.image_model import ImageModel
+from lenstronomy.ImSim.Numerics.numerics_subframe import NumericsSubFrame
 from lenstronomy.SimulationAPI.sim_api import SimAPI
 from lenstronomy.LensModel.lens_model import LensModel
 # My libs
@@ -234,29 +235,30 @@ class LensPart(BasicLensPart):
                                     **self.kwargs_lensmodel)
         print("... Lensing parameters set up ")
         
-    def get_lensed_image(self,imageModel=None,
+    def get_lensed_image(self,imageNumerics=None,
                          sourceModel=None,kwargs_source=None,
                          alpha_map=None, # can input directly the alpha map
                          unconvolved=True):
         self.unpack()
+        self.setup_dataclasses()
         if sourceModel is None:
             sourceModel  = self.source_model_class
         if kwargs_source is None:
             kwargs_source = self.kwargs_source                
-        if imageModel is None:
-            imageModel = self.get_imageModel(self.Sim)        
+        if imageNumerics is None:
+            imageNumerics = self.get_imageNumerics(self.Sim)        
         x_source_plane,y_source_plane = self.get_xy_source_plane(alpha_map=alpha_map)
         kwargs_source_list            = [kwargs_source]
         source_light                  = sourceModel.surface_brightness(x_source_plane, y_source_plane, kwargs_source_list, k=None)
-        if not np.abs(imageModel.Data.pixel_width-to_dimless(self.deltaPix))<1e-10:
-            if imageModel.Data.pixel_width<to_dimless(self.deltaPix):
+        if not np.abs(imageNumerics._pixel_grid.pixel_width-to_dimless(self.deltaPix))<1e-10:
+            if imageNumerics._pixel_grid.pixel_width<to_dimless(self.deltaPix):
                 raise RuntimeError("Simulated observatory cannot have higher resolution than baseline simulation") 
             # different pixel scale (due different simulated observatory)
             source_light_im = array2image(source_light)
-            pixel_num_aim = imageModel.ImageNumerics.grid_class.num_grid_points_axes[0]
+            pixel_num_aim = imageNumerics.grid_class.num_grid_points_axes[0]
             source_light_downgrade = zoom(source_light_im,pixel_num_aim/self.pixel_num)
             source_light = image2array(source_light_downgrade)
-        image_sim    = imageModel.ImageNumerics.re_size_convolve(source_light, unconvolved=unconvolved)
+        image_sim    = imageNumerics.re_size_convolve(source_light, unconvolved=unconvolved)
         return image_sim
 
 
@@ -300,7 +302,7 @@ class LensPart(BasicLensPart):
         x_source_plane = image2array(x_source_plane)
         y_source_plane = image2array(y_source_plane)
         return x_source_plane,y_source_plane
-
+    """
     def get_imageModel(self,Sim=None):
         # use default kwargs_numerics
         if not hasattr(self, "kwargs_numerics"):
@@ -324,7 +326,25 @@ class LensPart(BasicLensPart):
                             lens_light_model_class=None,point_source_class=None, 
                             kwargs_numerics=self.kwargs_numerics)
         return imageModel
-
+    """
+    def get_imageNumerics(self,Sim=None):
+        if not hasattr(self, "kwargs_numerics"):
+            self.setup_dataclasses(Sim=Sim)            
+        if Sim is None or Sim==self.Sim:
+            Sim = self.Sim
+            if not hasattr(self, "data_class"):
+                self.setup_dataclasses(Sim=Sim)
+            data_class = self.data_class
+            psf_class  = self.psf_class
+            source_model_class = self.source_model_class
+        else:
+            data_class,psf_class,source_model_class,_,_ = cod.get_dataclasses(Sim)
+        
+        imageNumerics = NumericsSubFrame(pixel_grid=data_class,
+                                         psf=psf_class, 
+                            **self.kwargs_numerics)
+        return imageNumerics
+        
     def _psi_map(self,_radec=None):
         print("Computing lensing PM potential...")
         self.unpack()
@@ -424,11 +444,11 @@ class LensPart(BasicLensPart):
     def sim_image(self,SimObs,noisy=False):
         """Obtain simulated images given SimObs
         """
-        imageModelObs    = self.get_imageModel(Sim=SimObs)
+        imageNumericsObs = self.get_imageNumerics(Sim=SimObs)
         sourceModelObs   = SimObs.source_model_class
         kwargs_sourceObs = cod.get_kwargs_sourceSim(SimObs)    
 
-        image_SimObs     = self.get_lensed_image(imageModel=imageModelObs,
+        image_SimObs     = self.get_lensed_image(imageNumerics=imageNumericsObs,
                                              sourceModel=sourceModelObs,
                                              kwargs_source=kwargs_sourceObs,
                                              unconvolved=False)
@@ -703,7 +723,7 @@ def wrapper_get_all_lens(reload=True,
                 kw_lenspart["projection_index"]+=1
         print(f"All projections of Galaxy {Gal.name} are not supercritical \nTrying different galaxy.")
         kw_lenspart["projection_index"] = 0
-
+        exit("DEBUG - check if this worked out")
     if verbose:
         print(f"Found n={len(all_lenses)} Lenses")
         print(f"i.e. {np.round(len(all_lenses)/len(all_Gal)*100,1)}% of Galaxies")
