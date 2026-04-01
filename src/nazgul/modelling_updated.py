@@ -17,7 +17,7 @@ from python_tools.tools import mkdir,to_dimless
 from python_tools.get_res import load_whatever
 
 from nazgul.plot_PL import plot_all
-from nazgul.masking import mask_SEAGLE,mask_max_dens
+from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center
 from nazgul.mount_doom.cracks_of_doom import LoadLens
 from nazgul.mount_doom.generate_particle_lens_dom import wrapper_get_rnd_lens,LensPart
 
@@ -46,7 +46,7 @@ def setup_sim_obs(lens,band_str="HST_F160W",pssf=3):
     psf = load_fits(psf_path)[-2]
     # we can supersample it
     if pssf!=1:
-        psf_ss  = zoom(psf,pssf)
+        psf_ss  = zoom(psf,pssf,order=3)
         kwargs_psf = {"kernel_point_source":psf_ss,
                       "point_source_supersampling_factor":pssf}
     else:
@@ -56,17 +56,14 @@ def setup_sim_obs(lens,band_str="HST_F160W",pssf=3):
                                                kwargs_psf=kwargs_psf)
     return multi_band_list
 
-def get_kwargs_likelihood(lens,plot_mask=True):
+
+def get_lens_mask(lens,image_obs,plot_mask=True):
     # masking inner and outer of thetaE -> nope, follow SEAGLE approach
     #image = kwargs_data["image_data"]
-    mask_HD =  mask_SEAGLE(lens)*mask_max_dens(lens)
-    _lns  = deepcopy(lens)
-    _lns.image_sim = multi_band_list[0][0]["image_data"]
-    _lns.pixel_num = _lns.image_sim.shape[0]
-    # deltapix is now a property - def. by pixel_num
-    #_lns.deltaPix  = to_dimless(_lns.radius)*2/_lns.pixel_num
-    mask_LD = mask_SEAGLE(_lns)*mask_max_dens(_lns)
-    #DEBUG 
+    mask_HD =  mask_SEAGLE(lens)*mask_bright_center(lens,rad=lens.thetaE*.5) #mask_max_dens(lens)
+    scaling = lens.pixel_num/image_obs.shape[0]
+    mask_LD = zoom(mask_HD,scaling,order=3)
+    
     if plot_mask:
         plt.close()
         plt.close("all")
@@ -91,7 +88,7 @@ def get_kwargs_likelihood(lens,plot_mask=True):
         fig.colorbar(im0, cax=cax, orientation='vertical')   
 
         ax =axes[1][0]
-        im0 = ax.imshow(np.log10(_lns.image_sim),**kw_plot)
+        im0 = ax.imshow(np.log10(image_obs),**kw_plot)
         ax.set_title("Image (Realistic)")
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size='5%', pad=0.05)
@@ -101,7 +98,7 @@ def get_kwargs_likelihood(lens,plot_mask=True):
         ax.set_title("Masked Image (Realistic)")
         mask_nan = copy(mask_LD)
         mask_nan[np.where(mask_LD==0)] = np.nan
-        im0 = ax.imshow(np.log10(mask_nan*_lns.image_sim),**kw_plot)
+        im0 = ax.imshow(np.log10(mask_nan*image_obs),**kw_plot)
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size='5%', pad=0.05)
         fig.colorbar(im0, cax=cax, orientation='vertical')   
@@ -109,6 +106,10 @@ def get_kwargs_likelihood(lens,plot_mask=True):
         nm = f"{lens.model_res_dir}/{lens.name}_masked_im.png"
         print(f"Saving {nm}")
         plt.savefig(nm)
+    return mask_LD
+    
+def get_kwargs_likelihood(lens,image_obs,plot_mask=True):
+    mask = get_lens_mask(lens,image_obs,plot_mask=plot_mask)
     
     kwargs_likelihood = {'check_bounds': True, # punish out-of-bound soulutions
                      #'force_no_add_image': False,
@@ -118,7 +119,7 @@ def get_kwargs_likelihood(lens,plot_mask=True):
                      #'source_position_tolerance': 0.001,
                      'source_position_sigma': 0.01,
                      #'prior_lens': prior_lens
-                      "image_likelihood_mask_list": [mask_LD]  }
+                      "image_likelihood_mask_list": [mask]  }
     return kwargs_likelihood
     
 def get_kwargs_params(lens):
@@ -211,13 +212,14 @@ if __name__=="__main__":
             raise RuntimeError("Ensure that the M of the input lens is larger than min_mass")
     lens = setup_lens(lens)
     multi_band_list = setup_sim_obs(lens)
+    image_obs = multi_band_list[0][0]["image_data"]
     
     # models
     kwargs_model = {'lens_model_list': lens_model_list,
                     'source_light_model_list': source_model_list}
     
     
-    kwargs_likelihood = get_kwargs_likelihood(lens)
+    kwargs_likelihood = get_kwargs_likelihood(lens,image_obs=image_obs)
 
     kwargs_data_joint = {'multi_band_list': multi_band_list, 'multi_band_type': 'multi-linear'}
 

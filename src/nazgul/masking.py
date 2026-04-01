@@ -66,7 +66,7 @@ def mask_center(lens,image=None,rad=0.15):
     """
     mask the centre of the lens
     """
-    if not image:
+    if image is None:
         image = lens.image_sim
     # by construction recentered around densest point
     cx,cy = lens.pixel_num/2.,lens.pixel_num/2.
@@ -74,4 +74,37 @@ def mask_center(lens,image=None,rad=0.15):
     mask = np.ones_like(image)
     r_mask_in = to_dimless(rad/lens.deltaPix)     #pixel 
     mask = mask_in(cx,cy,r_mask_in,mask)
+    return mask
+
+def invert_mask(mask):
+    inv_bool_mask = ~np.bool(mask)
+    dtp_input = type(mask[0][0])
+    inv_mask = np.array(~np.bool(m_c),dtype=dtp_input)
+    return inv_mask
+    
+def mask_bright_center(lens,image=None,rad=0.15,fwhm=.05):
+    """
+    re-centre the mask around the brightest pixel
+    """
+    if image is None:
+        image = lens.image_sim
+    mask_cent = mask_center(lens,image=image,rad=rad)
+    # find brightest pixel within the mask
+    masked_part = invert_mask(mask_cent)*image
+
+    fwhm_pix = to_dimless(fwhm)/to_dimless(lens.deltaPix)
+    filt_masked = gaussian_filter(masked_part,sigma=fwhm_pix)
+    ymax,xmax   = np.where(filt_masked==np.max(filt_masked))
+    # consider the first one
+    xmax = xmax[0]
+    ymax = ymax[0]
+
+    ymax,xmax   = np.where(masked_part==np.max(masked_part))
+    # consider the first one
+    xmax = xmax[0]
+    ymax = ymax[0]
+    # mask around that one
+    mask = np.ones_like(image)
+    r_mask_in = to_dimless(rad/lens.deltaPix)     #pixel 
+    mask = mask_in(xmax,ymax,r_mask_in,mask)
     return mask
