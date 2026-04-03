@@ -1,6 +1,6 @@
 import numpy as np
 from astropy.stats import sigma_clip
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import zoom,gaussian_filter
 
 from python_tools.tools import to_dimless
 from python_tools.image_manipulation import mask_in, mask_out
@@ -78,9 +78,21 @@ def mask_center(lens,image=None,rad=0.15):
 
 def invert_mask(mask):
     inv_bool_mask = ~np.bool(mask)
-    dtp_input = type(mask[0][0])
-    inv_mask = np.array(~np.bool(m_c),dtype=dtp_input)
+    dtp_input     = np.array(mask).dtype
+    inv_mask      = np.array(inv_bool_mask,dtype=dtp_input)
     return inv_mask
+    
+def resize_mask(mask,target_image):
+    # assuming same edge size
+    for im in mask,target_image:
+        if im.shape[0]!=im.shape[1]:
+            raise RuntimeError("The image and masks needs to be square")
+            
+    scaling = target_image.shape[0]/mask.shape[0]
+    mask_rescaled = zoom(mask,scaling,order=3)
+    mask_rescaled[np.where(mask_rescaled>=0.5)] = 1
+    mask_rescaled[np.where(mask_rescaled<0.5)]  = 0
+    return mask_rescaled
     
 def mask_bright_center(lens,image=None,rad=0.15,fwhm=.05):
     """

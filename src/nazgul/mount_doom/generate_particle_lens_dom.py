@@ -111,10 +111,11 @@ class LensPart(BasicLensPart):
     # Lazy reconstruction logic
     # ------------------------------------------------------------------    
     @classmethod
-    def from_SubLens(cls, SubLens):
-        """Construct from an existing SimPartGal instance."""
+    def from_SubLens(cls, SubLens,**kwargs_lenspart):
+        """Construct from an existing SubLens instance."""
         kw_sublenspart = SubLens.get_kw_sublenspart()
-        obj = cls.__init__(**kw_sublenspart)
+        obj = cls.__new__(cls)
+        obj.__init__(**kw_sublenspart,**kwargs_lenspart)
         return obj
         
     def run(self,read_prev=True,update_source_pos=False,verbose=True):
@@ -348,6 +349,8 @@ class LensPart(BasicLensPart):
     def _psi_map(self,_radec=None):
         print("Computing lensing PM potential...")
         self.unpack()
+        # the following should prob. be in the unpack function
+        self.lenspart.setup_lenses()
         if _radec is None:
             _radec = self._radec #arcsecs  
         _ra,_dec = _radec
@@ -358,6 +361,8 @@ class LensPart(BasicLensPart):
     def _alpha_map(self,_radec=None):
         print("Computing lensing PM deflection...")
         self.unpack()
+        # the following should prob. be in the unpack function
+        self.lenspart.setup_lenses()
         if _radec is None:
             _radec = self._radec
         _ra,_dec = _radec
@@ -369,6 +374,8 @@ class LensPart(BasicLensPart):
         # compute analytically from the particles -> actually should not be the way to do it !
         print("Computing kappa map from PM...")
         self.unpack()
+        # the following should prob. be in the unpack function
+        self.lenspart.setup_lenses()
         if _radec is None:
             _radec = self._radec
         _ra,_dec = _radec
@@ -499,7 +506,6 @@ class LensPart(BasicLensPart):
         of the alpha map
         """
         print("Computing hessian as gradient of the deflection map...")
-        self.unpack()
         # Can be now computed also beyond the cutout
         if _radec is None:
             _radec          = self._radec

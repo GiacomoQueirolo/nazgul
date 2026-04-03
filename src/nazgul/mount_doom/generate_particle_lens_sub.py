@@ -22,7 +22,7 @@ from python_tools.tools import mkdir,to_dimless,ensure_unit
 # cosmol. params.
 from nazgul.lib_cosmo import SigCrit
 # Get particle from galaxy catalogue
-from nazgul.Translator.translator import LoadGal
+#from nazgul.Translator.translator import LoadGal
 # particle lens class and params.
 from nazgul.particle_lenses import PartLens 
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
@@ -149,6 +149,7 @@ class SubLensPart(BasicLensPart):
             samples    = kw_samples["RAs"],kw_samples["DECs"]
             Ms         = kw_samples["Ms"]
             # Convert in lenses parameters 
+            self._unpack_PartLens()
             kwLnsPart,LnsProfPart  = self.PartLens.get_lens_PART(samples=samples,Ms=Ms)
             self.kwargs_lens       = kwLnsPart
             self.lens_prof         = LnsProfPart

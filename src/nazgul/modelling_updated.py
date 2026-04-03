@@ -17,7 +17,7 @@ from python_tools.tools import mkdir,to_dimless
 from python_tools.get_res import load_whatever
 
 from nazgul.plot_PL import plot_all
-from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center
+from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
 from nazgul.mount_doom.cracks_of_doom import LoadLens
 from nazgul.mount_doom.generate_particle_lens_dom import wrapper_get_rnd_lens,LensPart
 
@@ -27,7 +27,7 @@ res_dir_base      = Path("./tmp/modelling_sim_lenses/")
 
 
 def setup_lens(lens):
-    res_dir = Path(f"{res_dir_base}/{lens.name}")
+    res_dir = Path(f"{res_dir_base}/snap_{lens.Gal.snap}_{lens.name}")
     lens.model_res_dir = res_dir
     mkdir(res_dir)
     plot_all(lens,skip_caustic=False)
@@ -61,9 +61,7 @@ def get_lens_mask(lens,image_obs,plot_mask=True):
     # masking inner and outer of thetaE -> nope, follow SEAGLE approach
     #image = kwargs_data["image_data"]
     mask_HD =  mask_SEAGLE(lens)*mask_bright_center(lens,rad=lens.thetaE*.5) #mask_max_dens(lens)
-    scaling = lens.pixel_num/image_obs.shape[0]
-    mask_LD = zoom(mask_HD,scaling,order=3)
-    
+    mask_LD = resize_mask(mask_HD,image_obs)
     if plot_mask:
         plt.close()
         plt.close("all")
@@ -202,10 +200,10 @@ if __name__=="__main__":
     else:
         print("Loading lens from \n"+lens_path+"\n")
         lens = LoadLens(lens_path)
-        lens.run()
+        lens._unpack_Gal()
         if "/Sub/" in lens_path:
             lens = LensPart.from_SubLens(lens)
-            lens.run()
+        #lens._unpack_Gal()
         if lens.thetaE.value<min_thetaE:
             raise RuntimeError("Ensure that the thetaE of the input lens is larger than min_thetaE")
         if lens.Gal.M < min_mass:
@@ -269,9 +267,10 @@ if __name__=="__main__":
     # we need to extract the updated multi_band_list object since the coordinate shifts were updated in the kwargs_data portions of it
     multi_band_list_out = fitting_seq.multi_band_list
     nm_mblo = f"{lens.model_res_dir}/multi_band_list_out.json"
-    with open(nm_mblo,"w") as f:
-        json.dump(multi_band_list_out,f)
-        
+    print(f"Saving output multiband list as {nm_mblo}")
+    with open(nm_mblo,"wb") as f:
+        dill.dump(multi_band_list_out,f)
+    
     modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
                           arrow_size=0.02, cmap_string="gist_heat",
                           image_likelihood_mask_list=kwargs_likelihood["image_likelihood_mask_list"])
@@ -304,11 +303,13 @@ if __name__=="__main__":
     print(f"Saving {nm}")
     
     kwargs_result_wo_tracer = deepcopy(kwargs_result)
-    for k in kwargs_result_wo_tracer.keys():
+    keys = copy(list(kwargs_result_wo_tracer.keys()))
+    for k in keys:
         if "tracer" in str(k):
             del kwargs_result_wo_tracer[k]
     ### 
-    logL   = modelPlot._imageModel.likelihood_data_given_model(source_marg=False, linear_prior=None, **kwargs_result_wo_tracer)
+    logL,_prms   = modelPlot._imageModel.likelihood_data_given_model(source_marg=False, linear_prior=None, **kwargs_result_wo_tracer)
+    
     n_data = modelPlot._imageModel.num_data_evaluate
     print(str(-logL * 2 / n_data)+' reduced X^2 of all evaluated imaging data combined\n')
     print("################################\n")
@@ -330,7 +331,7 @@ if __name__=="__main__":
     plt.savefig(nm)
     print(f"Saving {nm}")
     plt.close()
-
+    """
     f, axes = plt.subplots(figsize=(10,7))
     modelPlot.decomposition_plot(ax=axes, text='Point source position', source_add=False, \
                     lens_light_add=False, point_source_add=True, v_min=-1, v_max=1)
@@ -338,7 +339,7 @@ if __name__=="__main__":
     plt.savefig(nm)
     print(f"Saving {nm}")
     plt.close()
-
+    """
     
     if run_type!=1:
         sampler_type, mc_sample, param_mcmc, mc_logL  = chain_list[-1]
@@ -346,7 +347,7 @@ if __name__=="__main__":
         with open(chnl_path,"wb") as f:
             dill.dump(chnl_path,f)
         print(f"Saving {chnl_path}")
-        corner(mc_sample,labels=param_mcm,show_titles=True,plot_datapoints=False,hist_kwargs= {"density":True})
+        corner(mc_sample,labels=param_mcmc,show_titles=True,plot_datapoints=False,hist_kwargs= {"density":True})
         nm = f'{lens.model_res_dir}/mcmc_post.pdf'
         plt.savefig(nm)
         print(f"Saving {nm}")

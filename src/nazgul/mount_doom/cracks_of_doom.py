@@ -226,9 +226,9 @@ def kw_prior2like_zs(kw_prior_z_source,z_lens):
 def LoadLens(LnsCl,verbose=True):
     LnsCl = LoadClass(LnsCl,verbose=verbose,path_base=path_nazgul)
     # has to consider the possibility it failed to load
-    if LnsCl: 
-        # recompute deleted components
-        LnsCl.unpack()
+    #if LnsCl: 
+    #    # recompute deleted components
+    #    LnsCl.unpack()
     return LnsCl
     
 def ReadLens(aClass,verbose=True):
@@ -341,7 +341,11 @@ class BasicLensPart(BasicGal):
         return kw_sublenspart
 
     def ReadClass(self,cl):
-        return ReadLens(cl)
+        L = ReadLens(cl)
+        if L:
+            L._unpack_Gal()
+            L._unpack_PartLens()
+        return L
 
     def _unpack_Gal(self):
         # reload Galaxy and cosmology
