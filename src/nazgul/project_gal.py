@@ -22,15 +22,23 @@ import nazgul.pathfinder as pthf
 from nazgul.pathfinder import get_proj_dir_from_galdir,path_nazgul
 from nazgul.pathfinder import nm_proj_dir as dir_name
 from nazgul.lib_cosmo import SigCrit,DsDds
-from nazgul.AMR2D_PLL import AMR_density_PLL,plot_AMR_cells
+from nazgul.AMR2D_PLL import AMR_density_PLL,plot_AMR_cells,get_MDfromAMRcells_PLL
 from nazgul.Translator.translator import Gal2kwMXYZ,get_CM
 # standard directory 
 # Wrapper class of PartGal that extend it to
 # deal with the projection components
-
 class ProjGal:
+    def __new__(cls,Gal,projection_index):
+        # this allow for the wrapper to be applied over itself safely
+        if isinstance(Gal,cls):
+            if Gal.proj_index!=projection_index:
+                raise RuntimeError("The given galaxy is already projected along a different axis")
+            return Gal
+        return super().__new__(cls)
+                
     def __init__(self,Gal,projection_index):
         self._gal            = Gal
+        self._gal_id         = Gal._identity()
         self.proj_index      = projection_index
         mkdir(self.proj_dir)
 
@@ -55,6 +63,7 @@ class ProjGal:
         
     def __getattr__(self,name):
         return getattr(self._gal,name)
+        
     ########################
     def _identity(self):
         """Return an immutable tuple uniquely identifying this galaxy.
@@ -62,9 +71,12 @@ class ProjGal:
         The identity is used for hashing, equality, and cache keys.
         """
         return (
-            self._gal._identity(),
+            self._gal_id,
             self.proj_index
             )
+    def store_gal(self):
+        self._gal.store_gal()
+        
     ########################
     # useful check if it is a lens:
     def is_lens(self,z_source_max,min_thetaE):
@@ -86,15 +98,13 @@ class ProjGal:
 def proj_parts(kw_parts,proj_index):    
     Xs,Ys,Zs = kw_parts["Xs"],kw_parts["Ys"],kw_parts["Zs"]
     if proj_index==0:
-        _   = True  # all as usual
+        return Xs,Ys
     elif proj_index==1:
-        Ys  = copy(Zs)
+        return Xs,Zs 
     elif proj_index==2:
-        Xs  = copy(Ys)
-        Ys  = copy(Zs)    
+        return Ys,Zs 
     else:
         raise RuntimeError("Projection index can only be 1,2 or 3, not "+str(proj_index))
-    return Xs,Ys 
 
 def project_kw_parts(kw_parts,proj_index):    
     Xs,Ys = proj_parts(kw_parts,proj_index) 
@@ -187,7 +197,7 @@ def project_Gal(GalProj,z_source_max,sample_z_source,min_thetaE,
                               savenameSigmaEnc=savenameSigmaEnc,verbose=verbose)
     if plot_2Ddens:
         fig,ax = plot_AMR_cells(kw_2Ddens)
-        nm = f"{pthf.tmp_dir}/AMR_2DDens_{GalProj.Name}_prj{proj_index}.png"
+        nm = f"{pthf.tmp_dir}/AMR_2DDens_{GalProj.name}_prj{proj_index}.png"
         fig.savefig(nm)
         print(f"Saved {nm}") 
         
@@ -407,22 +417,6 @@ def _get_min_z_source(cosmo,z_lens,thresh_DsDds,z_source_max,verbose=True):
     else:
         z_source_min = _get_min_z_source_thresh_DsDds(z_source_range,thresh_DsDds,cosmo,z_d=z_lens)
         return z_source_min
-    
-def get_MDfromAMRcells_PLL(AMR_cells):
-    # for parallelised version
-    try:
-        dns_unit = AMR_cells[0][-1].unit
-        density = np.array([c[-1].value for c in AMR_cells])*dns_unit
-    except:
-        density = np.array([c[-1] for c in AMR_cells])
-    c_MD      = AMR_cells[np.argmax(density)]
-    MD_coords = (c_MD[0]+c_MD[1])/2.,(c_MD[2]+c_MD[3])/2.
-    try:
-        MD_coords = np.array([mdc.value for mdc in MD_coords])*MD_coords[0].unit
-    except:
-        pass
-    MD_value  = np.max(density)
-    return MD_coords,MD_value
 
 def get_rough_thetaE(kw_2Ddens,cosmo,z_lens,z_source,nm_sigmaplot="Sigma_AMR.png",path=Path("tmp/"),fig_Sig=None):
     # approximate theta_E of the galaxy

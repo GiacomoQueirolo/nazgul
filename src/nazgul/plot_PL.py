@@ -93,7 +93,7 @@ def plot_lensed_im_and_kappa(Model,savename="lensed_im.pdf",kw_extents=None):
     im0   = ax.matshow(kappa,origin='lower',extent=extent_kpc,cmap="hot")
     ax.set_xlabel("X [kpc]")
     ax.set_ylabel("Y [kpc]")
-    ax.set_title(r"Convergence "+Model.Gal.Name)
+    ax.set_title(r"Convergence "+Model.Gal.name)
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fg.colorbar(im0, cax=cax, orientation='vertical',label=r"$\kappa$")
@@ -104,7 +104,7 @@ def plot_lensed_im_and_kappa(Model,savename="lensed_im.pdf",kw_extents=None):
     ax.set_xlabel("X [arcsec]")
     ax.set_ylabel("Y [arcsec]")
     
-    ax.set_title("Lensed image "+Model.Gal.Name)
+    ax.set_title("Lensed image "+Model.Gal.name)
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fg.colorbar(im0, cax=cax, orientation='vertical',label=r"log$_{10}$ flux [arbitrary]")

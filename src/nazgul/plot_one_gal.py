@@ -1,39 +1,19 @@
 #WIP
 import numpy as np
+import astropy.units as u
 import matplotlib.pyplot as plt
+
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-# obtained from http://virgodb.dur.ac.uk:8080/Eagle/MyDB
-# with the followin command:
-"""
-SELECT   
-        gal.Redshift as z,   
-        gal.Image_Face as face, 
-        gal.CentreOfMass_x as x, 
-        gal.CentreOfMass_y as y, 
-        gal.CentreOfMass_z as z,
-        gal.GroupNumber as Gn,
-        gal.SubGroupNumber as SGn
-   FROM
-        RefL0025N0752_SubHalo as gal,   
-        RefL0025N0752_SubHalo as ref   
-   WHERE   
-        ref.GalaxyID=1848116 and -- GalaxyID at z=1   
-        ((gal.SnapNum > ref.SnapNum and ref.GalaxyID   
-        between gal.GalaxyID and gal.TopLeafID) or    
-        (gal.SnapNum <= ref.SnapNum and gal.GalaxyID    
-        between ref.GalaxyID and ref.TopLeafID))   
-   ORDER BY   
-        gal.Redshift
-"""
+from python_tools.tools import mkdir
+from nazgul.pathfinder import tmp_dir
+from nazgul.project_gal import project_kw_parts
+from nazgul.AMR2D_PLL import plot_AMR_cells,AMR_density_PLL,get_MDfromAMRcells_PLL
+from nazgul.Translator.particle_galaxy import clip_coord
 
-#centre3,gn,sgn = np.array([14.434582,24.12927,19.225077]),22,0
-
-#gl = get_rnd_gal(sim=std_sim,min_z=1.9,max_z=2.02,reuse_previous=True)
-# Galaxy(Gn=gn,SGn=sgn,CntX=cntre3[0],CntY=centre3[1],CntZ=centre3[2],z=0)
 
 def plot_gal(gl):
-    sim_path = "./tmp/"
+    gal_dir = gl.gal_dir 
     xyz_dm  = gl.dm["coords"].T
     xyz_str = gl.stars["coords"].T
     xyz_gas = gl.gas["coords"].T
@@ -62,7 +42,11 @@ def plot_gal(gl):
     plt.xlabel("X coord [Mpc]")
     plt.legend()
     plt.title("Mass Histogram For Different Particles of 1 EAGLE Gal.")
-    nm = sim_path+"/mHistGal1.png"
+    plt.tight_layout()
+    nm = tmp_dir/"mHistGal1.png"
+    print(f"Saving {nm}")
+    plt.savefig(nm)
+    nm = gal_dir/"mHistGal1.png"
     print(f"Saving {nm}")
     plt.savefig(nm)
     plt.close()
@@ -103,17 +87,101 @@ def plot_gal(gl):
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fg.colorbar(im0, cax=cax, orientation='vertical',label="log(BH Mass)")
-
+    
     for axi in axes:
         for axii in axi:    
             axii.set_xlim(xm-dxy,xm+dxy)
             axii.set_ylim(ym-dxy,ym+dxy)
             axii.set_xlabel("X [Mpc]")
             axii.set_ylabel("Y [Mpc]")
-                
-    nm = sim_path+"/PartDistrGal.png"
+    plt.tight_layout()
+    nm = tmp_dir/"PartDistrGal.png"
+    print(f"Saving {nm}")
+    plt.savefig(nm)
+    
+    nm = gal_dir/"PartDistrGal.png"
     print(f"Saving {nm}")
     plt.savefig(nm)
     plt.close()
+
+
+
+def Gal2MXYZ_part(Gal,part_type="stars"): 
+    """Given the galaxy, return Masses (in Msun) and
+    XY coords. of particles in kpc  centered around center
+    """
+    part = getattr(Gal,part_type) 
+    # Particle masses
     
+    Ms = part["mass"]*u.Msun #Msun
     
+    # Particle pos
+    Xs,Ys,Zs =  np.transpose(part["coords"]) *u.Mpc.to("kpc")*u.kpc #kpc
+
+    # clip particle outliers
+    Ms,Xs,Ys,Zs = clip_coord(Ms,Xs,Ys,Zs)
+    
+    # center around the center of the galaxy
+    # center of mass is given in Comiving coord 
+    # see https://arxiv.org/pdf/1510.01320 D.23 
+    # ->  it's given in cMpc (not cMpc/h) fsr
+    Cx,Cy,Cz = Gal.centre*u.Mpc.to("kpc")*u.kpc/(Gal.xy_propr2comov) # (now) kpc 
+    
+    Xs -= Cx
+    Ys -= Cy
+    Zs -= Cz
+    return Ms, Xs,Ys,Zs
+
+# Plot AMR density for different particle species
+
+def Gal2kwMXYZ_part(Gal,part_type): 
+    Ms, Xs,Ys,Zs = Gal2MXYZ_part(Gal,part_type=part_type)
+    return {"Ms":Ms,"Xs":Xs,"Ys":Ys,"Zs":Zs}
+    
+def plot_AMR_density(gl,
+                  max_particles=100,
+                  min_area=0.1*u.kpc*u.kpc,
+                  dens_thresh = 0.*u.Msun/(u.kpc**2),
+                  verbose=True):
+    """ 
+    Compute and plot density Adaptive Mesh Refinement map split into the various particles
+    input  : gal 
+    returns: kw_2Ddens["MD_value"][u.Msun/(u.kpc**2),1] 
+             kw_2Ddens["MD_coord"][arcsec,2]
+             kw_2Ddens["AMR_cells"][cells,N]
+    """
+
+    print("ignoring BH - too few to make a AMR")
+    types = ["stars","dm","gas"] #,"BH"]
+    
+    savedir = f"tmp/AMR_{gl.name}/"
+    mkdir(savedir)
+    for tp in types:
+        # for now only considering index 0
+        proj_index    = 0
+        kw_parts      = Gal2kwMXYZ_part(gal,part_type=tp)
+        kw_parts_proj = project_kw_parts(kw_parts,proj_index)
+        Ms = np.asarray(kw_parts_proj["Ms"].to("Msun"))*u.Msun
+        Xs = np.asarray(kw_parts_proj["Xs"].to("kpc"))*u.kpc
+        Ys = np.asarray(kw_parts_proj["Ys"].to("kpc"))*u.kpc
+
+        # units are stripped by numba - have to "reattach" them "by hand"
+        AMR_cells = AMR_density_PLL(Xs,Ys,Ms, max_particles=max_particles, 
+                                    min_area=min_area,dens_thresh=dens_thresh)
+        # use parallelised version - faster 
+        MD_coords,MD_value = get_MDfromAMRcells_PLL(AMR_cells) 
+        # Note: all inputs are still in kpc
+        kw_2Ddens = {"MD_value":MD_value,"MD_coords":MD_coords,"AMR_cells":AMR_cells}
+        
+        fig,ax = plot_AMR_cells(kw_2Ddens)
+        nm = f"{savedir}/AMR_{tp}_proj{proj_index}.png"
+        fig.savefig(nm)
+        print(f"Saved {nm}") 
+        plt.close()
+
+
+
+if __name__=="__main__":
+    parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot 2D mass distribution of the galaxy")
+    
+    raise NotImplementedError

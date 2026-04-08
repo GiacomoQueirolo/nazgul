@@ -181,7 +181,23 @@ def AMR_density_PLL(x, y, m, max_particles=300, min_area=None,dens_thresh=None,S
     # cells: x0,x1,y0,y1,m,density
     return cells
 
-
+    
+def get_MDfromAMRcells_PLL(AMR_cells):
+    # for parallelised version
+    try:
+        dns_unit = AMR_cells[0][-1].unit
+        density = np.array([c[-1].value for c in AMR_cells])*dns_unit
+    except:
+        density = np.array([c[-1] for c in AMR_cells])
+    c_MD      = AMR_cells[np.argmax(density)]
+    MD_coords = (c_MD[0]+c_MD[1])/2.,(c_MD[2]+c_MD[3])/2.
+    try:
+        MD_coords = np.array([mdc.value for mdc in MD_coords])*MD_coords[0].unit
+    except:
+        pass
+    MD_value  = np.max(density)
+    return MD_coords,MD_value
+    
 def plot_AMR_cells(kw_2Ddens):
     fig, ax = plt.subplots(figsize=(8,8))
     a,b= [],[]
