@@ -19,16 +19,20 @@ from python_tools.get_res import load_whatever
 from nazgul.plot_PL import plot_all
 from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
 from nazgul.mount_doom.cracks_of_doom import LoadLens
-from nazgul.mount_doom.generate_particle_lens_dom import wrapper_get_rnd_lens,LensPart
+#from nazgul.mount_doom.generate_particle_lens_dom import wrapper_get_rnd_lens,LensPart
+#from nazgul.mount_doom.generate_gal_lens import wrapper_get_rnd_lens
+#from nazgul.mount_doom.lens_system import LensSystem
 
 lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
 source_model_list = ["SERSIC"]
 res_dir_base      = Path("./tmp/modelling_sim_lenses/")
 
-
-def setup_lens(lens):
-    res_dir = Path(f"{res_dir_base}/snap_{lens.Gal.snap}_{lens.name}")
-    lens.model_res_dir = res_dir
+def _get_model_res_dir(lens,res_dir=res_dir_base):
+    res_dir = Path(f"{res_dir}/snap_{lens.gallens.Gal.snap}_{lens.name}")
+    return res_dir
+    
+def setup_lens(lens,res_dir=res_dir_base):
+    lens.model_res_dir = _get_model_res_dir(lens,res_dir=res_dir)
     mkdir(res_dir)
     plot_all(lens,skip_caustic=False)
     return lens
@@ -200,9 +204,10 @@ if __name__=="__main__":
     else:
         print("Loading lens from \n"+lens_path+"\n")
         lens = LoadLens(lens_path)
-        lens._unpack_Gal()
+        lens.unpack()
         if "/Sub/" in lens_path:
             lens = LensPart.from_SubLens(lens)
+            lens.upload_prev()
         #lens._unpack_Gal()
         if lens.thetaE.value<min_thetaE:
             raise RuntimeError("Ensure that the thetaE of the input lens is larger than min_thetaE")
@@ -345,7 +350,7 @@ if __name__=="__main__":
         sampler_type, mc_sample, param_mcmc, mc_logL  = chain_list[-1]
         chnl_path = f'{lens.model_res_dir}/chain_list.dll'
         with open(chnl_path,"wb") as f:
-            dill.dump(chnl_path,f)
+            dill.dump(chain_list,f)
         print(f"Saving {chnl_path}")
         corner(mc_sample,labels=param_mcmc,show_titles=True,plot_datapoints=False,hist_kwargs= {"density":True})
         nm = f'{lens.model_res_dir}/mcmc_post.pdf'

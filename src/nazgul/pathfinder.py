@@ -10,10 +10,10 @@ RingBearer
             |_Snapshots   (e.g snap1)                                                  |_ CatGal                   |_CatLens
                 |_GnSgn                                    |_ParticleData                   |_pkl                     |_pkl
                      |_ Gal |_Proj |_Lens                         |_hdf5 (link)
-                         |     |       |_ Algos
-                         |     |            |_ Sub |_Dom
-                         |     |_pkl            |     |_pkl
-                         |_pkl                  |_pkl
+                         |     |        |_ Sub |_Dom
+                         |     |           |     |_pkl
+                         |     |_pkl       |_pkl    
+                         |_pkl                  
 """
 path_nazgul = Path(__file__).parent
 

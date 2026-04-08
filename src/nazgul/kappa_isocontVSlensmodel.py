@@ -22,16 +22,10 @@ def get_kappa_model(lens):
     _radec = lens.imageModel.ImageNumerics.coordinates_evaluate   
     _ra,_dec = _radec
 
-    try:
-        kwargs_res = load_whatever(f"{_res_dir}/{lens.name}kw_res.json")
-    except:
-        kwargs_res = load_whatever(f"{_res_dir}/{lens.name}/kw_res.json")
+    kwargs_res = load_whatever(f"{_res_dir}/{lens.name}/kw_res.json")
 
     kwargs_lens = kwargs_res["kwargs_lens"]
-    try:
-        kw_input = load_whatever(f"{_res_dir}/{lens.name}kw_input.dll")
-    except:
-        kw_input = load_whatever(f"{_res_dir}/{lens.name}/kw_input.dll")
+    kw_input = load_whatever(f"{_res_dir}/{lens.name}/kw_input.dll")
     
     lens_model   = LensModel(lens_model_list=kw_input["kwargs_model"]["lens_model_list"])
     kappa_model  = lens_model.kappa(_ra,_dec, kwargs_lens)
