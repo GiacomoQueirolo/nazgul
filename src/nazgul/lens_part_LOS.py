@@ -1,0 +1,22 @@
+"""
+Add LOS effects
+"""
+import numpy as np
+import pandas as pd
+from scipy.ndimage import map_coordinates
+from lenstronomy.LensModel.LineOfSight.LOSModels.los import LOS
+
+from python_tools.conversion import find_index
+
+
+kw_los_path = "/pbs/home/g/gqueirolo/analosis/analosis/results/datasets/golden_sample_input_kwargs.csv"
+def get_kw_los(kw_los_path=kw_los_path,index=0):
+    kw   = pd.read_csv(kw_los_path)
+    los_cols = ['kappa_os', 'gamma1_os', 'gamma2_os', 'omega_os',
+    'kappa_od', 'gamma1_od', 'gamma2_od', 'omega_od',
+    'kappa_ds', 'gamma1_ds', 'gamma2_ds', 'omega_ds',
+    'kappa_los', 'gamma1_los', 'gamma2_los', 'omega_los']
+    los  = kw.loc[:, los_cols]
+    list_los = los.to_dict('records')
+    kw_los = list_los[index]
+    return kw_los
