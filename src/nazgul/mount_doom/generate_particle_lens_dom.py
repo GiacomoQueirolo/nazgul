@@ -1,10 +1,15 @@
 """
-From randomly selected galaxies, read particles and generate Particles Lenses
+From a selected galaxy, read particles and generate Particles Lenses
 Revolves around the LensPart class, plus several helper functions
 
 -> restructured to be "dominant" w.r.t. LensModel
     -> set z_lens and sample z_s
     -> can have additional lens models
+
+-> change of philo:
+    This should be a wrapper for LensModel, not much more
+    Will store a pointer to SubLensPart, to the projection, the gal
+    but from the alpha map will have to recompute it depending on additional lens profiles (e.g. LOS)
 """
 
 import dill
@@ -15,7 +20,6 @@ from functools import cached_property
 # for debug plots
 import matplotlib.pyplot as plt
 
-import astropy.units as u
 from scipy.ndimage import zoom
 from scipy.interpolate import RectBivariateSpline
 
@@ -30,8 +34,8 @@ from python_tools.tools import mkdir,to_dimless,convert_error_to_warning
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 # project galaxy along various axis
 from nazgul.project_gal import get_2Dkappa_map,ProjectionError
-from nazgul.Translator.translator import get_rnd_PG,get_all_PG
-from nazgul.Translator import std_simsuite
+#from nazgul.Translator.translator import get_rnd_PG,get_all_PG
+#from nazgul.Translator import std_simsuite
 
 from nazgul.mount_doom.generate_particle_lens_sub import SubLensPart
 from nazgul.mount_doom.cracks_of_doom import BasicLensPart
@@ -46,8 +50,9 @@ verbose = True
 empty_kwargs_add_lenses = {"lens_model_list":[],"kwargs_lens":[]}
 
 class LensPart(BasicLensPart): 
-    _large_attributes = ['lens_model','kw_shear', 'lenspart','_Sim','PartLens',
-                         'Gal','data_class','psf_class','source_model_class','cosmo']
+    _large_attributes_setup  = ['lens_model', 'lenspart','PartLens','Gal','cosmo']
+    _large_attributes_unpack = ['kw_shear','_Sim','PartLens','Gal','data_class',
+                               'psf_class','source_model_class','cosmo']
     def __init__(self,
                  Galaxy,
                  projection_index, # projection index of the galaxy
@@ -119,7 +124,7 @@ class LensPart(BasicLensPart):
         return obj
         
     def run(self,read_prev=True,update_source_pos=False,verbose=True):
-        upload_successful = False
+        """upload_successful = False
         if read_prev:
             upload_successful = self.upload_prev()
         if not upload_successful:
@@ -141,7 +146,7 @@ class LensPart(BasicLensPart):
             # Lensing computations:
             #######################
             if verbose:
-                print("DEBUG - Create lensed...")
+                print("DEBUG - Create lens...")
             self.create_lens(verbose=verbose)
             if verbose:
                 print("DEBUG - Lens created")
@@ -154,7 +159,12 @@ class LensPart(BasicLensPart):
             if verbose:
                 print("DEBUG - Image created")
             self.store()
-        
+        """
+        # Radical change of idea: we do not store alpha etc
+        # bc those should be recomputed based on possible additional 
+        # lens profiles
+        self.lenspart.run()
+        self.store()
     ########################
     ########################
     @property
@@ -162,6 +172,7 @@ class LensPart(BasicLensPart):
         # define name and path of savefile
         name= f"{self.Gal_name}_Npix{self.pixel_num}_Part{self.PartLens_name}_Prj{self.proj_index}"
         return name
+ 
     #############################
 
     def create_lens(self,verbose=True):
@@ -214,7 +225,8 @@ class LensPart(BasicLensPart):
         if hasattr(self,"lens_model") and hasattr(self,"kwargs_lens"):
             print("Lens model already setup")
             return 0
-        print("Setting up lensing parameters...")
+        print("Setting up lensing parameters... (DOM)")
+        self.unpack()
         add_lens_model_list    = self.kwargs_add_lenses["lens_model_list"]
         add_kwargs_lens        = self.kwargs_add_lenses["kwargs_lens"]
         lens_model_list        = ["PART_GAL",*add_lens_model_list]
@@ -229,12 +241,10 @@ class LensPart(BasicLensPart):
         profile_kwargs_list    = [pkwl_part_lens]
         for adlml in add_lens_model_list:
             profile_kwargs_list.append({})
-        #print("profile_kwargs_list",profile_kwargs_list)
-        #print("DEBUG",self.kwargs_lensmodel)
         self.lens_model = LensModel(lens_model_list=lens_model_list,
                                     profile_kwargs_list = profile_kwargs_list,
                                     **self.kwargs_lensmodel)
-        print("... Lensing parameters set up ")
+        print("... Lensing parameters set up (DOM)")
         
     def get_lensed_image(self,imageNumerics=None,
                          sourceModel=None,kwargs_source=None,
@@ -247,7 +257,10 @@ class LensPart(BasicLensPart):
         if kwargs_source is None:
             kwargs_source = self.kwargs_source                
         if imageNumerics is None:
-            imageNumerics = self.get_imageNumerics(self.Sim)        
+            imageNumerics = self.get_imageNumerics(self.Sim)   
+        if alpha_map is None:
+            ra,dec = imageNumerics.grid_class.coordinates_evaluate
+            alpha_map = self.alpha_map(ra,dec)
         x_source_plane,y_source_plane = self.get_xy_source_plane(alpha_map=alpha_map)
         kwargs_source_list            = [kwargs_source]
         source_light                  = sourceModel.surface_brightness(x_source_plane, y_source_plane, kwargs_source_list, k=None)
@@ -303,31 +316,7 @@ class LensPart(BasicLensPart):
         x_source_plane = image2array(x_source_plane)
         y_source_plane = image2array(y_source_plane)
         return x_source_plane,y_source_plane
-    """
-    def get_imageModel(self,Sim=None):
-        # use default kwargs_numerics
-        if not hasattr(self, "kwargs_numerics"):
-            self.setup_dataclasses(Sim=Sim)
-        if not hasattr(self, "lens_model"):
-            self.setup_lenses()
-            
-        if Sim is None or Sim==self.Sim:
-            Sim = self.Sim
-            if not hasattr(self, "data_class"):
-                self.setup_dataclasses(Sim=Sim)
-            data_class = self.data_class
-            psf_class  = self.psf_class
-            source_model_class = self.source_model_class
-        else:
-            data_class,psf_class,source_model_class,_,_ = cod.get_dataclasses(Sim)
-        
-        imageModel = ImageModel(data_class, psf_class, 
-                            self.lens_model, 
-                            source_model_class,
-                            lens_light_model_class=None,point_source_class=None, 
-                            kwargs_numerics=self.kwargs_numerics)
-        return imageModel
-    """
+    
     def get_imageNumerics(self,Sim=None):
         if not hasattr(self, "kwargs_numerics"):
             self.setup_dataclasses(Sim=Sim)            
@@ -346,11 +335,11 @@ class LensPart(BasicLensPart):
                             **self.kwargs_numerics)
         return imageNumerics
         
-    def _psi_map(self,_radec=None):
+    def psi_map(self,_radec=None):
         print("Computing lensing PM potential...")
         self.unpack()
         # the following should prob. be in the unpack function
-        self.lenspart.setup_lenses()
+        self.setup_lenses()
         if _radec is None:
             _radec = self._radec #arcsecs  
         _ra,_dec = _radec
@@ -358,11 +347,10 @@ class LensPart(BasicLensPart):
         psi = array2image(psi)
         return psi
         
-    def _alpha_map(self,_radec=None):
-        print("Computing lensing PM deflection...")
+    def alpha_map(self,_radec=None):
         self.unpack()
         # the following should prob. be in the unpack function
-        self.lenspart.setup_lenses()
+        self.setup_lenses()
         if _radec is None:
             _radec = self._radec
         _ra,_dec = _radec
@@ -434,7 +422,8 @@ class LensPart(BasicLensPart):
         else:
             kwargs_single_band = band.kwargs_single_band()
             if kwargs_psf is not None:
-                if not kwargs_psf.keys() == {"kernel_point_source":[],"point_source_supersampling_factor":[]}.keys():
+                if not kwargs_psf.keys() == {"kernel_point_source":[],
+                                             "point_source_supersampling_factor":[]}.keys():
                     raise RuntimeError(f"kwargs_psf has to have only kernel_point_source and point_source_supersampling_factor, not {kwargs_psf.keys()}")
                 kwargs_single_band.update(kwargs_psf)
             # must recompute pixel_num in order to covert to ~ the same aperture,
@@ -607,18 +596,6 @@ class LensPart(BasicLensPart):
         alpha_x_spline = RectBivariateSpline(dec0,ra0, alpha_x)
         alpha_y_spline = RectBivariateSpline(dec0,ra0, alpha_y)
 
-        """
-        #TEST: Passed
-        i_dec = np.random.choice(np.arange(0,len(dec0)-1))
-        i_ra  = np.random.choice(np.arange(0,len(ra0)-1))
-        # Direct grid value
-        v_grid = alpha_x[i_dec, i_ra]
-        
-        # Interpolated value at exact grid point
-        v_spline = alpha_x_spline.ev(dec0[i_dec], ra0[i_ra])
-        
-        print(v_grid, v_spline)
-        """
         cc_rad_x,cc_rad_y   = cl_rad_x-alpha_x_spline.ev(cl_rad_y,cl_rad_x),\
                               cl_rad_y-alpha_y_spline.ev(cl_rad_y,cl_rad_x)
 
@@ -630,108 +607,8 @@ class LensPart(BasicLensPart):
                    "critical_lines":{"radial":[cl_rad_x,cl_rad_y],
                                      "tangential":[cl_tan_x,cl_tan_y]}
                   }
-        """
-        # DEBUG
-        fig,ax = plt.subplots(figsize=(8,8))
-        ax.scatter(cc_rad_x,cc_rad_y,c="b",marker=".",label="Radial Caustics")
-        ax.scatter(cc_tan_x,cc_tan_y,c="r",marker=".",label="Tangential Caustics")
-        ax.scatter(cl_rad_x,cl_rad_y,c="cyan",marker=".",label="Radial Crit. Curve")
-        ax.scatter(cl_tan_x,cl_tan_y,c="darkorange",marker=".",label="Tangential Crit. Curve")
-        
-        #ax.scatter(cc_rad_x_noisy,cc_rad_y_noisy,c="gold",marker=".",label="Radial Caustics noisy")
-        #ax.scatter(cc_tan_x_noisy,cc_tan_y_noisy,c="purple",marker=".",label="Tangential Caustics noisy")
-        ax.scatter(cl_rad_x_noisy,cl_rad_y_noisy,c="lime",marker=".",label="Radial Crit. Curve noisy")
-        ax.scatter(cl_tan_x_noisy,cl_tan_y_noisy,c="peru",marker=".",label="Tangential Crit. Curve noisy")
-        
-        
-        
-        ax.set_xlim(xmin,xmax)
-        ax.set_ylim(ymin,ymax)
-        plt.gca().set_aspect('equal')
-        ax.set_xlabel("RA ['']")
-        ax.set_ylabel("DEC ['']")
-        ax.legend()
-        ax.set_title("Caustics and Critical Curves") 
-        
-        plt.tight_layout()
-        nm = "tmp/del2.png"
-        print(f"Saving {nm}")
-        plt.savefig(nm)
-        """
         return kw_crit
 
-
-
-# get a lens no matter what:
-def wrapper_get_rnd_lens(reload=True,
-                        kw_lenspart={},
-                        kw_galpart={}):
-    """Try to get a lens from random galaxies, repeat until finds one
-    which is an actual lens (i.e. supercritical)
-    """
-    
-    default_kw_lenspart={"kwlens_part":kwlens_part_AS,
-                         "projection_index":0,
-                         "kw_prior_z_source":kw_prior_z_source_stnd,
-                         "kwargs_band_sim":kwargs_band_sim,
-                         "pixel_num":pixel_num,
-                         "reload":reload}
-    default_kw_lenspart.update(kw_lenspart)
-    kw_lenspart = default_kw_lenspart
-    default_kw_galpart={"simsuite":std_simsuite}
-    default_kw_galpart.update(kw_galpart)
-    kw_galpart = default_kw_galpart
-    while True:
-        Gal = get_rnd_PG(**kw_galpart)
-        Gal.run()
-        while kw_lenspart["projection_index"]<3:
-            try:
-                mod_LP = LensPart(Galaxy=Gal,
-                              **kw_lenspart)
-                mod_LP.run()
-                return mod_LP            
-            except ProjectionError as PE:
-                kw_lenspart["projection_index"]+=1
-        print("All projections of this galaxy are not supercritical #\n","Trying different galaxy")
-
-            
-# get ALL possible lenses
-def wrapper_get_all_lens(reload=True,
-                        kw_lenspart={},
-                        kw_galpart={},
-                        verbose=True):
-    """Get a lens from all available galaxies"""
-    
-    default_kw_lenspart={"kwlens_part":kwlens_part_AS,
-                         "projection_index":0,
-                         "kw_prior_z_source":kw_prior_z_source_stnd,
-                         "kwargs_band_sim":kwargs_band_sim,
-                         "pixel_num":pixel_num,
-                         "reload":reload}
-    default_kw_lenspart.update(kw_lenspart)
-    kw_lenspart = default_kw_lenspart
-    default_kw_galpart={"simsuite":std_simsuite}
-    default_kw_galpart.update(kw_galpart)
-    kw_galpart = default_kw_galpart
-    all_Gal    = get_all_PG(**kw_galpart)
-    all_lenses = []
-    if verbose:
-        print(f"Found n={len(all_Gal)} Galaxies")
-    for Gal in all_Gal:
-        Gal.run(reload=reload)
-        while kw_lenspart["projection_index"]<3:
-            try:
-                mod_LP = LensPart(Galaxy=Gal,
-                              **kw_lenspart)
-                mod_LP.run()
-                all_lenses.append(mod_LP)
-            except ProjectionError as PE:
-                kw_lenspart["projection_index"]+=1
-        print(f"All projections of Galaxy {Gal.name} are not supercritical \nTrying different galaxy.")
-        kw_lenspart["projection_index"] = 0
-        exit("DEBUG - check if this worked out")
-    if verbose:
-        print(f"Found n={len(all_lenses)} Lenses")
-        print(f"i.e. {np.round(len(all_lenses)/len(all_Gal)*100,1)}% of Galaxies")
-        
-    return all_lenses
+# moved to the Sub, it makes more sense there
+#wrapper_get_rnd_lens
+#wrapper_get_all_lens 
