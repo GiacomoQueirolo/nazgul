@@ -83,7 +83,9 @@ class SimPartGal(BasicPartGal):
     
     # define name to verify identity
     _type_id = "SimPartGal_"+simsuite_name
-    _large_attributes=["stars","gas","dark_matter","black_holes","swift_gal","_swift_gal"]
+    _large_attributes_setup  = ["stars","gas","dark_matter","black_holes","swift_gal","_swift_gal"]
+    _large_attributes_unpack = []
+    
     simsuite = simsuite_name
     def __init__(self,kw_Gal,sim=std_sim,subsim=std_subsim):
         #kw_Gal: soap_index,snap and/or z
@@ -156,9 +158,7 @@ class SimPartGal(BasicPartGal):
             self.snap,self.soap_index)
         return Id 
         
-    def upload_prev(self,reload=True,verbose=True):
-        if not reload:
-            return False
+    def upload_prev(self,verbose=True):
         prev_Gal = ReadGal(self)
         if prev_Gal is False:
             if verbose:
@@ -183,18 +183,26 @@ class SimPartGal(BasicPartGal):
     # ------------------------------------------------------------------
     # Lazy reconstruction logic
     # ------------------------------------------------------------------
-    def _unpack(self):
-        """Reconstruct all attributes that were intentionally removed
-        before serialization.
+    def _setup(self):
+        """Setup all attributes NEEDED FOR COMPUTATION
+        that were intentionally removed before serialization.
         """
         print("Unpacking Particle Galaxy ...")
         self.swift_gal
         self.initialise_parts()
         print("... unpacked Particle Galaxy")
+        return 
+        
+    def _unpack(self):
+        """Reconstruct attributes AFTER COMPUTATION
+        that were intentionally removed before serialization.
+        """
+        # there is nothing to do for this class
+        return 
 
     ########################     
     @property
-    def Name(self):
+    def name(self):
         # arbitrary funct to give name to gal
         # assuming that the simulation stays ~ const
         nm = f"G{self.soap_index}"
@@ -209,17 +217,16 @@ class SimPartGal(BasicPartGal):
     def run(self,reload=True):
         upload_successful = False
         if reload:
-            upload_successful = self.upload_prev(reload=reload)
+            upload_successful = self.upload_prev(verbose=True)
+        self.setup()
         if not upload_successful:
-            self.swift_gal
-            self.initialise_parts()
             self.store_gal()
+            
 # this function is a wrapper for convenience - it takes the class itself as input
 def ReadGal(Gal,verbose=True):
     if not Path(Gal.dill_path).is_file():
         return False
     other_Gal = LoadClass(path=Gal.dill_path,verbose=verbose,path_base=path_nazgul)
-
     # If failed, return False
     if not other_Gal: 
         if verbose:
@@ -232,7 +239,6 @@ def ReadGal(Gal,verbose=True):
                 print(f"Prev. Gal: {other_Gal._identity()}")
                 print(f"Self:      {Gal._identity()}")
         return False
-    other_Gal.unpack()
     return other_Gal
 
 def LoadGal(path,if_fail_recompute=True,verbose=True):

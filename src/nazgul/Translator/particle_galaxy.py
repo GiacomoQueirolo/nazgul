@@ -17,9 +17,11 @@ class BasicPartGal(BasicGal):
     """Given the simulation, snap (or z) and galaxy numbers, set up a class
     with all the needed particle properties converted in physical units
     """
-    _large_attributes = []
+    _large_attributes_setup = []
+    _large_attributes_unpack = []
+    
     @property
-    def Name(self):
+    def name(self):
         """Define name of instance
         """
         raise NotImplementedError
@@ -28,14 +30,14 @@ class BasicPartGal(BasicGal):
     def dill_path(self):
         """Define dill path to store the class instance
         """
-        dill_path = self.gal_dir/f"{self.Name}.dll"
+        dill_path = self.gal_dir/f"{self.name}.dll"
         return dill_path
         
     ### Class Structure ####
     ########################
     def __str__(self):
         str_gal = f"Sim {self.sim}"
-        str_gal = f"Gal {self.Name}"
+        str_gal = f"Gal {self.name}"
         str_gal += f", at z={str(np.round(self.z,3))}/snap={self.snap},"
         str_gal += f" with \nN={'%.1E'%Decimal(self.N_part)} part.\nof \ntot Mass={'%.1E'%Decimal(self.M)} [M_sun]\n"
         return str_gal 

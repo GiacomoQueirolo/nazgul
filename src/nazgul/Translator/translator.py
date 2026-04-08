@@ -122,10 +122,9 @@ def LoadGal(path,if_fail_recompute=True,verbose=True):
         Gal         = PartGal(simsuite=simsuite,**kw_Gal_full)
         if verbose:
             print("... done computing Galaxy")
-    #if Gal:
-    #    Gal.unpack()
-    # maybe we can slim it down s.t. it's basically only
-    # a pointer to the gal (and load the particles only if needed)
+    if Gal:
+        # now this basically does nothing
+        Gal.unpack()
     return Gal
 
 
@@ -178,11 +177,7 @@ class PartGal():
     def store_gal(self):
         # store class instance 
         store_class(self._SimPartGal,path=self.dill_path)
-    
-    def run(self,reload=True):
-        self._SimPartGal.run(reload=reload)
-        #self.store_gal()
-    
+        
     def __str__(self):
         return self._SimPartGal.__str__()
         
@@ -191,3 +186,6 @@ class PartGal():
             return getattr(self._SimPartGal, name)
         except AttributeError:
             raise AttributeError(f"{type(self).__name__} has no attribute {name}")
+#   def run(self,reload=True):
+#    #    self._SimPartGal.run(reload=reload)
+#    #    #self.store_gal()

@@ -41,9 +41,10 @@ pixel_num     = 200 # pix for image
 verbose       = True
 # for z_source computation:
 z_source_max  = 4
-#minimum theta_E
+# minimum theta_E
 min_thetaE    = .3*u.arcsec #arcsec
-
+# scale of thetaE to obtain the radius
+scale_tE      = 2
 # Path definitions:
 
 # define where to store the obtained lenses classes
@@ -226,23 +227,18 @@ def kw_prior2like_zs(kw_prior_z_source,z_lens):
 def LoadLens(LnsCl,verbose=True):
     LnsCl = LoadClass(LnsCl,verbose=verbose,path_base=path_nazgul)
     # has to consider the possibility it failed to load
-    #if LnsCl: 
-    #    # recompute deleted components
-    #    LnsCl.unpack()
+    if LnsCl: 
+        # recompute deleted components
+        LnsCl.unpack()
     return LnsCl
     
 def ReadLens(aClass,verbose=True):
     return LoadLens(aClass.pkl_path,verbose=verbose)
 
 
-# monkey-patch for compatibility reason with previous versions:
-#Lens_PART = LensPart
-
-def get_extents(arcXkpc,Model=None,_radec=None):
+def get_extents(arcXkpc,_radec=None):
     """Returns the extent of the image in various units
     """
-    if _radec is None:
-        _radec = Model.imageModel.ImageNumerics.coordinates_evaluate #arcsecs 
     _ra,_dec = _radec
     RA,DEC   = util.array2image(_ra),util.array2image(_dec)
     ra0,dec0 = RA[0]*u.arcsec,DEC.T[0]*u.arcsec # center of the bin
@@ -273,9 +269,15 @@ def get_extents(arcXkpc,Model=None,_radec=None):
     return kw_extents
 
 
+def get_RADEC(_radec):
+    _ra,_dec = _radec
+    RA,DEC   = util.array2image(_ra),util.array2image(_dec)
+    return RA,DEC
+
 
 class BasicLensPart(BasicGal):
-    _large_attributes = []
+    _large_attributes_unpack = []
+    _large_attributes_setup  = []
 
     def __init__(self,
                  Galaxy,      # class instance of PartGal
@@ -294,7 +296,7 @@ class BasicLensPart(BasicGal):
         # setup of data
         self.Gal           = Galaxy
         self.Gal_path      = Galaxy.dill_path
-        self.Gal_name      = Galaxy.Name # must be stored
+        self.Gal_name      = Galaxy.name # must be stored
         z_source_max       = kw_prior_z_source["z_source_max"]
         # if reload, check if Gal is a lens - if it isn't, raise error
         if reload:
@@ -328,7 +330,13 @@ class BasicLensPart(BasicGal):
         Lazily initializes the name if it has not been generated yet.
         """
         return self.name
-
+    
+    @property
+    def name(self):
+        # define name and path of savefile
+        name= f"{self.Gal_name}_Npix{self.pixel_num}_Part{self.PartLens_name}_Prj{self.proj_index}"
+        return name
+        
     def get_kw_sublenspart(self):
         kw_sublenspart = {}
         kw_sublenspart["Galaxy"] = self.Gal
@@ -356,16 +364,17 @@ class BasicLensPart(BasicGal):
                                projection_index=self.proj_index)
             self.Gal = Galaxy
             # verify that we load the correct galaxy
-            assert self.Gal_name == Galaxy.Name
+            assert self.Gal_name == Galaxy.name
         if not hasattr(self,"cosmo"):
             self.cosmo = self.Gal.cosmo
-
+        return
     def _unpack_PartLens(self):
         if not hasattr(self,"PartLens"):
             self.PartLens = PartLens(self.kwlens_part)
-        # the setup is very fast 
-        self.PartLens.setup(self)
-  
+        if np.all([hasattr(self,att) for att in ["z_lens","z_source","cosmo"]]):
+            # the setup is very fast 
+            self.PartLens.setup(self)
+        return
     def _unpack(self):
         """Reconstruct all attributes that were intentionally removed
         before serialization.
@@ -376,18 +385,10 @@ class BasicLensPart(BasicGal):
         
         # re-define PartLens
         self._unpack_PartLens()
-        
-        # skip this because too long and in principle not necessary
-        # Rebuild lens model if missing
-        if not hasattr(self, "lens_prof"):
-            try:
-                self.setup_lenses()
-            except Exception as e:
-                warning = convert_error_to_warning(e)
-                warnings.warn(warning)
-                print("Ignoring Error - likely due to a slimmed down galaxy. Could still work")
 
-        print("... unpacked basic lens")
+    def _setup(self):
+        self._unpack_Gal()
+        self.PartLens = PartLens(self.kwlens_part)
         
     def store(self):
         store_class(self,path=self.pkl_path)
@@ -416,14 +417,12 @@ class BasicLensPart(BasicGal):
 
     @property
     def kw_extents(self):
-        kw_extents = get_extents(arcXkpc=self.arcXkpc,Model=self,
+        kw_extents = get_extents(arcXkpc=self.arcXkpc,
                                      _radec=self._radec)
         return kw_extents
         
     def get_RADEC(self):
-        _ra,_dec = self._radec
-        RA,DEC   = util.array2image(_ra),util.array2image(_dec)
-        return RA,DEC
+        return get_RADEC(self._radec)
     #
     # Lensing computations
     #
@@ -459,23 +458,19 @@ class BasicLensPart(BasicGal):
             z_source      = np.random.choice(z_source_list)
         return z_source
     
-    def galaxy_projection(self,verbose=True,**kwargs_proj):       
-        # we should not recompute it if it already has the solutions 
-        recompute = False
+    def galaxy_projection(self,verbose=True,recompute=False,**kwargs_proj):       
         list_att_gal_prj = ["z_source_min",
                            "z_source",
                            "MD_coords",
                             "thetaE",
                             "SigCrit"]
         for att_gal_prj in list_att_gal_prj:
+            # we should not recompute it if it already has the solutions 
             if not hasattr(self,att_gal_prj):
                 recompute = True
                 break
         if not recompute:
-            
             return
-        # now Gal really has to be deployed
-        self.Gal.run()
         # Compute projection
         kwres_proj_res    = project_Gal(GalProj=self.Gal,
                                         z_source_max=self.z_source_max,

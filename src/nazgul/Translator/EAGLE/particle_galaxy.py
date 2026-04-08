@@ -12,28 +12,24 @@ from pathlib import Path
 import astropy.units as u
 from decimal import Decimal
 import matplotlib.pyplot as plt
-from astropy.stats import sigma_clip
-from functools import cached_property
+#from astropy.stats import sigma_clip
+#from functools import cached_property
 from multiprocessing import Pool,cpu_count
+from astropy.cosmology import FlatLambdaCDM
 
 from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass
 from python_tools.get_res import load_whatever
-from astropy.cosmology import FlatLambdaCDM
 
 from nazgul.Translator.EAGLE.get_gal_indexes import get_gals
 from nazgul.Translator.EAGLE.get_gal_indexes import get_catpath
+from nazgul.pathfinder import get_gal_dir,get_part_dir,std_sim,std_data_dir,path_nazgul
 from nazgul.Translator.EAGLE.fnct import _count_part,_mass_part
 from nazgul.Translator.EAGLE.fnct import get_z_snap,read_snap_header
-from nazgul.pathfinder import get_gal_dir,get_part_dir,std_sim,std_simsuite,std_data_dir,path_nazgul
-from nazgul.Translator.EAGLE.fnct import _count_part,_mass_part
-from nazgul.Translator.EAGLE.fnct import get_z_snap,read_snap_header
-
-from nazgul.Translator.translator import min_z,max_z,min_mass
-
-from nazgul.Translator.particle_galaxy import BasicPartGal,store_class,clip_coord
 
 from nazgul.Translator.EAGLE import simsuite_name
+from nazgul.Translator.translator import min_z,max_z,min_mass
+from nazgul.Translator.particle_galaxy import BasicPartGal,store_class,clip_coord
 
 def gal_path2kwGal(gal_path):
     """From path extract the ALL required inputs for SimPartGal class
@@ -93,7 +89,8 @@ class SimPartGal(BasicPartGal):
     """
     # define name to verify identity
     _type_id = "SimPartGal_"+simsuite_name
-    _large_attributes = ["stars","gas","dm","bh"]
+    _large_attributes_setup  = ["stars","gas","dm","bh"]
+    _large_attributes_unpack = []
     # indexes of particles: gas,dm,stars,bh:
     indexes = [0,1,4,5]
     # n* of files per snapshot:
@@ -133,7 +130,7 @@ class SimPartGal(BasicPartGal):
         mkdir(self.gal_dir)        
         #self.run(reload=reload)
     @property
-    def Name(self):
+    def name(self):
         #Note: this is unique only within the snap
         return f"Gn{self.Gn}SGn{self.SGn}"
                 
@@ -141,7 +138,7 @@ class SimPartGal(BasicPartGal):
     ########################
     def _identity(self):
         # Returns tuple to identify uniquely this galaxy
-        Id = (self._type_id,self.sim,self.snap,self.Name)
+        Id = (self._type_id,self.sim,self.snap,self.name)
         return Id
         
     def __str__(self):
@@ -164,36 +161,44 @@ class SimPartGal(BasicPartGal):
     # Lazy reconstruction logic
     # ------------------------------------------------------------------
 
-    def _unpack(self):
-        """Reconstruct all attributes that were intentionally removed
-        before serialization.
+    def _setup(self):
+        """Setup all attributes NEEDED FOR COMPUTATION
+        that were intentionally removed before serialization.
         """
-        print("Unpacking Particle Galaxy ...")
+        print("Setting up Particle Galaxy ...")
         self.initialise_parts()
         print("... unpacked Particle Galaxy")
-
+        return 
+        
+    def _unpack(self):
+        """Reconstruct attributes AFTER COMPUTATION
+        that were intentionally removed before serialization.
+        """
+        # there is nothing to do for this class
+        return 
+        
     ########################
     ########################
     
     @property 
     def cosmo(self):
         return FlatLambdaCDM(H0=self.h*100, Om0=1-self.h)
-    def store_gal(self):
+    def store_gal(self,update=True):
         # store class instance 
-        store_class(self,path=self.dill_path)
+        store_class(self,path=self.dill_path,update=update)
 
     def run(self,reload=True,verbose=True):
         if reload:
             self.upload_prev(verbose=verbose)
         # actually store the gal
-        self.initialise_parts()
+        self.setup()
         self._count_tot_part()
         self._mass_tot_part()
         self._verify_cnt()
-        #self.store_gal()
+        self.store_gal(update=True)
 
     def upload_prev(self,verbose=True):
-        prev_Gal = ReadGal_nounpack(self,verbose=False)
+        prev_Gal = ReadGal(self,verbose=False)
         if prev_Gal is False:
             if verbose:
                 print("Failed loading of prev. gal.")
@@ -238,7 +243,7 @@ class SimPartGal(BasicPartGal):
 
     def initialise_parts(self):
         if not hasattr(self,"gas"):
-            print("DEBUG- here we are loading particles")
+            print("DEBUG- here we are indeed loading particles")
             self.gas   = self.read_part(0)
         if not hasattr(self,"dm"):
             self.dm    = self.read_part(1)
@@ -401,7 +406,7 @@ def _load_one_file(args):
 
         coords = coords * cgs * (a ** aexp) * (h ** hexp)*u.cm.to(u.Mpc)
         # Periodic wrap coordinates around centre.
-        # -> boxsize is given in cMpc/h, must correct for both scaling effects
+        # -> boxsize is given in cMpc/h, must correct for both scaling factors
         boxsize           = boxsize* (a ** aexp)*(h**hexp)
         centre            = centre*(a**aexp) # given in comoving (but not 1/h)
         results['coords'] = np.mod(coords-centre+0.5*boxsize,boxsize)+centre-0.5*boxsize       
@@ -432,7 +437,7 @@ def _load_one_file(args):
             results["smooth"] = smooth
         else:
             dm_mass = f['Header'].attrs.get('MassTable')[1]
-            n_particles = f['Header'].attrs.get('NumPart_Total')[1]
+            #n_particles = f['Header'].attrs.get('NumPart_Total')[1]
             # Create an array of lenght n_particles each set to dm_mass
             mass2scale = np.ones(len(indices), dtype='f8') * dm_mass
             # Use the conversion factors from the mass entry in the gas particles.
@@ -446,11 +451,12 @@ def _load_one_file(args):
 
 # this function is a wrapper for convenience - it takes the class itself as input
 def ReadGal(Gal,verbose=True):
-    other_Gal = ReadGal_nounpack(Gal,verbose=verbose)
-    other_Gal.unpack()
+    other_Gal = ReadGalNoUnpack(Gal,verbose=verbose)
+    if other_Gal:
+        other_Gal.unpack()
     return other_Gal
 
-def ReadGal_nounpack(Gal,verbose=True):
+def ReadGalNoUnpack(Gal,verbose=True):
     "This Reads store galaxy but doesn't unpack it"
     if not Path(Gal.dill_path).is_file():
         return False
