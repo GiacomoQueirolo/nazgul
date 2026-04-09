@@ -46,11 +46,11 @@ def plot_caustics(Model,fast_caustic = True,savename="test_caustics.png",kw_exte
                           fast_caustic=fast_caustic,savename=savename,kw_extents=kw_extents)
 
 
-def plot_kappamap(kappa1,extent_kpc,title1="",savename="kappa.png",skip_show=False):
+def plot_kappamap(kappa1,extent_kpc,title1="",savename="kappa.png",cmap="hot"):
     fig,axes = plt.subplots(2,figsize=(8,16))
 
     ax  = axes[0]
-    im0 = ax.imshow(kappa1,origin="lower",extent=extent_kpc)
+    im0 = ax.imshow(kappa1,origin="lower",extent=extent_kpc,cmap=cmap)
     ax.set_xlabel("X [kpc]")
     ax.set_ylabel("Y [kpc]")
     ax.set_title(title1) 
@@ -75,8 +75,6 @@ def plot_kappamap(kappa1,extent_kpc,title1="",savename="kappa.png",skip_show=Fal
     plt.suptitle("Density distribution")
     print(f"Saving {savename}")
     plt.savefig(savename)
-    if not skip_show:
-        plt.show()
     plt.close()
 
 
