@@ -1,9 +1,6 @@
-from   astropy.cosmology import FlatLambdaCDM
 import astropy.constants as const
 import astropy.units as u
 import numpy as np
-
-default_cosmo       = FlatLambdaCDM(H0=67.7,Om0=0.3)
 
 def DsDds(cosmo,z_d,z_s):
     if np.isinf(z_s):

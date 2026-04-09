@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 #from astropy.stats import sigma_clip
 #from functools import cached_property
 from multiprocessing import Pool,cpu_count
-from astropy.cosmology import FlatLambdaCDM
+from astropy.cosmology import Planck13
 
 from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass
@@ -182,7 +182,13 @@ class SimPartGal(BasicPartGal):
     
     @property 
     def cosmo(self):
-        return FlatLambdaCDM(H0=self.h*100, Om0=1-self.h)
+        #FlatLambdaCDM(H0=self.h*100, Om0=1-self.h)
+        # from McAlpine'16:
+        # flat ΛCDM cosmology with parameters taken from the Planck mission (Planck Collaboration et al., 2014)
+        cosmo = Planck13
+        assert cosmo.H0.value/100 == self.h
+        return  cosmo
+        
     def store_gal(self,update=True):
         # store class instance 
         store_class(self,path=self.dill_path,update=update)
@@ -396,7 +402,7 @@ def _load_one_file(args):
             start, end = chunk[0], chunk[-1] + 1
             data = f[f"PartType{itype}/Coordinates"][start:end]
             _coords.append(data[chunk - start])
-        coords = np.vstack(_coords)
+        coords2scale = np.vstack(_coords)
         # conversion
         cgs  = f[f"PartType{itype}/Coordinates"].attrs["CGSConversionFactor"]
         aexp = f[f"PartType{itype}/Coordinates"].attrs["aexp-scale-exponent"]
@@ -404,7 +410,7 @@ def _load_one_file(args):
         a    = f["Header"].attrs["Time"]
         h    = f["Header"].attrs["HubbleParam"]
 
-        coords = coords * cgs * (a ** aexp) * (h ** hexp)*u.cm.to(u.Mpc)
+        coords = coords2scale * cgs * (a ** aexp) * (h ** hexp)*u.cm.to(u.Mpc)
         # Periodic wrap coordinates around centre.
         # -> boxsize is given in cMpc/h, must correct for both scaling factors
         boxsize           = boxsize* (a ** aexp)*(h**hexp)
@@ -606,7 +612,7 @@ def Gal2MXYZ(Gal):
     Ms,Xs,Ys,Zs = clip_coord(Ms,Xs,Ys,Zs)
     
     # center around the center of the galaxy
-    # center of mass is given in Comiving coord 
+    # center of mass is given in Comoving coord 
     # see https://arxiv.org/pdf/1510.01320 D.23 
     # ->  it's given in cMpc (not cMpc/h) fsr
     Cx,Cy,Cz = Gal.centre*u.Mpc.to("kpc")*u.kpc/(Gal.xy_propr2comov) # (now) kpc 
