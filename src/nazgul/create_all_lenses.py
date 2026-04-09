@@ -8,8 +8,8 @@ profiler.start()
 all_lenses = wrapper_get_all_lens(kw_galpart={"min_z":.09,
                                        "max_z":0.101,
                                        "min_mass":1e12},
-                           reload=True,
-                            _test=False)
+                           reload=False,
+                            _test=True)
 
 profiler.stop()
 print(profiler.output_text(color=True,show_all=False))

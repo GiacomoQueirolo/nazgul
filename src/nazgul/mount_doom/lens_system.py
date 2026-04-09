@@ -82,7 +82,8 @@ class LensSystem():
         self.gallens.run()
         self.create_lens(kwargs_add_lenses=self.kwargs_add_lenses, # these are given here as the self, but in principle with the freedom to re-define them
                          Sim=Sim,verbose=verbose)
-        self.sample_source_pos(update=update_source_pos)
+        if update_source_pos:
+            self.sample_source_pos(update=update_source_pos)
     #############################
     @property
     def savedir(self):
@@ -95,7 +96,7 @@ class LensSystem():
         name= name_lnsp.replace("Sub_","")
         return name
     @classmethod
-    def from_GalLens(cls, GalLens,**kwargs_gallens):
+    def from_GalLens(cls, GalLens,**kwargs_lenssystem):
         """Construct from an existing GalLens instance."""
         obj = cls.__new__(cls)
         obj.gallens = GalLens
@@ -105,10 +106,10 @@ class LensSystem():
         mkdir(obj.savedir)
 
         # LensModel
-        obj.kwargs_lensmodel    = kwargs_gallens.get("kwargs_lensmodel",{})
-        obj.kwargs_add_lenses   = kwargs_gallens.get("kwargs_add_lenses",empty_kwargs_add_lenses)
+        obj.kwargs_lensmodel    = kwargs_lenssystem.get("kwargs_lensmodel",{})
+        obj.kwargs_add_lenses   = kwargs_lenssystem.get("kwargs_add_lenses",empty_kwargs_add_lenses)
         # observational params
-        obj.kwargs_band_sim     = kwargs_gallens.get("kwargs_band_sim",kwargs_band_sim)
+        obj.kwargs_band_sim     = kwargs_lenssystem.get("kwargs_band_sim",kwargs_band_sim)
         return obj
         
     #############################
@@ -381,12 +382,13 @@ class LensSystem():
     def sample_source_pos(self,update=False,_radec=None):
         """Sample the source position within the tangential
         critical caustic
+        TODO: optimise this computation and/or store the results
         """
+        print("Sampling source position within tangential caustic")
         if _radec is None:
             _radec = self.gallens._radec
         kw_caustics  = self.get_kw_critical_curve_caustics(_radec=_radec)
         ra_ct,dec_ct = kw_caustics["caustics"]["tangential"]
-        print("Sampling source position within tangential caustic")
         # the tangential caustic is approximated to circular
         # and we sample uniformily within that 
         ra0_ct,dec0_ct = np.mean(ra_ct),np.mean(dec_ct)

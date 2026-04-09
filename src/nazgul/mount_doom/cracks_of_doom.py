@@ -391,7 +391,7 @@ class BasicLensPart(BasicGal):
         self.PartLens = PartLens(self.kwlens_part)
         
     def store(self):
-        store_class(self,path=self.pkl_path)
+        store_class(self,path=self.pkl_path,LoadClass=LoadLens)
         
     @property
     def pkl_path(self):

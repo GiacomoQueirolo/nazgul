@@ -23,10 +23,11 @@ from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_m
 from nazgul.mount_doom.cracks_of_doom import LoadLens,get_extents
 #from nazgul.mount_doom.generate_particle_lens_dom import wrapper_get_rnd_lens,LensPart
 from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.plot_PL import plot_kappamap
 
 from nazgul.lens_part_LOS import get_kw_los
-
-default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_023/Gn7SGn0/Sub/Sub_Gn7SGn0_Npix200_PartAS_Prj0.pkl"
+#default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_023/Gn7SGn0/Sub/Sub_Gn7SGn0_Npix200_PartAS_Prj0.pkl"
+default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_027/Gn3SGn0/Sub/Sub_Gn3SGn0_Npix200_PartAS_Prj1.pkl"
 
 lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
 source_model_list = ["SERSIC"]
@@ -232,8 +233,8 @@ if __name__=="__main__":
         
     if lens.gallens.Gal.M < min_mass:
         raise RuntimeError(f"Ensure that the M of the input lens is larger than min_mass:{lens.gallens.Gal.M} < {min_mass}")
-
-    lens = setup_lens(lens)
+    
+    lens = setup_lens(lens)    plot_kappamap(lens.gallens.kappa_map,extent_kpc=lens.gallens.kw_extents["extent_kpc"],savename=f"{lens.model_res_dir}/kappa_gal.png")
     multi_band_list = setup_sim_obs(lens)
     image_obs = multi_band_list[0][0]["image_data"]
     
