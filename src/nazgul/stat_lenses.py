@@ -9,11 +9,24 @@ from python_tools.get_res import load_whatever
 from nazgul.pathfinder import get_catlensdir
 from nazgul.project_gal import ProjectionError
 
+from nazgul.Translator import std_sim,std_simsuite
+from nazgul.pathfinder import get_snap_dir,std_data_dir
 
-def get_all_gallens():    
+def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,data_dir=std_data_dir):
+    """
+    Loacate position of all computed
+    """
+    computed_sublenses = []
+    for snap in snaps:
+        snap_dir = get_snap_dir(snap,sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
+        #gals = glob(f"{snap_dir}/Gn*SGn*/")
+        gallenses = glob(f"{snap_dir}/Gn*SGn*/Sub/Sub_*Prj?.pkl")
+        computed_sublenses.extend(gallenses)
+    return computed_sublenses
+        
+def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,data_dir=std_data_dir):
     lenses= []
-    # to implement a better selection function
-    computed_sublenses = glob("RingBearer/EAGLE/RefL0025N0752/snap_027/Gn*SGn*/Sub/Sub_*Prj?.pkl")
+    computed_sublenses = get_all_gallens_paths(snaps=snaps,sim=sim,simsuite=simsuite,subsim=subsim,data_dir=data_dir)
     N_computed_sublenses = len(computed_sublenses)
     
     for sub_lns in computed_sublenses:

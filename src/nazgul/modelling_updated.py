@@ -1,3 +1,5 @@
+raise NotImplementedError("This modelling script is to be brought up to date")
+
 import argparse
 import numpy as np
 import sys,json,dill
@@ -19,9 +21,7 @@ from python_tools.get_res import load_whatever
 from nazgul.plot_PL import plot_all
 from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
 from nazgul.mount_doom.cracks_of_doom import LoadLens
-#from nazgul.mount_doom.generate_particle_lens_dom import wrapper_get_rnd_lens,LensPart
-#from nazgul.mount_doom.generate_gal_lens import wrapper_get_rnd_lens
-#from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.mount_doom.lens_system import LensSystem
 
 lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
 source_model_list = ["SERSIC"]
@@ -175,7 +175,7 @@ if __name__=="__main__":
     parser.add_argument('-mM','--min_Mass',type=str,default="3e12",dest="min_mass",
                         help="Minimum mass threshold for the galaxy to be loaded (str, e.g. 3e12)")
     parser.add_argument('-lp','--lens_path',type=str,default="",dest="lens_path",
-                        help="Path to pre-computed LensPart class instance")
+                        help="Path to pre-computed LensSystem class instance")
     
     args         = parser.parse_args()
     run_type     = args.run_type
@@ -206,7 +206,7 @@ if __name__=="__main__":
         lens = LoadLens(lens_path)
         lens.unpack()
         if "/Sub/" in lens_path:
-            lens = LensPart.from_SubLens(lens)
+            lens = LensSystem.from_GalLens(lens)
             lens.upload_prev()
         #lens._unpack_Gal()
         if lens.thetaE.value<min_thetaE:

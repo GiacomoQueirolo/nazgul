@@ -21,7 +21,6 @@ from python_tools.get_res import load_whatever
 from nazgul.plot_PL import plot_all
 from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
 from nazgul.mount_doom.cracks_of_doom import LoadLens,get_extents
-#from nazgul.mount_doom.generate_particle_lens_dom import wrapper_get_rnd_lens,LensPart
 from nazgul.mount_doom.lens_system import LensSystem
 from nazgul.plot_PL import plot_kappamap
 

@@ -1,6 +1,6 @@
 import nazgul.configurations as conf
 
-from nazgul.Translator.EAGLE import sim as sim_EAGLE
+from nazgul.Translator.EAGLE   import sim as sim_EAGLE
 from nazgul.Translator.COLIBRE import sim as sim_COLIBRE
 from nazgul.Translator.COLIBRE import subsim as subsim_COLIBRE
 
@@ -11,7 +11,7 @@ subsims = {"EAGLE":{},
            "COLIBRE":subsim_COLIBRE}
 
 # Define the standard simulation (for convenience)
-std_simsuite = conf.std_simsuite
+std_simsuite  = conf.std_simsuite
 std_sim       = sims[std_simsuite][0]
 
 # use the following simulation only as test case
