@@ -3,10 +3,10 @@ import astropy.units as u
 
 
 ## Set the path to the nazgul directory - may be needed for hpc systems
-nazgul_path = Path('/Users/samlange/Code/ColibreLens/EAGLE_Lensing/src') #Path(__file__).parent
+nazgul_path = Path(__file__).parent
 
 ## Set which lens populations to use: LSST, Euclid or DES
-forecast_telescope = 'Euclid'
+forecast_telescope = 'LSST'
 
 ## Set standard simsuite
 SimSuiteNames = ["EAGLE", "COLIBRE"] #allowed simusuites - do not edit
