@@ -9,7 +9,7 @@ all_lenses = wrapper_get_all_lens(kw_galpart={"min_z":.09,
                                        "max_z":0.101,
                                        "min_mass":1e12},
                            reload=False,
-                            _test=True)
+                            _test=False)
 
 profiler.stop()
 print(profiler.output_text(color=True,show_all=False))
