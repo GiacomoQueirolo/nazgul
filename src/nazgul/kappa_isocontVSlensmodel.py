@@ -7,7 +7,8 @@ import lenstronomy.Util.util as util
 from lenstronomy.LensModel.lens_model import LensModel
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from nazgul.mount_doom.cracks_of_doom import LoadLens
+from nazgul.pathfinder import std_sim
+from nazgul.mount_doom.generate_particle_lens import LoadLens
 from nazgul.isodens import get_kwisodens
 
 from python_tools.get_res import load_whatever

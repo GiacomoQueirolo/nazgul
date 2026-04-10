@@ -38,9 +38,8 @@ from nazgul.project_gal import get_2Dkappa_map,ProjectionError
 from nazgul.project_gal import Gal2kw_samples,ProjGal
 from nazgul.pathfinder import get_lens_lowdir_from_galdir,get_proj_dir_from_galdir
 
-from nazgul.mount_doom.cracks_of_doom import BasicLensPart
-from nazgul.mount_doom.cracks_of_doom import kw_prior_z_source_stnd,scale_tE
-from nazgul.mount_doom.cracks_of_doom import pixel_num,min_thetaE,get_extents
+from nazgul.mount_doom.cracks_of_doom import BasicLensPart,get_extents,kw_prior_z_source_stnd
+from nazgul.configurations import scale_tE,pixel_num,min_thetaE
 
 class GalLens(BasicLensPart): 
     _large_attributes_setup  = ["kwargs_lens","lens_prof","Gal","PartLens","cosmo"]

@@ -16,7 +16,7 @@ from nazgul.pathfinder import std_simsuite,std_sim,get_sim_dir,get_catdir
 from python_tools.tools import short_SciNot
 from python_tools.get_res import load_whatever
 
-from nazgul.Translator import min_z,max_z,min_mass
+from nazgul.configurations import min_z,max_z,min_mass
 
 def get_gals(sim=std_sim,simsuite=std_simsuite,
              min_mass=min_mass,

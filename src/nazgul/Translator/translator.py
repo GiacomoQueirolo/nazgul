@@ -8,8 +8,8 @@ from python_tools.get_res import load_whatever
 
 from nazgul.pathfinder import std_data_dir,path_nazgul
 # allowed simulations suites
-from nazgul.Translator import SimSuiteNames
-from nazgul.Translator import std_simsuite,std_sim,min_z,max_z,min_mass
+from nazgul.configurations import SimSuiteNames,min_z,max_z,min_mass
+from nazgul.Translator import std_simsuite,std_sim
 from nazgul.pathfinder import get_part_dir,get_gal_dir
 from nazgul.basic_gal import store_class
 from nazgul.Translator.pathfinder import translate_galname

@@ -1,6 +1,8 @@
 from pathlib import Path
 from python_tools.tools import mkdir
-from nazgul.Translator import std_simsuite,std_sim,test_sim,tutorial_sim
+from nazgul.configurations import std_simsuite
+from nazgul.Translator import std_sim,test_sim,tutorial_sim
+import nazgul.configurations as conf
 """
 Data structure:
 ---------------
@@ -15,7 +17,7 @@ RingBearer
                          |     |_pkl       |_pkl    
                          |_pkl                  
 """
-path_nazgul = Path(__file__).parent
+path_nazgul = conf.nazgul_path
 
 std_data_dir = path_nazgul/"RingBearer"
 # (base)/tmp will be a collector of intermediate, mildly useful plots/results, with the advantage of being easily accessible

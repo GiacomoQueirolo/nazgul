@@ -27,7 +27,7 @@ from nazgul.mount_doom.generate_gal_lens import GalLens
 # Default values
 # particle lens class and params.
 from nazgul.mount_doom.cracks_of_doom import source_model_list
-from nazgul.mount_doom.cracks_of_doom import pixel_num,min_thetaE
+from nazgul.configurations import pixel_num,min_thetaE
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 from nazgul.mount_doom.cracks_of_doom import kwargs_band_sim,kw_prior_z_source_stnd
 
