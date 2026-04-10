@@ -12,7 +12,8 @@ from glob import glob
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-from nazgul.fnct import std_sim,std_gal_dir
+from nazgul.Translator import std_sim
+from nazgul.pathfinder import std_gal_dir
 # from sql_connect import exec_query -> this would be needed for the complete 
 from python_tools.tools import short_SciNot
 from python_tools.get_res import load_whatever

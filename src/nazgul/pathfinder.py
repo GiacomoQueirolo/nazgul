@@ -1,6 +1,7 @@
 from pathlib import Path
 from python_tools.tools import mkdir
 from nazgul.Translator import std_simsuite,std_sim,test_sim,tutorial_sim
+import nazgul.configurations as conf
 """
 Data structure:
 ---------------
@@ -15,7 +16,7 @@ RingBearer
                          |     |_pkl       |_pkl    
                          |_pkl                  
 """
-path_nazgul = Path(__file__).parent
+path_nazgul = conf.nazgul_path
 
 std_data_dir = path_nazgul/"RingBearer"
 # (base)/tmp will be a collector of intermediate, mildly useful plots/results, with the advantage of being easily accessible
@@ -26,7 +27,7 @@ std_simsuite_dir = std_data_dir/std_simsuite # which simulation suite
 std_sim_dir      = std_simsuite_dir/std_sim  # which simulation
 
 # path to LensPop directory
-LensPop_dir = path_nazgul/"LensPop/LensPop"
+LensPop_dir = path_nazgul/"LensPop"
 def get_simsuite_dir(simsuite=std_simsuite,data_dir=std_data_dir):
     data_dir     = Path(data_dir)
     simsuite_dir = data_dir/simsuite # which simulation suite

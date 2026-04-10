@@ -1,5 +1,5 @@
 # allowed simulations suites
-from nazgul.Translator import SimSuiteNames
+from nazgul.configurations import SimSuiteNames
 
 # -> change the name of this to nominator?
 def translate_galname(kw_gal,simsuite,**kwargs):

@@ -35,18 +35,12 @@ from nazgul.likelihood import Likelihood
 from nazgul.likelihood_z_source import kw_prior_z_source_zl
 # project galaxy along various axis
 from nazgul.project_gal import ProjGal,ProjectionError,project_Gal
+#Default values
+import nazgul.configurations as conf
 
-# Define some default parameters:
-pixel_num     = 200 # pix for image
-verbose       = True
-# for z_source computation:
-z_source_max  = 4
-# minimum theta_E
-min_thetaE    = .3*u.arcsec #arcsec
-# scale of thetaE to obtain the radius
-scale_tE      = 2
+
+
 # Path definitions:
-
 # define where to store the obtained lenses classes
 std_sim_lens_path   = path_nazgul/"sim_lens/"
 default_savedir_sim = "forged" # subdirectory depending on the lensing algorithm
@@ -105,7 +99,7 @@ kwargs_band_sim = {'read_noise': 0, # no RN noise
  'magnitude_zero_point': 30,  # very deep 
  'num_exposures': 1,          # standard HST n exp.
  'psf_type': 'NONE'}          # "infinite" psf resolution 
-kw_prior_z_source_minimal = {"z_source_max":z_source_max}
+kw_prior_z_source_minimal = {"z_source_max":conf.z_source_max}
 kw_prior_z_source_stnd    = kw_prior_z_source_zl|kw_prior_z_source_minimal
                 
 def MAD_mask(values,v0=0,sigma_scale=3):
@@ -283,9 +277,9 @@ class BasicLensPart(BasicGal):
                  Galaxy,      # class instance of PartGal
                  projection_index, # projection index
                  kwlens_part=kwlens_part_AS, # if PM or AS, and if so size of the core
-                 pixel_num=pixel_num, # number of pixels 
+                 pixel_num=conf.pixel_num, # number of pixels
                  kw_prior_z_source = kw_prior_z_source_stnd, # could likelihood of z_source
-                 min_thetaE = min_thetaE, # minimum theta observable
+                 min_thetaE = conf.min_thetaE, # minimum theta observable
                  #subdir="./",           # subdirectory (to differentiate btw versions)
                  reload=True # reload previous instance
                  ):

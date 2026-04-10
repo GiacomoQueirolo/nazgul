@@ -39,7 +39,7 @@ from nazgul.project_gal import get_2Dkappa_map,ProjectionError
 
 from nazgul.mount_doom.generate_particle_lens_sub import SubLensPart
 from nazgul.mount_doom.cracks_of_doom import BasicLensPart
-from nazgul.mount_doom.cracks_of_doom import pixel_num,min_thetaE
+from nazgul.configurations import pixel_num,min_thetaE
 from nazgul.mount_doom.cracks_of_doom import source_model_list
 from nazgul.mount_doom.cracks_of_doom import kwargs_band_sim,kw_prior_z_source_stnd
 from nazgul.pathfinder import get_lens_highdir_from_galdir

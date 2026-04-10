@@ -234,7 +234,8 @@ if __name__=="__main__":
     if lens.gallens.Gal.M < min_mass:
         raise RuntimeError(f"Ensure that the M of the input lens is larger than min_mass:{lens.gallens.Gal.M} < {min_mass}")
     
-    lens = setup_lens(lens)    plot_kappamap(lens.gallens.kappa_map,extent_kpc=lens.gallens.kw_extents["extent_kpc"],savename=f"{lens.model_res_dir}/kappa_gal.png")
+    lens = setup_lens(lens)
+    plot_kappamap(lens.gallens.kappa_map,extent_kpc=lens.gallens.kw_extents["extent_kpc"],savename=f"{lens.model_res_dir}/kappa_gal.png")
     multi_band_list = setup_sim_obs(lens)
     image_obs = multi_band_list[0][0]["image_data"]
     
