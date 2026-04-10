@@ -14,8 +14,6 @@ from photutils.isophote import Ellipse, EllipseGeometry, build_ellipse_model
 
 from python_tools.get_res import load_whatever
 from python_tools.tools import ensure_unit,to_dimless
-
-from nazgul.mount_doom.generate_particle_lens import LoadLens #LensPart,kwlens_part_AS,cutoff_radius,z_source_max,pixel_num
     
 def linlaw(x, a, b) :
     return a + x * b
@@ -68,11 +66,15 @@ def get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa"):
     geom = EllipseGeometry(map.shape[0]/2., map.shape[1]/2., 10., 0.5, 0./180.*np.pi)
     geom.find_center(map)
     print("Original guesstimate:", map.shape[0]/2., map.shape[1]/2.)
-    
     ellipse = Ellipse(map, geometry=geom)
     
     isolist = ellipse.fit_image()
 
+    print("DEBUG")
+    plt.imshow(map)
+    nm = "tmp/map.png"
+    plt.savefig(nm)
+    print(f"DEBUG - Saved {nm}")
     model = build_ellipse_model(map.shape, isolist)
     return {"isolist":isolist,"geom":geom,"map":map,"model":model,"cutoff_rad":cutoff_rad,"map_type":map_type}
 
@@ -452,8 +454,13 @@ def get_iso_cutoff(Lens,scale_cutoff=2):
     return cutoff_rad
 
 if __name__=="__main__":
+    from nazgul.mount_doom.cracks_of_doom import LoadLens
+    from nazgul.modelling_wLOS import default_lens_path
+    from nazgul.mount_doom.lens_system import LensSystem
+
     # for now applied to a "known" lens galaxy
-    Lens = LoadLens("sim_lens/RefL0025N0752/snap19_G6.0/test_sim_lens_AMR/G6SGn0_Npix200_PartAS.pkl")
+    gal_lens = LoadLens(lens_path)
+    Lens = LensSystem.from_GalLens(gal_lens)
     savedir = Path("tmp/")
     scale_cutoff = 3
     cutoff_rad = get_iso_cutoff(Lens,scale_cutoff)

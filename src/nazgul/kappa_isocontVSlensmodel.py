@@ -1,31 +1,32 @@
 # compare output from model_sim with isodensity contour results from isodens
-import glob
+import glob,sys
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import lenstronomy.Util.util as util
 from lenstronomy.LensModel.lens_model import LensModel
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from nazgul.fnct import std_sim
-from nazgul.mount_doom.generate_particle_lens import LoadLens
+from nazgul.mount_doom.cracks_of_doom import LoadLens
 from nazgul.isodens import get_kwisodens
 
 from python_tools.get_res import load_whatever
 from python_tools.tools import to_dimless
 #from model_sim_lens import lens_model_list
 # temp. modelling path
-_res_dir = "./tmp/modelling_sim_lenses/"
+
+from nazgul.modelling_wLOS import setup_lens,default_lens_path
+from nazgul.mount_doom.lens_system import LensSystem
 
 def get_kappa_model(lens):
     # get the kappa map from the lens model
     # NOT the one obtained by the simulation
-    _radec = lens.imageModel.ImageNumerics.coordinates_evaluate   
-    _ra,_dec = _radec
+    _ra,_dec = lens.gallens._radec
 
-    kwargs_res = load_whatever(f"{_res_dir}/{lens.name}/kw_res.json")
+    kwargs_res = load_whatever(f"{lens.model_res_dir}/kw_res.json")
 
     kwargs_lens = kwargs_res["kwargs_lens"]
-    kw_input = load_whatever(f"{_res_dir}/{lens.name}/kw_input.dll")
+    kw_input = load_whatever(f"{lens.model_res_dir}/kw_input.dll")
     
     lens_model   = LensModel(lens_model_list=kw_input["kwargs_model"]["lens_model_list"])
     kappa_model  = lens_model.kappa(_ra,_dec, kwargs_lens)
@@ -37,9 +38,19 @@ def get_kappa_iso_and_sim(lens):
     return kw_res["model_kappa"],kw_res["kappa"],kw_res["cutoff_rad"]
     
 if __name__=="__main__":
-    Lens = LoadLens("sim_lens/RefL0025N0752/snap24_G21.0/test_sim_lens_AMR/G21SGn0_Npix200_PartAS.pkl")
+    
+    parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot isocontours of kappa map from simulation vs modelling")
+    parser.add_argument('-lp','--lens_path',type=str,default=default_lens_path,
+                        dest="lens_path",
+                        help="Path to pre-computed LensPart class instance")
+    args         = parser.parse_args()
+    lens_path    = args.lens_path
+
+    gal_lens = LoadLens(lens_path)
+    Lens = LensSystem.from_GalLens(gal_lens)
+    Lens = setup_lens(Lens)
     kappa_model                    = get_kappa_model(Lens)
-    kappa_iso,kappa_sim,cutoff_rad = get_kappa_iso_and_sim(Lens)
+    kappa_iso,kappa_sim,cutoff_rad = get_kappa_iso_and_sim(gal_lens)
     
     xmin = -cutoff_rad
     ymin = -cutoff_rad
@@ -47,10 +58,10 @@ if __name__=="__main__":
     ymax = +cutoff_rad
     extent_cutoff = [xmin,xmax,ymin,ymax] 
 
-    if cutoff_rad<=to_dimless(Lens.radius):
+    if cutoff_rad<=to_dimless(gal_lens.radius):
         raise RuntimeError("not accounting for this case")
     # the sim is over this
-    kw_extents  = Lens.kw_extents
+    kw_extents  = gal_lens.kw_extents
     extent_full = kw_extents["extent_kpc"]
 
     # I am not sure if they have the same cutout -  to test
@@ -96,7 +107,7 @@ if __name__=="__main__":
             cax = divider.append_axes('right', size='5%', pad=0.05)
             fig.colorbar(ims[i], cax=cax, orientation='vertical',label=r"log$_{10}(\kappa)$")
             i+=1
-    nm_fig = f"tmp/kappa_isoVsLens_{Lens.name}.png"
+    nm_fig = f"{Lens.model_res_dir}/kappa_isoVsLens.png"
     print(f"Saving {nm_fig}")
     plt.tight_layout()
     plt.savefig(nm_fig)

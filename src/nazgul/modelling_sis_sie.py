@@ -29,14 +29,15 @@ from nazgul.lens_part_LOS import get_kw_los
 #default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_023/Gn7SGn0/Sub/Sub_Gn7SGn0_Npix200_PartAS_Prj0.pkl"
 default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_027/Gn3SGn0/Sub/Sub_Gn3SGn0_Npix200_PartAS_Prj1.pkl"
 
-lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
+lens_model_list   = ['SIE','SIS','SHEAR_GAMMA_PSI']
 source_model_list = ["SERSIC"]
-res_dir_base      = Path("./tmp/modelling_sim_lenses/")
+res_dir_base      = Path("./tmp/modelling_sim_lenses_SIS_SIE/")
+mkdir(res_dir_base)
 
 def _get_model_res_dir(lens,res_dir=res_dir_base):
     res_dir = Path(f"{res_dir}/snap_{lens.gallens.Gal.snap}_{lens.name}")
     return res_dir
-    
+
 def setup_lens(lens,res_dir=res_dir_base):
     lens.model_res_dir = _get_model_res_dir(lens,res_dir=res_dir)
     lens.image_sim = lens.get_lensed_image(unconvolved=False)
@@ -56,8 +57,8 @@ def setup_lens(lens,res_dir=res_dir_base):
     #lens.kwargs_lens = lens.gallens.kwargs_lens
     plot_all(lens,skip_caustic=True)
     return lens
-    
-    
+
+
 def setup_sim_obs(lens,band_str="HST_F160W",pssf=3):
     if band_str=="HST_F160W":
         band     = HST(band='WFC3_F160W', psf_type="PIXEL")
@@ -129,7 +130,7 @@ def get_lens_mask(lens,image_obs,plot_mask=True):
         print(f"Saving {nm}")
         plt.savefig(nm)
     return mask_LD
-    
+
 def get_kwargs_likelihood(lens,image_obs,plot_mask=True):
     mask = get_lens_mask(lens,image_obs,plot_mask=plot_mask)
     
@@ -143,34 +144,45 @@ def get_kwargs_likelihood(lens,image_obs,plot_mask=True):
                      #'prior_lens': prior_lens
                       "image_likelihood_mask_list": [mask]  }
     return kwargs_likelihood
-    
+
 def get_kwargs_params(lens):
     # Params:
     # initial guess of non-linear parameters, we chose different starting parameters than the truth #
     tE = lens.gallens.thetaE.value
     kwargs_lens_init = [{'theta_E': tE + np.random.normal(0,.1,1)[0]*tE, 
-                    'e1': 0, 'e2': 0, 
-                    'gamma': 2., 
-                    'center_x': 0., 'center_y': 0},
+                         'e1':0,'e2':0,
+                    'center_x': 0.-0.01, 'center_y': 0+0.01},
+                        {'theta_E': tE + np.random.normal(0,.1,1)[0]*tE, 
+                    'center_x': 0.+0.01, 'center_y': 0-0.01},
                     {'gamma_ext': 0.01, 'psi_ext': 0.}]
     kwargs_source_init = [{'R_sersic': 0.03, 'n_sersic': 1., 'center_x': 0, 'center_y': 0}]
     
     # initial spread in parameter estimation #
     kwargs_lens_sigma = [{'theta_E': 0.3, 
-                          'e1': 0.2, 'e2': 0.2, 'gamma': .2, 
-                          'center_x': 0.1, 'center_y': 0.1},
+                          'e1':0.3,'e2':0.3,
+                          'center_x': 0.3, 'center_y': 0.3},
+                        {'theta_E': 0.3, 
+                          'center_x': 0.3, 'center_y': 0.3},
                         {'gamma_ext': 0.1, 'psi_ext': np.pi}]
     kwargs_source_sigma = [{'R_sersic': 0.1, 'n_sersic': .5, 'center_x': .1, 'center_y': 0.1}]
     
     # hard bound lower limit in parameter space #
-    kwargs_lower_lens = [{'theta_E': 0, 'e1': -0.5, 'e2': -0.5, 'gamma': 1.5, 'center_x': -10., 'center_y': -10},
-        {'gamma_ext': 0., 'psi_ext': -np.pi}]
+    kwargs_lower_lens = [{'theta_E': 0, 
+                          'e1':-1,'e2':-1,
+                          'center_x': -10., 'center_y': -10},
+                         {'theta_E': 0, 
+                          'center_x': -10., 'center_y': -10},
+                        {'gamma_ext': 0., 'psi_ext': -np.pi}]
     kwargs_lower_source = [{'R_sersic': 0.001, 'n_sersic': .5, 'center_x': -10, 'center_y': -10}]
     # hard bound upper limit in parameter space #
-    kwargs_upper_lens = [{'theta_E': 10, 'e1': 0.5, 'e2': 0.5, 'gamma': 2.5, 'center_x': 10., 'center_y': 10},
+    kwargs_upper_lens = [{'theta_E': 10, 
+                          'e1':1,'e2':1,
+                          'center_x': 10., 'center_y': 10},
+                         {'theta_E': 10, 
+                          'center_x': 10., 'center_y': 10},
         {'gamma_ext': 0.3, 'psi_ext': np.pi}]
     kwargs_upper_source = [{'R_sersic': 10, 'n_sersic': 5., 'center_x': 10, 'center_y': 10}]
-    lens_params = [kwargs_lens_init, kwargs_lens_sigma, [{}, {'ra_0': 0, 'dec_0': 0}], kwargs_lower_lens, kwargs_upper_lens]
+    lens_params = [kwargs_lens_init, kwargs_lens_sigma, [{},{}, {'ra_0': 0, 'dec_0': 0}], kwargs_lower_lens, kwargs_upper_lens]
     source_params = [kwargs_source_init, kwargs_source_sigma, [{}], kwargs_lower_source, kwargs_upper_source]
     
     kwargs_params = {'lens_model': lens_params,
@@ -379,4 +391,4 @@ if __name__=="__main__":
         plt.savefig(nm)
         print(f"Saving {nm}")
         plt.close()
-        
+
