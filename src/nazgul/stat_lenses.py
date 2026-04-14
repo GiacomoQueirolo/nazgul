@@ -16,21 +16,20 @@ def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=No
     """
     Loacate position of all computed
     """
-    computed_sublenses = []
+    computed_gallenses = []
     for snap in snaps:
         snap_dir = get_snap_dir(snap,sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
-        #gals = glob(f"{snap_dir}/Gn*SGn*/")
         gallenses = glob(f"{snap_dir}/Gn*SGn*/Sub/Sub_*Prj?.pkl")
-        computed_sublenses.extend(gallenses)
-    return computed_sublenses
+        computed_gallenses.extend(gallenses)
+    return computed_gallenses
         
 def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,data_dir=std_data_dir):
     lenses= []
-    computed_sublenses = get_all_gallens_paths(snaps=snaps,sim=sim,simsuite=simsuite,subsim=subsim,data_dir=data_dir)
-    N_computed_sublenses = len(computed_sublenses)
+    computed_gallenses = get_all_gallens_paths(snaps=snaps,sim=sim,simsuite=simsuite,subsim=subsim,data_dir=data_dir)
+    N_computed_gallenses = len(computed_gallenses)
     
-    for sub_lns in computed_sublenses:
-        ln = load_whatever(sub_lns)
+    for gal_lns in computed_gallenses:
+        ln = load_whatever(gal_lns)
         ln.unpack()
         try:
             ln.run()
@@ -41,10 +40,11 @@ def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,dat
     return lenses
 
 if __name__ =="__main__":
-    lenses =  get_all_gallens()
+    snap = 23
+    lenses =  get_all_gallens(snaps=[snap])
     catdir = get_catlensdir()
     
-    catdir = catdir.with_name("CatGal_snap_27")
+    catdir = catdir.with_name(f"CatGal_snap_{snap}")
     catdir.mkdir(parents=True,exist_ok=True)
 
     lens_paths= []
@@ -58,7 +58,7 @@ if __name__ =="__main__":
     gals   = []
     for ln in lenses:
         gals.append(ln.Gal)
-        lens_paths.append(ln.pkl_path) # sub-lens
+        lens_paths.append(ln.pkl_path) # gal-lens
         thetaEs.append(ln.thetaE.value)
         z_source.append(ln.z_source)
         
