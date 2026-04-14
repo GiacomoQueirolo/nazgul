@@ -282,7 +282,8 @@ def wrapper_get_all_lens(reload=True,
                         kw_lenspart={},
                         kw_galpart={},
                         verbose=True,
-                        _test=False):
+                        _test=False,
+                        _list_of_skippable_gals=None):
     """Get a lens from all available galaxies"""
     kw_lenspart = get_kw_lenspart(reload,kw_lenspart)
     kw_galpart  = get_kw_galpart(kw_galpart)
@@ -297,12 +298,17 @@ def wrapper_get_all_lens(reload=True,
         
         if gal_already_computed(Gal):
             print("Galaxy already computed")
+            if _list_of_skippable_gals is not None:
+                if Gal.name in _list_of_skippable_gals:
+                    print("Skipping because in skippable list")
+                    continue
             if reload:
-                print("Skipping")
-                continue
+                print("Reloading")
             else:
-                print("Re-computing")
-        Gal.run(reload=reload)
+                print("Recomputing")
+                Gal.run(reload=reload)
+        else:
+            Gal.run(reload=reload)
         strikes = 0
         while kw_lenspart["projection_index"]<3:
             try:
@@ -332,10 +338,9 @@ def wrapper_get_all_lens(reload=True,
         return all_lenses
     if verbose:
         print(f"Found n={len(all_lenses)} Lenses")
-        print(f"i.e. {np.round(len(all_lenses)/len(all_Gal)*100,1)}% of Galaxies")
+        print(f"i.e. {np.round(len(all_lenses)/len(all_Gal*3)*100,1)}% of Galaxies (considering their rotations)")
         
     return all_lenses
-
 
 # get a lens no matter what:
 def wrapper_get_rnd_lens(reload=True,
