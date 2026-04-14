@@ -204,6 +204,7 @@ class GalLens(BasicLensPart):
         # compute from density map
         # actually better bc does not depend on the particle profile
         if _radec is None:
+            _radec     = self._radec
             kw_extents = self.kw_extents
         else:
             kw_extents = get_extents(arcXkpc=self.arcXkpc,_radec=_radec)
