@@ -201,6 +201,7 @@ class SimPartGal(BasicPartGal):
         self._count_tot_part()
         self._mass_tot_part()
         self._verify_cnt()
+        self.compute_axis_ratio()
         self.store_gal(update=True)
 
     def upload_prev(self,verbose=True):
@@ -223,7 +224,9 @@ class SimPartGal(BasicPartGal):
             print("Loaded previosly computed galaxy")
         return
     
-    
+    def compute_axis_ratio(self):
+        self.axis_ratio = compute_axis_ratio(self)
+        return self.axis_ratio
     @property
     def xy_propr2comov(self):
         # useful to check Center of Mass
@@ -621,6 +624,46 @@ def Gal2MXYZ(Gal):
     Ys -= Cy
     Zs -= Cz
     return Ms, Xs,Ys,Zs
+
+
+def compute_axis_ratio(Gal):
+    """
+    Compute the principal axial ratio c/b used by Vyvere et al. '22 to discard elliptical or lenticular galaxies
+    """
+    Mstar = Gal.stars["mass"]*u.Msun
+    # Particle pos
+    Xstar,Ystar,Zstar =  np.transpose(Gal.stars["coords"])*u.Mpc.to("kpc")*u.kpc #kpc
+
+    # clip particle outliers
+    Ms,Xs,Ys,Zs = clip_coord(Mstar,Xstar,Ystar,Zstar)
+     
+    Cx,Cy,Cz = Gal.centre*u.Mpc.to("kpc")*u.kpc/(Gal.xy_propr2comov) # (now) kpc 
+    
+    Xs -= Cx
+    Ys -= Cy
+    Zs -= Cz
+    
+    mass = Mstar.value
+    # center positions first!
+    x = Xs.value
+    y = Ys.value
+    z = Zs.value
+    
+    pos = np.transpose([x,y,z])
+    I = np.zeros((3,3))
+    for i in range(len(pos)):
+        r = pos[i]
+        I += mass[i] * np.outer(r, r)
+
+    # eigenvalues
+    eigvals = np.linalg.eigvalsh(I)
+    eigvals = np.sort(eigvals)[::-1]  # λ1 ≥ λ2 ≥ λ3
+
+    a = np.sqrt(eigvals[0])
+    b = np.sqrt(eigvals[1])
+    c = np.sqrt(eigvals[2])
+
+    return c / b
 
 # The following should be done in the test_particle_galaxy
 """    
