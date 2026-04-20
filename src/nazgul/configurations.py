@@ -9,7 +9,7 @@ nazgul_path = Path(__file__).parent
 forecast_telescope = 'LSST'
 
 ## Set standard simsuite
-SimSuiteNames = ["EAGLE", "COLIBRE"] #allowed simusuites - do not edit
+SimSuiteNames = ["EAGLE", "COLIBRE","ANL_TEST"] #allowed simusuites - do not edit
 std_simsuite  = SimSuiteNames[0]
 
 
