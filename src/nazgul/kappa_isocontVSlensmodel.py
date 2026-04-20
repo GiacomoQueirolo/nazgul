@@ -8,7 +8,7 @@ from lenstronomy.LensModel.lens_model import LensModel
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from nazgul.pathfinder import std_sim
-from nazgul.mount_doom.generate_particle_lens import LoadLens
+from nazgul.mount_doom.cracks_of_doom import LoadLens
 from nazgul.isodens import get_kwisodens
 
 from python_tools.get_res import load_whatever
@@ -16,7 +16,7 @@ from python_tools.tools import to_dimless
 #from model_sim_lens import lens_model_list
 # temp. modelling path
 
-from nazgul.modelling_wLOS import setup_lens,default_lens_path
+from nazgul.modelling_severals import setup_lens
 from nazgul.mount_doom.lens_system import LensSystem
 
 def get_kappa_model(lens):
@@ -36,12 +36,12 @@ def get_kappa_model(lens):
 
 def get_kappa_iso_and_sim(lens):
     kw_res = get_kwisodens(lens)
-    return kw_res["model_kappa"],kw_res["kappa"],kw_res["cutoff_rad"]
+    return kw_res["model"],kw_res["kappa"],kw_res["cutoff_rad"]
     
 if __name__=="__main__":
     
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot isocontours of kappa map from simulation vs modelling")
-    parser.add_argument('-lp','--lens_path',type=str,default=default_lens_path,
+    parser.add_argument('-lp','--lens_path',type=str,
                         dest="lens_path",
                         help="Path to pre-computed LensPart class instance")
     args         = parser.parse_args()
