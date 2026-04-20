@@ -10,7 +10,7 @@ from python_tools.tools import Read_Column_File
 from nazgul.configurations import forecast_telescope
 
 
-def get_stat_z(forecast_telescope="LSST"):
+def get_stat_z(forecast_telescope="LSST",verbose=False):
     git_path = "https://raw.githubusercontent.com/tcollett/LensPop/master"
     
     if forecast_telescope in ["LSST","DES"]: 
@@ -25,7 +25,8 @@ def get_stat_z(forecast_telescope="LSST"):
                 raw_file = requests.get(git_path + "/" + file_name).text
                 with open(LensPop_dir / file_name, "w") as f:
                     f.write(raw_file)
-        print(f"Source z prior inferred from tcollett/LensPop.git, assuming the {forecast_telescope} telescope")
+        if verbose:
+            print(f"Source z prior inferred from tcollett/LensPop.git, assuming the {forecast_telescope} telescope")
         
         zla = Read_Column_File(LensPop_dir/f"lenses_{forecast_telescope}a.txt")[0]
         zsa = Read_Column_File(LensPop_dir/f"lenses_{forecast_telescope}a.txt")[1]
