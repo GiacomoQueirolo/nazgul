@@ -243,10 +243,6 @@ def get_extents(arcXkpc,_radec=None):
     ra_edges  = np.hstack([ra0[0]-(Dra0[0]/2.),ra0[1:]-(Dra0/2.),ra0[-1]+.5*Dra0[-1]])
     dec_edges = np.hstack([dec0[0]-(Ddec0[0]/2.),dec0[1:]-(Ddec0/2.),dec0[-1]+.5*Ddec0[-1]])
     
-    Dra01   = np.diff(ra_edges) 
-    # ugly, could be cleaner-> but after all it's constant so 
-    Ddec01  = np.diff(dec_edges)
-
     # in kpc:
     xmin = ra_edges[0]/arcXkpc
     xmax = ra_edges[-1]/arcXkpc
@@ -258,8 +254,7 @@ def get_extents(arcXkpc,_radec=None):
     bins_arcsec   = [ra_edges,dec_edges]
     kw_extents = {"extent_kpc":extent_kpc,
               "extent_arcsec":extent_arcsec,
-              "bins_arcsec":bins_arcsec,
-              "DRaDec":[Dra01,Ddec01]}
+              "bins_arcsec":bins_arcsec}
     return kw_extents
 
 
