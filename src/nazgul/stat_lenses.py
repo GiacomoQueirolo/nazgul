@@ -3,6 +3,7 @@ import dill
 import numpy as np
 from glob import glob
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from python_tools.tools import mkdir
 from python_tools.get_res import load_whatever
@@ -40,11 +41,12 @@ def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,dat
     return lenses
 
 if __name__ =="__main__":
-    snap = 23
-    lenses =  get_all_gallens(snaps=[snap])
+    snaps  = [23,25,27]
+    snaps_str = "_".join([str(s) for s in snaps])
+    lenses =  get_all_gallens(snaps=snaps)
     catdir = get_catlensdir()
-    
-    catdir = catdir.with_name(f"CatGal_snap_{snap}")
+
+    catdir = catdir.with_name(f"CatGal_snap_{snaps_str}")
     catdir.mkdir(parents=True,exist_ok=True)
 
     lens_paths= []
@@ -90,6 +92,14 @@ if __name__ =="__main__":
     plt.savefig(fig_tE)
     print(f"Saving {fig_tE}")
     plt.close()
+    plt.title(r"$\theta_E^2$ of Lenses")
+    plt.hist(thetaEs**2,bins=20)
+    plt.xlabel(r"$\theta_E^2$ [arcsec^2]")
+    plt.ylabel("N (tot="+str(N_lenses)+")")
+    fig_tE = str(catdir)+"/Distr_thetaE2.png"
+    plt.savefig(fig_tE)
+    print(f"Saving {fig_tE}")
+    plt.close()
     
     plt.title(r"z source")
     plt.hist(z_source,bins=20)
@@ -121,6 +131,18 @@ if __name__ =="__main__":
     plt.savefig(fig_MtE)
     print(f"Saving {fig_MtE}")
     plt.close()
+
+        
+    plt.scatter(masses,thetaEs**2,c=z_lens,cmap="viridis")
+    plt.colorbar(label=r"z$_{lens}$")
+    plt.xlabel(r"M [M$_\odot$]")
+    plt.ylabel(r"$\theta_E^2$ [arcsec^2]")
+    plt.title("Relation between total galaxy masses and Einstein radius^2 (N="+str(N_lenses)+")")
+    plt.tight_layout()
+    fig_MtE = str(catdir)+"/MvstE2.png"
+    plt.savefig(fig_MtE)
+    print(f"Saving {fig_MtE}")
+    plt.close()
     
     #Cropping mass outliers
     i_crop = masses<np.median(masses)+3*np.std(masses)
@@ -149,4 +171,38 @@ if __name__ =="__main__":
     plt.xlabel(r"M$_{*}* [M$_\odot$]")
     fig_ms = str(catdir)+"/Mstars.png"
     plt.savefig(fig_ms)
+    plt.close()
+
+
+
+    # "corner plot" of theta_E^2 and mass 
+    fig,axes = plt.subplots(2,2,figsize=(10,10))
+    
+    plt.suptitle(r"Total galaxy masses vs $\theta_E^2$ (N="+str(N_lenses)+")")
+    ax = axes[0][1]
+    ax.remove()
+
+    
+    ax = axes[1][1]
+    ax.hist(thetaEs**2,bins=20)
+    ax.set_xlabel(r"$\theta_E^2$ [arcsec^2]")
+    ax.set_ylabel("N (tot="+str(N_lenses)+")")
+        
+    ax = axes[0][0]
+    ax.set_title(r"M$_{tot\,lens}$ [M$_\odot$]")
+    ax.hist(masses,bins=20)
+    ax.set_xlabel(r"M")
+    ax.set_ylabel("N (tot="+str(N_lenses)+")")
+
+    ax = axes[1][0]
+    im0 = ax.scatter(masses,thetaEs**2,c=z_lens,cmap="viridis")
+    ax.set_xlabel(r"M [M$_\odot$]")
+    ax.set_ylabel(r"$\theta_E^2$ [arcsec^2]")
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    fig.colorbar(im0, cax=cax, orientation='vertical',label=r"z$_{lens}$")
+    fig_MtE = str(catdir)+"/corner_MvstE2.png"
+    plt.tight_layout()
+    plt.savefig(fig_MtE)
+    print(f"Saving {fig_MtE}")
     plt.close()
