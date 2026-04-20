@@ -73,7 +73,8 @@ def get_snap(z,_ln_snap=None):
     # works for discreet z as well
     key_z = min(kw_z_snap.keys(),key=lambda k:np.abs(k-float(z)))
     snap  = str(kw_z_snap[key_z])
-    snap  = prepend_str(snap,ln_str=_ln_snap,fill=0)
+    if _ln_snap:
+        snap  = snap.zfill(_ln_snap)
     return snap
 
 def get_z_snap(z=None,snap=None):
@@ -91,18 +92,6 @@ def get_z_snap(z=None,snap=None):
 def verify_z_snap(z,snap):
     if z is not None and snap is not None:
         assert int(get_snap(z))==int(snap)
-
-def prepend_str(str_i,ln_str,fill="0"):
-    """Prepend 'fill' to 'str_i' until it reaches the lenght 'ln_str'
-    """
-    if ln_str is None:
-        return str_i
-    str_i = str(str_i)
-    fill  = str(fill) 
-    while len(str_i)<ln_str:
-        str_i=fill+str_i
-    return str_i
-
 
 def get_partfiles(sim=std_sim,simsuite=std_simsuite,data_dir=std_data_dir,
                   z=None,snap=None,_i_="*"):
