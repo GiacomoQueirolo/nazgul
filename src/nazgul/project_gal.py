@@ -552,7 +552,10 @@ def get_2Dkappa_map(Gal,proj_index,MD_coords,SigCrit,kwargs_extents,arcXkpc=None
                                        weights=Ms,
                                        density=False) 
     # mass_grid shape: (nx, ny) -> transpose to (ny, nx) -> given the circular simmetry, doesn't really matter
-    Dra01,Ddec01 = kwargs_extents["DRaDec"]
+    ra_edges,dec_edges = kwargs_extents["bins_arcsec"]
+    Dra01   = np.diff(ra_edges) 
+    Ddec01  = np.diff(dec_edges)
+    
     # density_ij = M_ij/(Area_bin_ij)
     density    = mass_grid.T / (Dra01*Ddec01/(arcXkpc**2)) # Msun/kpc^2
     kappa = density/SigCrit
