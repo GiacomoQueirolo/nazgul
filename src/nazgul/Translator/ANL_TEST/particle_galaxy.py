@@ -1,15 +1,15 @@
 import numpy as np
 import astropy.units as u
 import astropy.constants as const
-from astropy.cosmology import Planck18 as default_cosmo
+from astropy.cosmology import Planck13 as default_cosmo
 
 from python_tools.tools import to_dimless,short_SciNot,ensure_unit,mkdir
 from nazgul.pathfinder  import get_sim_dir
 
-n_smpl   = int(1e6)
-theta_E  = 1 #arcsec
-z_lens   = 0.5
-z_source = 1.5
+n_smpl   = int(5e5)
+theta_E  = 0.8 #arcsec
+z_lens   = 0.1
+z_source = 1.2
 cntx     = 0
 cnty     = 0
 
@@ -111,12 +111,10 @@ class SimPartGal(BasicPartGal):
 
     # fix all cosmo params
     cosmo    = default_cosmo
-    z_lens   = z_lens
     z_source = z_source
-    z        = z_lens
     snap     = 0
     
-    def __init__(self,n_smpl=n_smpl,theta_E=theta_E):
+    def __init__(self,n_smpl=n_smpl,theta_E=theta_E,z_lens=z_lens):
         #cosmo=default_cosmo,z_lens=z_lens,z_source=z_source
         self.n_smpl  = int(n_smpl)
         self.theta_E = theta_E
@@ -125,6 +123,8 @@ class SimPartGal(BasicPartGal):
                                    sim=self.sim,
                                    simsuite=simsuite_name)
         mkdir(self.gal_dir)
+        self.z_lens  = z_lens
+        self.z       = z_lens
 
         self.N_part = n_smpl
         
