@@ -182,7 +182,6 @@ class SimPartGal(BasicPartGal):
     
     @property 
     def cosmo(self):
-        #FlatLambdaCDM(H0=self.h*100, Om0=1-self.h)
         # from McAlpine'16:
         # flat ΛCDM cosmology with parameters taken from the Planck mission (Planck Collaboration et al., 2014)
         cosmo = Planck13
@@ -252,7 +251,7 @@ class SimPartGal(BasicPartGal):
 
     def initialise_parts(self):
         if not hasattr(self,"gas"):
-            print("DEBUG- here we are indeed loading particles")
+            print("Loading particles...")
             self.gas   = self.read_part(0)
         if not hasattr(self,"dm"):
             self.dm    = self.read_part(1)
@@ -441,6 +440,10 @@ def _load_one_file(args):
                 data = f[f"PartType{itype}/SmoothingLength"][start:end]
                 _smooth2scale.append(data[chunk - start])
             smooth2scale = np.hstack(_smooth2scale)
+            # correct smoothing factor
+            cgs  = f[f"PartType{itype}/SmoothingLength"].attrs["CGSConversionFactor"]
+            aexp = f[f"PartType{itype}/SmoothingLength"].attrs["aexp-scale-exponent"]
+            hexp = f[f"PartType{itype}/SmoothingLength"].attrs["h-scale-exponent"]
 
             smooth = smooth2scale * cgs * (a ** aexp) * (h ** hexp)*u.cm.to(u.Mpc)
             results["smooth"] = smooth
