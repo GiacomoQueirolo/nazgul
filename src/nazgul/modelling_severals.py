@@ -63,7 +63,8 @@ def setup_lens(lens,res_dir=res_dir_base):
     # create link to lens
     src = lens.gallens.pkl_path
     dst = get_link_lens_path(lens,res_dir=res_dir)
-    os.symlink(src,dst)
+    if not os.path.islink(dst):
+        os.symlink(src,dst)
     return lens
     
     

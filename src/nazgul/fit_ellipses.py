@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 # Fitting ellipses - fast and easy 
 # to have a first parameter estimates
 
@@ -77,13 +79,17 @@ def plot_ellipse(ax, params, color="r"):
     xr = x*np.cos(pa) - y*np.sin(pa)
     yr = x*np.sin(pa) + y*np.cos(pa)
 
-    ax.plot(xr + x0, yr + y0, color=color, lw=2)
+    ax.plot(xr + x0, yr + y0, color=color, lw=1,ls="--")
 
-def plot_ellipse_isocontours(map,ellipses,nm="tmp/fit_ellipses.png"):
+def plot_ellipse_isocontours(map,ellipses,nm="tmp/fit_ellipses.png",label="Map"):
     fig, ax = plt.subplots()
-    ax.imshow(map, origin="lower")
+    im0 = ax.imshow(map, origin="lower")
+    
     for ell in ellipses:
         plot_ellipse(ax, ell)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    fig.colorbar(im0, cax=cax, orientation='vertical',label=label)
     plt.savefig(nm)
     print(f"Saved {nm}")
     
@@ -160,10 +166,10 @@ def _get_initial_kwfit(kw_prms,sma_in=5):
 
 def get_initial_kwfit(map,sma_in=5,levels=None,nlevels=60,plot=False):
     if levels is None:
-        levels=np.linspace(1e-7,.99,nlevels)
-    ellipses = [fit_ellipse_isocontour(map, l * map.max()) for l in levels]
+        levels=np.linspace(map.min(),map.max(),nlevels)
+    ellipses = [fit_ellipse_moments(map, l) for l in levels]
     if plot:
-        plot_ellipse_isocontours(ellipses)
+        plot_ellipse_isocontours(map,ellipses)
     kw_prms = get_kw_prms(ellipses)
     kw_init = _get_initial_kwfit(kw_prms,sma_in=sma_in)
     return kw_init
@@ -171,10 +177,10 @@ def get_initial_kwfit(map,sma_in=5,levels=None,nlevels=60,plot=False):
 if __name__=="__main__":
     raise NotImplementedError("Example of use - read, do not run")
     
-    levels = np.linspace(1e-7,.99,60)
+    levels=np.linspace(map.min(),map.max(),nlevels)
     
-    ellipses = [fit_ellipse_isocontour(map, l * map.max()) for l in levels]
-    plot_ellipse_isocontours(ellipses)
+    ellipses = [fit_ellipse_moments(map, l) for l in levels]
+    plot_ellipse_isocontours(map,ellipses)
 
     prms = []
     for p in prm_nms:

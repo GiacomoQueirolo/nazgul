@@ -70,7 +70,7 @@ if __name__=="__main__":
     #print(extent_cutoff)
     #print(extent_full)
     
-    fig,axes  = plt.subplots(2,3,figsize=(15,12))
+    fig,axes  = plt.subplots(2,3,figsize=(17,12))
     ims       = []
     ax        = axes[0][0]
     kw_imshow = {"origin":"lower",
@@ -80,33 +80,39 @@ if __name__=="__main__":
     fig.suptitle(r"$\kappa$ map")
     ax      = axes[0][0]
     ax.set_title("Simulation")
-    ims.append(ax.imshow(np.log10(kappa_sim),**kw_imshow))
+    resc_kappa_sim = kappa_sim # + np.min(kappa_sim[kappa_sim>0])
+    ims.append(ax.imshow((resc_kappa_sim),**kw_imshow))
     ax      = axes[0][1]
     ax.set_title("Iso. fit")
-    ims.append(ax.imshow(np.log10(kappa_iso),**kw_imshow))
+    resc_kappa_iso = kappa_iso # + np.min(kappa_iso[kappa_iso>0])
+    ims.append(ax.imshow((resc_kappa_iso),**kw_imshow))
     ax      = axes[0][2]
     ax.set_title("Lens model")
-    ims.append(ax.imshow(np.log10(kappa_model),**kw_imshow))
+    ims.append(ax.imshow((kappa_model),**kw_imshow))
 
     ax      = axes[1][0]
     kw_imshow["cmap"] = "seismic" #or bwr
     ax.set_title("Iso. fit - Lens Model")
-    ims.append(ax.imshow(np.log10(kappa_iso-kappa_model),**kw_imshow))
+    ims.append(ax.imshow(kappa_iso-kappa_model,**kw_imshow))
     ax      = axes[1][1]
     ax.set_title("Iso. fit - Sim.")
-    ims.append(ax.imshow(np.log10(kappa_iso-kappa_sim),**kw_imshow))
+    ims.append(ax.imshow(kappa_iso-kappa_sim,**kw_imshow))
     ax      = axes[1][2]
     ax.set_title("Lens model - Sim.")
-    ims.append(ax.imshow(np.log10(kappa_model-kappa_sim),**kw_imshow))
+    ims.append(ax.imshow(kappa_model-kappa_sim,**kw_imshow))
 
     i=0
     for axi in axes:
         for axii in axi:
             axii.set_xlabel("RA")
-            axii.set_xlabel("DEC")
+            axii.set_ylabel("DEC")
             divider = make_axes_locatable(axii)
             cax = divider.append_axes('right', size='5%', pad=0.05)
-            fig.colorbar(ims[i], cax=cax, orientation='vertical',label=r"log$_{10}(\kappa)$")
+            if i<3:
+                #fig.colorbar(ims[i], cax=cax, orientation='vertical',label=r"log$_{10}(\kappa)$")
+                fig.colorbar(ims[i], cax=cax, orientation='vertical',label=r"$\kappa$")
+            else:
+                fig.colorbar(ims[i], cax=cax, orientation='vertical',label=r"$\Delta \kappa$")
             i+=1
     nm_fig = f"{Lens.model_res_dir}/kappa_isoVsLens.png"
     print(f"Saving {nm_fig}")
