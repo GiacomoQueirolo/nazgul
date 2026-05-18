@@ -285,7 +285,7 @@ def get_min_z_source(GalProj,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,
     _interpSigEncArc2   = interp1d(theta,Sigma_encl_arc)
     # define it such that it preserves the units
     def interpSigEncArc2(thetaE):
-        ensure_unit(thetaE,u.arcsec)
+        thetaE = ensure_unit(thetaE,u.arcsec)
         return _interpSigEncArc2(thetaE)*Sigma_encl_arc.unit
     # create a function to verify that the given lens is is indeed a lens
     verify_lens  = create_verify_lens_fnc(interpSigEncArc2)

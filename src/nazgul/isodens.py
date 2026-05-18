@@ -41,7 +41,43 @@ def get_radius2radecgrid(rad,pixel_num):
 
 def _err_map_type(map_type):
     raise RuntimeError(f"map_type must be 'kappa' or 'psi', not {map_type}")
+
+def _get_kwiso(map,optimise_init_prms=True):
+    # Force map to be positive
+    if np.any(map<0):
+        warnings.warn(RuntimeWarning("Found negative values in map - masking them"))
+        map[np.where(map<0)] = 0
     
+    # x0, y0, sma(semimajor), eps(ellipticity=1-b/a), pa
+    if optimise_init_prms:
+        kw_init_prms = get_initial_kwfit(map)
+        geom = EllipseGeometry(**kw_init_prms)
+        print("Original guesstimate with fit_ellipse:", kw_init_prms["x0"], kw_init_prms["y0"])
+    else:
+        geom = EllipseGeometry(map.shape[0]/2., map.shape[1]/2., 10., 0.5, 0./180.*np.pi)
+        print("Original rough guesstimate:", map.shape[0]/2., map.shape[1]/2.)
+    geom.find_center(map)
+    ellipse = Ellipse(map, geometry=geom)
+    isolist = ellipse.fit_image()
+    if len(isolist.a3)==0:
+        print("DEBUG - no iso-fit successful")
+        print("map has negative:",np.any(map<0))
+        print("map has nan:",np.any(map==np.nan))
+        plt.close()
+        plt.title("Log10(map)")
+        plt.imshow(np.log10(np.abs(map)+1e-12),origin="lower",cmap="hot")
+        plt.colorbar(orientation='vertical',label=r"log$_{10}$(map)")
+        plt.axvline(kw_init_prms["x0"],c="k",label="x-y guestimates")
+        plt.axhline(kw_init_prms["y0"],c="k")
+        plt.legend()
+        nm = "tmp/map.png"
+        plt.savefig(nm)
+        plt.close()
+        print(f"DEBUG - Saved {nm}")
+        raise RuntimeError("The isofit has failed")
+    model = build_ellipse_model(map.shape, isolist)
+    return {"isolist":isolist,"geom":geom,"map":map,"model":model}
+
 def get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa",
               _rescale_kappa=True,optimise_init_prms=True):
     if cutoff_rad is None:
@@ -81,40 +117,10 @@ def get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa",
             map    = Lens.compute_psi_map(_radec=_radec)
         else:
             _err_map_type(map_type)
-    # Force map to be positive
-    if np.any(map<0):
-        warnings.warn(RuntimeWarning("Found negative values in map - masking them"))
-        map[np.where(map<0)] = 0
-    
-    # x0, y0, sma(semimajor), eps(ellipticity=1-b/a), pa
-    if optimise_init_prms:
-        kw_init_prms = get_initial_kwfit(map)
-        geom = EllipseGeometry(**kw_init_prms)
-        print("Original guesstimate with fit_ellipse:", kw_init_prms["x0"], kw_init_prms["y0"])
-    else:
-        geom = EllipseGeometry(map.shape[0]/2., map.shape[1]/2., 10., 0.5, 0./180.*np.pi)
-        print("Original rough guesstimate:", map.shape[0]/2., map.shape[1]/2.)
-    geom.find_center(map)
-    ellipse = Ellipse(map, geometry=geom)
-    isolist = ellipse.fit_image()
-    if len(isolist.a3)==0:
-        print("DEBUG - no iso-fit successful")
-        print("map has negative:",np.any(map<0))
-        print("map has nan:",np.any(map==np.nan))
-        plt.close()
-        plt.title("Log10(map)")
-        plt.imshow(np.log10(np.abs(map)+1e-12),origin="lower",cmap="hot")
-        plt.colorbar(orientation='vertical',label=r"log$_{10}$(map)")
-        plt.axvline(kw_init_prms["x0"],c="k",label="x-y guestimates")
-        plt.axhline(kw_init_prms["y0"],c="k")
-        plt.legend()
-        nm = "tmp/map.png"
-        plt.savefig(nm)
-        plt.close()
-        print(f"DEBUG - Saved {nm}")
-        raise RuntimeError("The isofit has failed")
-    model = build_ellipse_model(map.shape, isolist)
-    return {"isolist":isolist,"geom":geom,"map":map,"model":model,"cutoff_rad":cutoff_rad,"map_type":map_type}
+    kw_iso= _get_kwiso(map,optimise_init_prms=optimise_init_prms) 
+    kw_iso["cutoff_rad"] = cutoff_rad
+    kw_iso["map_type"] = map_type
+    return kw_iso
 
 def get_kwisodens(Lens,cutoff_rad=None,verbose=True):
     kwiso_kappa = get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa")

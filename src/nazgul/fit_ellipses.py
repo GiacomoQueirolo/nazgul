@@ -81,8 +81,11 @@ def plot_ellipse(ax, params, color="r"):
 
     ax.plot(xr + x0, yr + y0, color=color, lw=1,ls="--")
 
-def plot_ellipse_isocontours(map,ellipses,nm="tmp/fit_ellipses.png",label="Map"):
-    fig, ax = plt.subplots()
+def plot_ellipse_isocontours(map,ellipses,nm="tmp/fit_ellipses.png",label="Map",ax=None):
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.get_figure()
     im0 = ax.imshow(map, origin="lower")
     
     for ell in ellipses:
@@ -92,6 +95,7 @@ def plot_ellipse_isocontours(map,ellipses,nm="tmp/fit_ellipses.png",label="Map")
     fig.colorbar(im0, cax=cax, orientation='vertical',label=label)
     plt.savefig(nm)
     print(f"Saved {nm}")
+    return ax
     
 # show params
     
