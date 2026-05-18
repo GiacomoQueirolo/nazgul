@@ -25,7 +25,7 @@ from nazgul.Translator.EAGLE.get_gal_indexes import get_gals
 from nazgul.Translator.EAGLE.get_gal_indexes import get_catpath
 from nazgul.pathfinder import get_gal_dir,get_part_dir,std_sim,std_data_dir,path_nazgul
 from nazgul.Translator.EAGLE.fnct import _count_part,_mass_part
-from nazgul.Translator.EAGLE.fnct import get_z_snap,read_snap_header
+from nazgul.Translator.EAGLE.fnct import get_z_snap,read_snap_header,get_nfiles
 
 from nazgul.Translator.EAGLE import simsuite_name
 from nazgul.Translator.translator import min_z,max_z,min_mass
@@ -55,7 +55,7 @@ def get_rnd_gal_indexes(sim=std_sim,
                         min_mass = str(min_mass),
                         min_z=str(min_z),
                         max_z=str(max_z),
-                        check_prev=True,save_pkl=True):
+                        check_prev=True,save_pkl=True,**kwargs_query):
     """Given the simulation, the range of redshift and minimum mass required, 
         returns a random galaxy from the simulation
     """
@@ -63,7 +63,8 @@ def get_rnd_gal_indexes(sim=std_sim,
     min_z    = str(min_z)
     max_z    = str(max_z)
     data     = get_gals(sim=sim,min_mass=min_mass,max_z=max_z,min_z=min_z,\
-                        check_prev=check_prev,plot=False,save_pkl=save_pkl)
+                        check_prev=check_prev,plot=False,save_pkl=save_pkl,
+                        **kwargs_query)
     index = np.arange(len(data["z"]))
     rnd_i = np.random.choice(index)
     kw = {}
@@ -93,8 +94,6 @@ class SimPartGal(BasicPartGal):
     _large_attributes_unpack = []
     # indexes of particles: gas,dm,stars,bh:
     indexes = [0,1,4,5]
-    # n* of files per snapshot:
-    nfiles  = 16
     simsuite = simsuite_name
     def __init__(self, 
                  kw_Gal, # identity of the galaxy: Gn,SGn
@@ -109,6 +108,9 @@ class SimPartGal(BasicPartGal):
         self.z        = z
         self.Gn       = kw_Gal["Gn"]
         self.SGn      = kw_Gal["SGn"]
+        # n* of files per snapshot:
+        self.nfiles   = get_nfiles(sim)
+    
         # Input Dir:
         self.part_dir = get_part_dir(snap,sim=sim,simsuite=self.simsuite,data_dir=data_dir)
         # Output dir:
@@ -289,6 +291,8 @@ class SimPartGal(BasicPartGal):
                     # sort them to speed up the hdf5 readout:
                     idx = np.sort(idx)
                     index_map[i] = idx
+        if index_map == {}:
+            raise RuntimeError("Files do not contain any particle of this galaxy")
         return index_map
         
     @property
@@ -315,7 +319,7 @@ class SimPartGal(BasicPartGal):
         for r in results:
             output["coords"].append(r["coords"])
             output["mass"].append(r["mass"])
-            if "smooth" in r:
+            if itype!=1 and "smooth" in r:
                 output["smooth"].append(r["smooth"])
         
         coords = np.vstack(output["coords"])
@@ -395,6 +399,10 @@ def _load_one_file(args):
     fl, indices, itype,boxsize,centre = args
     results = {}
     with h5py.File(fl, "r") as f:
+        # Cosmological params (fixed for all type of particles)
+        a    = f["Header"].attrs["Time"]
+        h    = f["Header"].attrs["HubbleParam"]
+
         # Coordinates
         #############
         splits = np.split(indices, np.where(np.diff(indices) != 1)[0] + 1)
@@ -406,17 +414,15 @@ def _load_one_file(args):
             _coords.append(data[chunk - start])
         coords2scale = np.vstack(_coords)
         # conversion
-        cgs  = f[f"PartType{itype}/Coordinates"].attrs["CGSConversionFactor"]
-        aexp = f[f"PartType{itype}/Coordinates"].attrs["aexp-scale-exponent"]
-        hexp = f[f"PartType{itype}/Coordinates"].attrs["h-scale-exponent"]
-        a    = f["Header"].attrs["Time"]
-        h    = f["Header"].attrs["HubbleParam"]
+        cgs_coords  = f[f"PartType{itype}/Coordinates"].attrs["CGSConversionFactor"]
+        aexp_coords = f[f"PartType{itype}/Coordinates"].attrs["aexp-scale-exponent"]
+        hexp_coords = f[f"PartType{itype}/Coordinates"].attrs["h-scale-exponent"]
 
-        coords = coords2scale * cgs * (a ** aexp) * (h ** hexp)*u.cm.to(u.Mpc)
+        coords = coords2scale * cgs_coords * (a ** aexp_coords) * (h ** hexp_coords)*u.cm.to(u.Mpc)
         # Periodic wrap coordinates around centre.
         # -> boxsize is given in cMpc/h, must correct for both scaling factors
-        boxsize           = boxsize* (a ** aexp)*(h**hexp)
-        centre            = centre*(a**aexp) # given in comoving (but not 1/h)
+        boxsize           = boxsize* (a ** aexp_coords)*(h**hexp_coords)
+        centre            = centre*(a**aexp_coords) # given in comoving (but not 1/h)
         results['coords'] = np.mod(coords-centre+0.5*boxsize,boxsize)+centre-0.5*boxsize       
         # Mass
         ######
@@ -427,10 +433,10 @@ def _load_one_file(args):
                 data = f[f"PartType{itype}/Mass"][start:end]
                 _mass2scale.append(data[chunk - start])
             mass2scale = np.hstack(_mass2scale)
-            cgs  = f[f"PartType{itype}/Mass"].attrs["CGSConversionFactor"]
-            aexp = f[f"PartType{itype}/Mass"].attrs["aexp-scale-exponent"]
-            hexp = f[f"PartType{itype}/Mass"].attrs["h-scale-exponent"]
-            mass = mass2scale * cgs * (a ** aexp) * (h ** hexp)*u.g.to(u.Msun)
+            cgs_mass  = f[f"PartType{itype}/Mass"].attrs["CGSConversionFactor"]
+            aexp_mass = f[f"PartType{itype}/Mass"].attrs["aexp-scale-exponent"]
+            hexp_mass = f[f"PartType{itype}/Mass"].attrs["h-scale-exponent"]
+            mass = mass2scale * cgs_mass * (a ** aexp_mass) * (h ** hexp_mass)*u.g.to(u.Msun)
             results["mass"] = mass
             # Smoothness
             ############
@@ -441,11 +447,11 @@ def _load_one_file(args):
                 _smooth2scale.append(data[chunk - start])
             smooth2scale = np.hstack(_smooth2scale)
             # correct smoothing factor
-            cgs  = f[f"PartType{itype}/SmoothingLength"].attrs["CGSConversionFactor"]
-            aexp = f[f"PartType{itype}/SmoothingLength"].attrs["aexp-scale-exponent"]
-            hexp = f[f"PartType{itype}/SmoothingLength"].attrs["h-scale-exponent"]
+            cgs_smooth  = f[f"PartType{itype}/SmoothingLength"].attrs["CGSConversionFactor"]
+            aexp_smooth = f[f"PartType{itype}/SmoothingLength"].attrs["aexp-scale-exponent"]
+            hexp_smooth = f[f"PartType{itype}/SmoothingLength"].attrs["h-scale-exponent"]
 
-            smooth = smooth2scale * cgs * (a ** aexp) * (h ** hexp)*u.cm.to(u.Mpc)
+            smooth = smooth2scale * cgs_smooth * (a ** aexp_smooth) * (h ** hexp_smooth)*u.cm.to(u.Mpc)
             results["smooth"] = smooth
         else:
             dm_mass = f['Header'].attrs.get('MassTable')[1]
@@ -453,12 +459,16 @@ def _load_one_file(args):
             # Create an array of lenght n_particles each set to dm_mass
             mass2scale = np.ones(len(indices), dtype='f8') * dm_mass
             # Use the conversion factors from the mass entry in the gas particles.
-            cgs  = f['PartType0/Mass'].attrs.get('CGSConversionFactor')
-            aexp = f['PartType0/Mass'].attrs.get('aexp-scale-exponent')
-            hexp = f['PartType0/Mass'].attrs.get('h-scale-exponent')
+            cgs_massdm  = f['PartType0/Mass'].attrs.get('CGSConversionFactor')
+            aexp_massdm = f['PartType0/Mass'].attrs.get('aexp-scale-exponent')
+            hexp_massdm = f['PartType0/Mass'].attrs.get('h-scale-exponent')
             # Convert to proper/physical mass 
-            results["mass"] = np.multiply(mass2scale, cgs*(a**aexp)*(h**hexp), dtype='f8')*u.g.to(u.Msun)
- 
+            dm_scale        = cgs_massdm*(a**aexp_massdm)*(h**hexp_massdm)
+            results["mass"] = np.multiply(mass2scale, dm_scale, dtype='f8')*u.g.to(u.Msun)
+            
+            # DM has no smoothing scale
+            results["smooth"] = None
+
     return results
 
 # this function is a wrapper for convenience - it takes the class itself as input
@@ -499,7 +509,7 @@ def LoadGal(path,if_fail_recompute=True,verbose=True):
 
 # to simplify the input: given the sim, z, and GnSgn, 
 # we get the mass and center of the galaxy for input of SimPartGal 
-def get_myCat(Gn,SGn,z,sim,min_mass=min_mass,dz=0.05):
+def get_myCat(Gn,SGn,z,sim,min_mass=min_mass,dz=0.05,**kwargs_query):
     min_z=str(z-0.05)
     max_z=str(z+0.05)
 
@@ -530,7 +540,7 @@ def get_myCat(Gn,SGn,z,sim,min_mass=min_mass,dz=0.05):
     
             myCat   = get_gals(sim=sim,
                                 min_mass=min_mass,min_z=min_z,max_z=max_z,
-                                save_pkl=False,check_prev=True,verbose=False,plot=False)
+                                save_pkl=False,check_prev=True,verbose=False,plot=False,**kwargs_query)
     
     z        = min(myCat["z"], key=lambda x:abs(x-z))
     index    = np.where((myCat["Gn"]==Gn) & (myCat["SGn"]==SGn) & (myCat["z"]==z))[0]
@@ -566,13 +576,13 @@ def get_rnd_SPG(sim=std_sim,min_mass=min_mass,min_z=min_z,max_z=max_z,
     return SPG
 
 def get_all_SPG(sim=std_sim,min_mass=min_mass,min_z=min_z,max_z=max_z,
-               check_prev=True,save_pkl=True,limit_n=1e3):
+               check_prev=True,save_pkl=True,limit_n=1e3,**kwargs_query):
     """Get all possible galaxies in the range"""
     min_mass = str(min_mass)
     min_z    = str(min_z)
     max_z    = str(max_z)
     data     = get_gals(sim=sim,min_mass=min_mass,max_z=max_z,min_z=min_z,\
-                        check_prev=check_prev,plot=False,save_pkl=save_pkl)
+                        check_prev=check_prev,plot=False,save_pkl=save_pkl,**kwargs_query)
     n_data   = len(data["z"])
     if n_data>limit_n:
         raise RuntimeError(f"Too many galaxy loaded (N={n_data}). Aborted")

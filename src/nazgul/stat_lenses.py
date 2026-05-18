@@ -41,10 +41,12 @@ def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,dat
     return lenses
 
 if __name__ =="__main__":
-    snaps  = [23,25,27]
+    snaps  = [25,26,27]
+    sim    = "RefL0050N0752"
     snaps_str = "_".join([str(s) for s in snaps])
-    lenses =  get_all_gallens(snaps=snaps)
-    catdir = get_catlensdir()
+    lenses =  get_all_gallens(sim=sim,
+                              snaps=snaps)
+    catdir = get_catlensdir(sim=sim)
 
     catdir = catdir.with_name(f"CatGal_snap_{snaps_str}")
     catdir.mkdir(parents=True,exist_ok=True)

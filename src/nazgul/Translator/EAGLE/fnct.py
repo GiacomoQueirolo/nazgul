@@ -93,6 +93,16 @@ def verify_z_snap(z,snap):
     if z is not None and snap is not None:
         assert int(get_snap(z))==int(snap)
 
+def get_nfiles(sim):
+    # n* of files per snapshot:
+    if sim==std_simsuite:
+        nfiles = 16
+    elif sim == "RefL0050N0752":
+        nfiles = 128
+    else:
+        raise NotImplementedError(f"The n* of files in the snapshot directory for simulation {sim} was not hardcoded")
+    return nfiles
+    
 def get_partfiles(sim=std_sim,simsuite=std_simsuite,data_dir=std_data_dir,
                   z=None,snap=None,_i_="*"):
     """

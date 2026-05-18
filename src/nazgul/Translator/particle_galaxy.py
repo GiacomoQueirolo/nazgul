@@ -67,6 +67,11 @@ def clip_coord(m,x,y,z,sigma=10):
     mask = np.ones(len(x),dtype=bool)
     for coord in x,y,z:
         mask *= np.invert(sigma_clip(coord,sigma=sigma).mask)
+    perc_final = np.round(len(m[mask])*100/len(m),3)
+    if perc_final<99:
+        print(100-perc_final,"% of particle discarded")
+        raise RuntimeError("Too many particles discarded")
+        
     return m[mask],x[mask],y[mask],z[mask]
     
 

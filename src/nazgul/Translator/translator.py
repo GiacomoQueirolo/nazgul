@@ -66,7 +66,7 @@ def get_z_snap(simsuite,z=None,snap=None):
     return get_z_snap(z=z,snap=snap)
 
 def Gal2MXYZ(Gal):
-    print("DEBUG: Running gal in translator Gal2MXYZ")
+    print("Running Gal2MXYZ...")
     Gal.run()
     simsuite = Gal.simsuite
     Gal2MXYZ = get_sim_func(simsuite,"Gal2MXYZ")

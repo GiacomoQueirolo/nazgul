@@ -198,7 +198,7 @@ class LensSystem():
         if _radec is None:
             _radec = self.gallens._radec
         _ra,_dec = _radec
-        alpha_x,alpha_y = self.gallens.lens_model.alpha(_ra, _dec, self.kwargs_lens)
+        alpha_x,alpha_y = self.lens_model.alpha(_ra, _dec, self.kwargs_lens)
         alpha_x,alpha_y = array2image(alpha_x),array2image(alpha_y)
         return alpha_x,alpha_y
         
