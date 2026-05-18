@@ -28,9 +28,9 @@ from nazgul.stat_lenses import get_all_gallens
 from nazgul.lens_part_LOS import get_kw_los
 from nazgul.pathfinder import get_sim_dir
 
-lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
+lens_model_list   = ['EPL','SHEAR']
 source_model_list = ["SERSIC"]
-res_dir_base      = Path("./tmp/modelling_sim_lenses_multiples/")
+res_dir_base      = Path("./tmp/models/ext_shear_g12/")
 
 def _get_model_res_dir(lens,res_dir=res_dir_base):
     res_dir = Path(f"{res_dir}/snap_{lens.gallens.Gal.snap}_{lens.name}")
@@ -164,23 +164,23 @@ def get_kwargs_params(lens):
                     'e1': 0, 'e2': 0, 
                     'gamma': 2., 
                     'center_x': 0., 'center_y': 0},
-                    {'gamma_ext': 0.01, 'psi_ext': 0.}]
+                    {'gamma1': 0.0, 'gamma2': 0.}]
     kwargs_source_init = [{'R_sersic': 0.03, 'n_sersic': 1., 'center_x': 0, 'center_y': 0}]
     
     # initial spread in parameter estimation #
     kwargs_lens_sigma = [{'theta_E': 0.3, 
                           'e1': 0.2, 'e2': 0.2, 'gamma': .2, 
                           'center_x': 0.1, 'center_y': 0.1},
-                        {'gamma_ext': 0.1, 'psi_ext': np.pi}]
+                        {'gamma1': 0.1, 'gamma2': 0.1}]
     kwargs_source_sigma = [{'R_sersic': 0.1, 'n_sersic': .5, 'center_x': .1, 'center_y': 0.1}]
     
     # hard bound lower limit in parameter space #
     kwargs_lower_lens = [{'theta_E': 0, 'e1': -0.5, 'e2': -0.5, 'gamma': 1.5, 'center_x': -10., 'center_y': -10},
-        {'gamma_ext': 0., 'psi_ext': -np.pi}]
+        {'gamma1': -.5, 'gamma2': -.5}]
     kwargs_lower_source = [{'R_sersic': 0.001, 'n_sersic': .5, 'center_x': -10, 'center_y': -10}]
     # hard bound upper limit in parameter space #
     kwargs_upper_lens = [{'theta_E': 10, 'e1': 0.5, 'e2': 0.5, 'gamma': 2.5, 'center_x': 10., 'center_y': 10},
-        {'gamma_ext': 0.3, 'psi_ext': np.pi}]
+        {'gamma1': 0.5, 'gamma2': .5}]
     kwargs_upper_source = [{'R_sersic': 10, 'n_sersic': 5., 'center_x': 10, 'center_y': 10}]
     lens_params = [kwargs_lens_init, kwargs_lens_sigma, [{}, {'ra_0': 0, 'dec_0': 0}], kwargs_lower_lens, kwargs_upper_lens]
     source_params = [kwargs_source_init, kwargs_source_sigma, [{}], kwargs_lower_source, kwargs_upper_source]
@@ -239,7 +239,10 @@ if __name__=="__main__":
     else:
         raise RuntimeError("Give a valid run_type or implement it your own")
 
-    lenses2skip = ["Sub_Gn22SGn0_Npix200_PartAS_Prj2"]
+    #lenses2skip = ["Sub_Gn22SGn0_Npix200_PartAS_Prj2"]
+    lenses2skip = ["Sub_Gn22SGn0_Npix200_PartAS_Prj0","Sub_Gn22SGn0_Npix200_PartAS_Prj2","Sub_Gn3SGn0_Npix200_PartAS_Prj2","Sub_Gn3SGn0_Npix200_PartAS_Prj0"]
+ 
+    #["Sub_Gn22SGn0_Npix200_PartAS_Prj0","Sub_Gn3SGn0_Npix200_PartAS_Prj1","Sub_Gn22SGn0_Npix200_PartAS_Prj2","Sub_Gn3SGn0_Npix200_PartAS_Prj2","Sub_Gn3SGn0_Npix200_PartAS_Prj0"]
     #["Sub_Gn3SGn0_Npix200_PartAS_Prj1","Sub_Gn22SGn0_Npix200_PartAS_Prj0","Sub_Gn3SGn0_Npix200_PartAS_Prj0","Sub_Gn3SGn0_Npix200_PartAS_Prj2"]
     gal_lenses  = get_lenses2model(skip_lenses=lenses2skip)
     for gal_lens in gal_lenses: 
