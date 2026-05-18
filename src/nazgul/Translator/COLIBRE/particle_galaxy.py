@@ -103,7 +103,7 @@ class SimPartGal(BasicPartGal):
         #'/cosma8/data/dp004/colibre/Runs/L0025N0752/THERMAL_AGN_m5/SOAP-HBT/halo_properties_0127.hdf5'
         
         self.a =  self.swift_gal.metadata.a
-        self.verbose_assert_almost_equal((1/self.a)-1,self.z,msg_title="Redshifts")
+        self.verbose_assert_almost_equal((1/self.a)-1,self.z,msg="Redshifts")
         self.verify_snap()
 
         self.gal_dir  = get_gal_dir(kw_Gal,snap=self.snap,

@@ -39,7 +39,7 @@ class BasicPartGal(BasicGal):
         str_gal = f"Sim {self.sim}"
         str_gal = f"Gal {self.name}"
         str_gal += f", at z={str(np.round(self.z,3))}/snap={self.snap},"
-        str_gal += f" with \nN={'%.1E'%Decimal(self.N_part)} part.\nof \ntot Mass={'%.1E'%Decimal(self.M)} [M_sun]\n"
+        str_gal += f" with \nN={'%.1E'%Decimal(int(self.N_part))} part.\nof \ntot Mass={'%.1E'%Decimal(float(self.M))} [M_sun]\n"
         return str_gal 
     ########################
     ########################
