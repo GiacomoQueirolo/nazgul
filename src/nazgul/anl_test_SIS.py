@@ -1,21 +1,166 @@
+import numpy as np
+
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from nazgul.Translator.translator import PartGal 
 from nazgul.mount_doom.generate_gal_lens import GalLens
+from nazgul.mount_doom.lens_system import LensSystem
+
+from lenstronomy.LensModel.lens_model import LensModel
+
 pg = PartGal({"n_smpl":1e6},sim="SIS",simsuite="ANL_TEST") 
-pg.run () 
+pg.run() 
 pg.store_gal()
 lensgal = GalLens(pg,0)
 lensgal.run()
 
 
 lensgal.unpack()
-fig,axis = plt.subplots(1,2)
-plt.suptitle(r"$\alpha$ map for SIS simulation")
-axis[0].imshow(lensgal.alpha_map[0])
-axis[1].imshow(lensgal.alpha_map[1])
-plt.savefig("tmp/alpha_sis.png")
 
+lenssystem = LensSystem.from_GalLens(lensgal)
+
+############### Alpha map ##################
+fig,axes = plt.subplots(3,2,figsize=(6,8))
+plt.suptitle(r"Comparison of $\alpha$ map")
+
+axis = axes[0]
+axis[0].set_title(r"$\alpha_x$")
+axis[0].imshow(lensgal.alpha_map[0],origin="lower")
+axis[0].set_ylabel("NAZGUL")
+axis[1].set_title(r"$\alpha_y$")
+axis[1].imshow(lensgal.alpha_map[1],origin="lower")
+    
+
+lens_anl  = LensModel(lens_model_list=['SIS'])
+kw_sis    = pg.kwargs_lens_SIS
+alpha_map_anl = lens_anl.alpha(*lensgal.get_RADEC(),kwargs=kw_sis)
+a_anl_x,a_anl_y = alpha_map_anl 
+axis = axes[1]
+axis[0].set_ylabel("Analytical")
+axis[0].imshow(a_anl_x,origin="lower")
+axis[1].imshow(a_anl_y,origin="lower")
+
+axis = axes[2]
+ax1 = axis[0]
+ax1.set_ylabel("Residual")
+im0=ax1.imshow(a_anl_x-lensgal.alpha_map[0],cmap="bwr",origin="lower")
+divider = make_axes_locatable(ax1)
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\alpha_{\rm{Anl.-Comp.,x}}$")
+    
+ax2 = axis[1]
+im0 = ax2.imshow(a_anl_y-lensgal.alpha_map[1],cmap="bwr",origin="lower")
+divider = make_axes_locatable(ax2)
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\alpha_{\rm{Anl.-Comp.,y}}$")
+for axi in axes:
+    for ax in axi:
+        ax.get_xaxis().set_ticks([])
+        ax.get_yaxis().set_ticks([])
+plt.tight_layout()
+
+plt.savefig("tmp/alpha_sis.png")
+plt.close()
+#####################################################
+
+############### Magnification map ##################
+extents = lensgal.kw_extents["extent_arcsec"]
+shear_map  = lenssystem.shear_map() 
+lensgal.mu = np.ones_like(lensgal.alpha_map[0]) - lensgal.kappa_map**2 - shear_map**2
+
+mu_anl = lens_anl.magnification(*lensgal.get_RADEC(),kwargs=kw_sis)
+g1_anl,g2_anl = lens_anl.gamma(*lensgal.get_RADEC(),kwargs=kw_sis)
+shear_anl = np.hypot(g1_anl,g2_anl)
+kappa_anl = lens_anl.kappa(*lensgal.get_RADEC(),kwargs=kw_sis)
+mu_anl_2 = np.ones_like(kappa_anl) - kappa_anl**2 - shear_anl**2
+print("<mu anl - mu anl2>: ",np.median(mu_anl - mu_anl_2))
+
+
+fig,axes = plt.subplots(3,3,figsize=(10,10))
+plt.suptitle(r"Comparison of $\mu$ map")
+
+axis = axes[0][0]
+axis.set_title(r"NAZGUL - $\kappa^2$")
+im0=axis.imshow(lensgal.kappa_map**2,origin="lower",extent=extents)
+divider = make_axes_locatable(axis)
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\kappa^2_{\rm{Comp.}}$")
+
+
+axis = axes[0][1]
+axis.set_title(r"NAZGUL - $\gamma^2$")
+im0=axis.imshow(shear_map**2,origin="lower",extent=extents)
+divider = make_axes_locatable(axis)
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\gamma^2_{\rm{Comp.}}$")
+
+
+axis = axes[0][2]
+axis.set_title(r"NAZGUL - $\mu$")
+im0=axis.imshow(lensgal.mu,origin="lower",extent=extents)
+divider = make_axes_locatable(axis)
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\mu_{\rm{Comp.}}$")
+
+
+
+
+axis = axes[1][0]
+axis.set_title(r"Analytical - $\kappa^2$")
+im0=axis.imshow(kappa_anl**2,origin="lower",extent=extents)
+divider = make_axes_locatable(axis)
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\kappa^2_{\rm{Anl.}}$")
+
+
+axis = axes[1][1]
+axis.set_title(r"Analytical - $\gamma^2$")
+im0=axis.imshow(shear_anl**2,origin="lower",extent=extents)
+divider = make_axes_locatable(axis)
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\gamma^2_{\rm{Anl.}}$")
+
+
+axis = axes[1][2]
+axis.set_title(r"Analytical - $\mu$")
+im0=axis.imshow(mu_anl,origin="lower",extent=extents)
+divider = make_axes_locatable(axis)
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\mu_{\rm{Anl.}}$")
+
+
+axis = axes[2][0]
+axis.set_title(r"Residual - $\kappa^2$")
+im0=axis.imshow(kappa_anl - lensgal.kappa_map,origin="lower",extent=extents,cmap="bwr")
+divider = make_axes_locatable(axis)
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\kappa_{\rm{Anl.-Comp.}}$")
+
+axis = axes[2][1]
+axis.set_title(r"Residual - $\gamma^2$")
+im0=axis.imshow(shear_anl-shear_map,origin="lower",extent=extents,cmap="bwr")
+divider = make_axes_locatable(axis)
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\gamma_{\rm{Anl.-Comp.}}$")
+
+axis = axes[2][2]
+axis.set_title(r"Residual - $\mu$")
+im0=axis.imshow(mu_anl-lensgal.mu,origin="lower",extent=extents,cmap="bwr")
+divider = make_axes_locatable(axis)
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\mu_{\rm{Anl.-Comp.}}$")
+
+for axis in axes:
+    for ax in axis:
+        ax.set_ylabel("DEC")
+        ax.set_xlabel("RA")
+
+
+plt.tight_layout()
+
+plt.savefig("tmp/mu_sis.png")
+#####################################################
 lensgal._unpack_Gal()
 
 cosmo = lensgal.Gal.cosmo
@@ -40,4 +185,54 @@ SigCrit_rescaled = lensgal.SigCrit/rescale_fact
 print(f"% error in SigCrit : {100*np.abs(SigCrit_gal-SigCrit_rescaled)/SigCrit_gal}")
 
 tE_rescaled = (lensgal.thetaE*rescale_fact) #/lensgal.Gal.theta_E
-print(f"% error in theta_E : {100*(lensgal.Gal.theta_E-tE_rescaled.value)/lensgal.Gal.theta_E}")
+print(f"% error in theta_E : {100*abs(lensgal.Gal.theta_E-tE_rescaled.value)/lensgal.Gal.theta_E}")
+
+
+#####################################################
+# simulate lensed image
+from lenstronomy.Util.util import array2image,image2array 
+
+RA,DEC = lensgal.get_RADEC()
+def get_xy_sp(alpha_map):
+    alpha_x,alpha_y = alpha_map        
+    x_source_plane, y_source_plane = RA-alpha_x,DEC-alpha_y
+    # the coords have to be given as flat
+    x_source_plane = image2array(x_source_plane)
+    y_source_plane = image2array(y_source_plane)
+    return x_source_plane,y_source_plane
+def get_source_light(alpha_map):
+    imageNumerics,sourceModel     = lenssystem.get_imageNumerics(return_sourceModel=True)
+    x_source_plane,y_source_plane = get_xy_sp(alpha_map=alpha_map)
+    kwargs_source_list            = [imageNumerics.kwargs_source]
+    source_light                  = sourceModel.surface_brightness(x_source_plane, y_source_plane, kwargs_source_list, k=None)
+    return array2image(source_light)
+
+source_anl = get_source_light(alpha_map_anl)
+source_comp = get_source_light(lensgal.alpha_map)
+
+
+
+fig,axes = plt.subplots(1,3,figsize=(8,6))
+plt.suptitle(r"Comparison of source")
+
+axis = axes
+axis[0].imshow(source_comp,origin="lower",extent=extents)
+axis[0].set_title("NAZGUL")
+axis = axes
+axis[1].set_title("Analytical")
+axis[1].imshow(source_anl,origin="lower",extent=extents)
+
+ax1 = axes[2]
+ax1.set_title("Residual")
+im0=ax1.imshow(source_anl-source_comp,cmap="bwr",origin="lower",extent=extents)
+divider = make_axes_locatable(ax1)
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"source$_{\rm{Anl.-Comp.}}$")
+
+for ax in axes:
+    ax.set_ylabel("DEC")
+    ax.set_xlabel("RA")
+plt.tight_layout()
+
+plt.savefig("tmp/source_sis.png")
+plt.close()
