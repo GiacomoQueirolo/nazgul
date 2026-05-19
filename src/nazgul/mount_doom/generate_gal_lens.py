@@ -367,3 +367,4 @@ def wrapper_get_rnd_lens(reload=True,
             except ProjectionError as PE:
                 kw_lenspart["projection_index"]+=1
         print("All projections of this galaxy are not supercritical #\n","Trying different galaxy")
+        kw_lenspart["projection_index"] = 0

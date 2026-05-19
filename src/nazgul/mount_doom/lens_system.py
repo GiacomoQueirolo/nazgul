@@ -21,7 +21,6 @@ from lenstronomy.ImSim.Numerics.numerics_subframe import NumericsSubFrame
 from python_tools.tools import to_dimless,mkdir
 import nazgul.mount_doom.cracks_of_doom as cod
 from nazgul.project_gal import get_2Dkappa_map
-from nazgul.Translator.translator import get_rnd_PG,get_all_PG
 from nazgul.mount_doom.generate_gal_lens import GalLens
 
 # Default values
