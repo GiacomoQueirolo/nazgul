@@ -46,7 +46,7 @@ def plot_caustics(Model,fast_caustic = True,savename="test_caustics.png",kw_exte
                           fast_caustic=fast_caustic,savename=savename,kw_extents=kw_extents)
 
 
-def plot_kappamap(kappa1,extent_kpc,title1="",savename="kappa.png",cmap="hot"):
+def plot_kappamap(kappa1,extent_kpc,title1="",savename="kappa.png",cmap="hot",label_clb=r'$\kappa$'):
     fig,axes = plt.subplots(2,figsize=(8,16))
 
     ax  = axes[0]
@@ -56,7 +56,7 @@ def plot_kappamap(kappa1,extent_kpc,title1="",savename="kappa.png",cmap="hot"):
     ax.set_title(title1) 
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
-    fig.colorbar(im0, cax=cax, orientation='vertical')
+    fig.colorbar(im0, cax=cax, orientation='vertical',label=label_clb)
 
 
     # take advantage of the circular simmetry and obtain the projection
