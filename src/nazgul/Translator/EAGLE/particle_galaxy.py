@@ -6,6 +6,7 @@ Define the galaxy class PartGal (storing all particle data), as well as related 
 import glob
 import dill
 import h5py
+import warnings
 import numpy as np
 from copy import copy
 from pathlib import Path
@@ -298,8 +299,9 @@ class SimPartGal(BasicPartGal):
                     # sort them to speed up the hdf5 readout:
                     idx = np.sort(idx)
                     index_map[i] = idx
-        if index_map == {}:
-            raise RuntimeError("Files do not contain any particle of this galaxy")
+        # this is possible: some galaxy do not contain some type of particles
+        #if index_map == {}:
+        #    raise RuntimeError("Files do not contain any particle of this galaxy")
         return index_map
         
     @property
@@ -318,11 +320,19 @@ class SimPartGal(BasicPartGal):
 
         with Pool(nproc) as pool:
             results = pool.map(_load_one_file, tasks)
-
         # ---- merge ----
         output = {"coords":[],"mass":[]}
         if itype!=1:
             output["smooth"] = []
+        if results==[]:
+            # create an empty output for missing particles
+            output["coords"] = np.array([[],[],[]]).T
+            output["mass"] = np.array([])
+            if itype!=1:
+                output["smooth"] = np.array([])
+            warnings.warn(f"This galaxy do not contain particle of type {itype}")
+            return output
+        
         for r in results:
             output["coords"].append(r["coords"])
             output["mass"].append(r["mass"])
