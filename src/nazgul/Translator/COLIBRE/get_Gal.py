@@ -131,12 +131,47 @@ def get_rnd_snap(sim=std_sim,
     """By sampling uniformily z"""
     max_z = float(max_z)
     min_z = float(min_z)
-    min_mass = float(min_mass)
     z_rnd = np.random.uniform(min_z,max_z)
     snap  = get_snap(z_rnd,sim=sim,subsim=subsim)
     #z     = get_z(snap)
     return snap
 
+def get_gal_candidates(snap,
+                       sim=std_sim,
+                       subsim=std_subsim,
+                        max_z=max_z,
+                        min_z=min_z,
+                        min_mass=min_mass,
+                        colibre_base_path=colibre_base_path,
+                        soap_catalogue_file=None,
+                        verbose=True):
+
+
+    if soap_catalogue_file is None:
+        soap_catalogue_file = get_soap_cat(snap_str=snap,
+                                           sim=sim,
+                                           subsim=subsim,
+                                           colibre_base_path=colibre_base_path)
+    sd = SWIFTDataset(soap_catalogue_file)
+    
+    # We have to define based on what we select the mass - or if we want other criteria
+    #selection_criteria = sd.spherical_overdensity_200_crit
+    selection_criteria = sd.bound_subhalo
+    if verbose:
+        print("As selection criteria we are taking the ",selection_criteria.group_name,", ie ",selection_criteria.group)
+    #m200c = selection_criteria.total_mass.to_physical_value("Msun")
+    Mboundhalo = selection_criteria.total_mass.to_physical_value("Msun")
+    #if verbose:
+    #    print("And considering its total_mass")
+    #    print(m200c)
+    min_mass = cosmo_quantity(min_mass,u.Msun, comoving=False, scale_factor=sd.metadata.a, scale_exponent=0)
+    if verbose:
+        print("and selecting only galaxies w. mass more than ",min_mass.to("Msun").to_string())
+    candidates_gal = np.argwhere(Mboundhalo> min_mass).squeeze()
+    if verbose:
+        print(f"Found N={len(candidates_gal)} candidates") 
+    return candidates_gal
+    
 def get_rnd_kw_swiftgal(sim=std_sim,
                         subsim=std_subsim,
                         max_z=max_z,
@@ -159,31 +194,26 @@ def get_rnd_kw_swiftgal(sim=std_sim,
                             min_z=min_z)
     if verbose:
         print("Snap selected:",snap_str)
+        
     z = get_z(snap_str,sim=sim,subsim=subsim)
     if verbose:
         print("z=",z)
-
+        
     if soap_catalogue_file is None:
         soap_catalogue_file = get_soap_cat(snap_str=snap_str,
                                            sim=sim,
                                            subsim=subsim,
                                            colibre_base_path=colibre_base_path)
-    sd = SWIFTDataset(soap_catalogue_file)
-    # We have to define based on what we select the mass - or if we want other criteria
-    selection_criteria = sd.spherical_overdensity_200_crit
-    if verbose:
-        print("As selection criteria we are taking the ",selection_criteria.group_name,", ie ",selection_criteria.group)
-    m200c = selection_criteria.total_mass
-    if verbose:
-        print("And considering its total_mass")
-        print(m200c)
-    min_mass = cosmo_quantity(min_mass,u.Msun, comoving=True, scale_factor=sd.metadata.a, scale_exponent=0)
-    if verbose:
-        print("and selecting only galaxies w. mass less than ",min_mass.to("Msun").to_string())
-        print(min_mass)
-    candidates = np.argwhere(m200c> min_mass).squeeze()
 
-    chosen_halo_index = np.random.choice(candidates)
+    candidates_gal = get_gal_candidates(snap=snap_str,
+                                        sim=sim,
+                                        subsim=subsim,
+                                        soap_catalogue_file=soap_catalogue_file,
+                                        min_mass=min_mass,
+                                        colibre_base_path=colibre_base_path,
+                                       verbose=verbose)
+                                        
+    chosen_halo_index = np.random.choice(candidates_gal)
 
     # for reproducibility
     inputs     = {"sim":sim,
@@ -243,11 +273,11 @@ def get_swiftgal(soap_index,
 
 
 
-def get_rnd_kw_gal(max_z=max_z,
+def get_rnd_kw_gal(sim=std_sim,
+                   subsim=std_subsim,
+                   max_z=max_z,
                    min_z=min_z,
                    min_mass=min_mass,
-                   sim=std_sim,
-                   subsim=std_subsim,
                    colibre_base_path=colibre_base_path):
     min_z = float(min_z)
     max_z = float(max_z)
@@ -261,6 +291,9 @@ def get_rnd_kw_gal(max_z=max_z,
     
     virtual_snapshot_file = get_virtual_snapfile(**kw_rnd_gal)
     kw_rnd_gal["virtual_snapshot_file"] = virtual_snapshot_file
+    # change name
+    kw_rnd_gal["soap_index"] = kw_rnd_gal.pop("chosen_halo_index")
+    kw_rnd_gal["snap"] = kw_rnd_gal.pop("snap_str")
     return kw_rnd_gal
 
 """
