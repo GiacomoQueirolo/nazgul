@@ -27,7 +27,6 @@ def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=No
 def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,data_dir=std_data_dir):
     lenses= []
     computed_gallenses = get_all_gallens_paths(snaps=snaps,sim=sim,simsuite=simsuite,subsim=subsim,data_dir=data_dir)
-    N_computed_gallenses = len(computed_gallenses)
     
     for gal_lns in computed_gallenses:
         ln = load_whatever(gal_lns)
@@ -49,8 +48,8 @@ if __name__ =="__main__":
     catdir = get_catlensdir(sim=sim)
 
     catdir = catdir.with_name(f"CatGal_snap_{snaps_str}")
-    catdir.mkdir(parents=True,exist_ok=True)
-
+    mkdir(catdir)
+    
     lens_paths= []
     N_lenses= len(lenses)
     # Study thetaE distribution
