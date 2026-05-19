@@ -67,13 +67,20 @@ def get_rnd_gal_indexes(sim=std_sim,
                         **kwargs_query)
     index = np.arange(len(data["z"]))
     rnd_i = np.random.choice(index)
-    kw = {}
+    kw_gal = {}
     for k in data.keys():
         if k=="query" or k=="sim":
-            kw[k] = data[k]
+            kw_gal[k] = data[k]
         else:
-            kw[k] = data[k][rnd_i]
-    return kw
+            kw_gal[k] = data[k][rnd_i]
+            
+    z        = kw_gal["z"] 
+    M        = kw_gal["M"] 
+    kw_Gal   = {"Gn":kw_gal["Gn"],"SGn":kw_gal["SGn"]}
+    Centre   = np.array([kw_gal["CMx"],kw_gal["CMy"],kw_gal["CMz"]]) 
+    
+    kwGal    = {"z":z,"kw_Gal":kw_Gal,"sim":sim,"M":M,"Centre":Centre}
+    return kwGal
 
 
 def get_kw_SimPartGal(kw_Gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload):
@@ -563,15 +570,10 @@ def get_rnd_SPG(sim=std_sim,min_mass=min_mass,min_z=min_z,max_z=max_z,
     """Randomly sample a galaxy from the simulation 
     """
 
-    kw_gal   = get_rnd_gal_indexes(sim=sim,min_mass=min_mass,
+    kwGal   = get_rnd_gal_indexes(sim=sim,min_mass=min_mass,
                                    min_z=min_z,max_z=max_z,
                                    check_prev=check_prev,save_pkl=save_pkl)
-    z        = kw_gal["z"] 
-    M        = kw_gal["M"] 
-    kw_Gal   = {"Gn":kw_gal["Gn"],"SGn":kw_gal["SGn"]}
-    Centre   = np.array([kw_gal["CMx"],kw_gal["CMy"],kw_gal["CMz"]]) 
-    
-    kwGal    = {"z":z,"kw_Gal":kw_Gal,"sim":sim,"M":M,"Centre":Centre}
+
     SPG      = SimPartGal(**kwGal)
     return SPG
 
