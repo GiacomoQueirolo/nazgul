@@ -45,6 +45,12 @@ def Read_ZSnap(file_name):
             snap_snip.append(str(p[1]).replace("\n",""))
     return np.array(z),snap_snip
 
+def _get_snap(snap):
+    if type(snap)!=str:
+        snap = f'{int(snap):04d}'
+    assert len(snap)==4
+    return snap
+    
 def get_kw_snap_z(sim=std_sim,
                   subsim=std_subsim):
     snap_z_map = get_snap_z_map(sim=sim,subsim=subsim)
@@ -55,7 +61,7 @@ def get_kw_snap_z(sim=std_sim,
     for i in range(len(z_all)):
         if snap_snip[i]=="Snapshot":
             z.append(z_all[i])
-            snap.append(f'{i:04d}')
+            snap.append(_get_snap(i))
             kw_snap_z[snap[-1]] = z[-1]
         elif snap_snip[i]=="Snipshot":
             _ = "Ignore Snipshots"
@@ -76,7 +82,7 @@ def get_z(snap,sim=std_sim,subsim=std_subsim):
     # format snap to integer
     int_snap = int(str(snap).lstrip("0"))
     # format it back to str w. leading 0 to match kw_snap_z
-    snap = f"{int_snap:04d}"
+    snap = _get_snap(int_snap)
     return kw_snap_z[snap]
     
 def get_snap(z,sim=std_sim,subsim=std_subsim):
@@ -97,20 +103,21 @@ def get_z_snap(z=None,snap=None,sim=std_sim,subsim=std_subsim):
     return z,snap
 #####################       
 
-def get_soap_cat(snap_str,
+def get_soap_cat(snap,
                  sim=std_sim,
                  subsim=std_subsim,
                  colibre_base_path=colibre_base_path):
     simulation_dir = find_simulation_dir(sim=sim,subsim=subsim)
+    snap = _get_snap(snap)
     soap_catalogue_file = os.path.join(
         colibre_base_path,
         simulation_dir,
-        "SOAP-HBT/halo_properties_"+snap_str+".hdf5",
+        f"SOAP-HBT/halo_properties_{snap}.hdf5",
     )
     #print("soap_catalogue_file",soap_catalogue_file)
     return soap_catalogue_file
 
-def get_virtual_snapfile(snap_str,
+def get_virtual_snapfile(snap,
                          sim=std_sim,
                          subsim=std_subsim,
                          colibre_base_path=colibre_base_path,
@@ -119,7 +126,7 @@ def get_virtual_snapfile(snap_str,
         str(colibre_base_path),
         str(sim),
         str(subsim),
-        "SOAP-HBT/colibre_with_SOAP_membership_"+snap_str+".hdf5")
+        f"SOAP-HBT/colibre_with_SOAP_membership_{snap}.hdf5")
     #print("virtual_snapshot_file",virtual_snapshot_file)
     return virtual_snapshot_file
 
@@ -136,85 +143,194 @@ def get_rnd_snap(sim=std_sim,
     #z     = get_z(snap)
     return snap
 
+def get_all_snap(sim=std_sim,
+                 subsim=std_subsim,
+                 max_z=max_z,
+                 min_z=min_z):
+    max_z = float(max_z)
+    min_z = float(min_z)
+    #note: snaps are "inverted" wrt to z (z>>, snap<<)
+    min_snap  = get_snap(min_z,sim=sim,subsim=subsim)
+    max_snap  = get_snap(max_z,sim=sim,subsim=subsim)
+    # the following ignored the fact that we also have snipshot which
+    # are ignored
+    #all_snap_int  = np.arange(int(max_snap),int(min_snap)+1)
+    # snap has to be a string
+    #all_snap   = [_get_snap(snap) for snap in all_snap_int]
+    kw_z_snap = get_kw_z_snap(sim=sim,subsim=subsim)
+    zs        = np.array(list(kw_z_snap.keys()))
+    i_zs      = np.logical_and(zs>min_z,zs<max_z)
+    all_snap  = [kw_z_snap[zi] for zi in zs[i_zs]]
+    if all_snap==[]:
+        raise ValueError(f"min_z={min_z} and max_z={max_z} do not correspond to any valid snapshot")
+    return all_snap
+    
+# Selection functions:
+######################
+def select_minmass(selection_criteria,min_mass,scale_factor,verbose=True):
+    """
+    Return index list of candidates galaxies with mass (bound_halo tot mass) higher than min_mass
+    """
+    # We have to define based on what we select the mass - or if we want other criteria
+    #selection_criteria = sd.spherical_overdensity_200_crit
+    #m200c = selection_criteria.total_mass.to_physical_value("Msun")
+    unit       = "Msun"
+    Mboundhalo = selection_criteria.total_mass.to_physical_value(unit)
+    #if verbose:
+    #    print("And considering its total_mass")
+    #    print(m200c)
+    min_mass = cosmo_quantity(min_mass,u.Msun, comoving=False, scale_factor=scale_factor, scale_exponent=0).to_physical_value(unit)
+    if verbose:
+        print(f"and selecting only galaxies w. mass more than {min_mass} {unit}")
+    #candidates_gal = np.argwhere(Mboundhalo> min_mass).squeeze()
+    candidates_gal = Mboundhalo> min_mass
+    return candidates_gal
+    
+def select_minmass_stars(selection_criteria,min_mass_stars,scale_factor,verbose=True):
+    """
+    Return index list of candidates galaxies with stellar mass (bound_halo stellar mass) higher than min_mass_stars
+    """
+    unit = "Msun"
+    Mboundhalo_stars = selection_criteria.stellar_mass.to_physical_value(unit)
+    #if verbose:
+    #    print("And considering its total_mass")
+    #    print(m200c)
+    min_mass_stars = cosmo_quantity(min_mass_stars,u.Msun, comoving=False, scale_factor=scale_factor, scale_exponent=0).to_physical_value(unit)
+    if verbose:
+        print(f"and selecting only galaxies w. stellar mass more than {min_mass_stars} {unit}")
+    candidates_gal = Mboundhalo_stars> min_mass_stars
+    return candidates_gal
+    
+def select_minveldisp(selection_criteria,min_vel_disp,scale_factor,verbose=True):
+    """
+    Return index list of candidates galaxies with velocity dispersion (bound_halo tot mass) higher than min_mass
+    """
+    unit = "km**2/s**2"
+    veldisp2_matrix = selection_criteria.stellar_velocity_dispersion_matrix.to_physical_value(unit)
+    # veldisp_matrix = 6 dim matrix of vel disp - sigma_xx^2,sigma_yy^2,sigma_zz^2,sigma_xy^2,sigma_xz^2,sigma_yz^2
+    # our vel disp is expected to be sigma_v = sqrt(sigma_xx^2+sigma_yy^2+sigma_zz^2):
+    vel_disp = np.sum(veldisp2_matrix[:,:3],axis=1)**.5
+    min_vel_disp = cosmo_quantity(min_vel_disp,u.km**2/u.s**2,comoving=False,scale_factor=scale_factor, scale_exponent=0).to_physical_value(unit)
+    if verbose:
+        print(f"and selecting only galaxies w. velocity dispersion more than {min_vel_disp} {unit}")
+    #candidates_gal = np.argwhere(vel_disp>min_vel_disp).squeeze()
+    candidates_gal = vel_disp>min_vel_disp
+    return candidates_gal
+    
+def select_half_mass_radius(selection_criteria,min_hmr,scale_factor,verbose=True):
+    """
+    Return index list of candidates galaxies with half (total) mass radius (bound_halo half_mass_radius_total) higher than min_hmr
+    """
+    unit ="kpc"
+    half_mass_radius = selection_criteria.half_mass_radius_total.to_physical_value(unit)
+    min_hmr = cosmo_quantity(min_hmr,u.kpc,comoving=False,scale_factor=scale_factor, scale_exponent=0).to_physical_value(unit)
+    if verbose:
+        print(f"and selecting only galaxies w. half-mass radius more than {min_hmr} {unit}")
+    candidates_gal = half_mass_radius>min_hmr 
+    return candidates_gal
+    
+######################
+
 def get_gal_candidates(snap,
                        sim=std_sim,
                        subsim=std_subsim,
                         max_z=max_z,
                         min_z=min_z,
-                        min_mass=min_mass,
+                        kw_criteria={"min_mass":float(min_mass)},
                         colibre_base_path=colibre_base_path,
                         soap_catalogue_file=None,
                         verbose=True):
 
 
     if soap_catalogue_file is None:
-        soap_catalogue_file = get_soap_cat(snap_str=snap,
+        soap_catalogue_file = get_soap_cat(snap=snap,
                                            sim=sim,
                                            subsim=subsim,
                                            colibre_base_path=colibre_base_path)
-    sd = SWIFTDataset(soap_catalogue_file)
-    
-    # We have to define based on what we select the mass - or if we want other criteria
+    swift_dataset = SWIFTDataset(soap_catalogue_file)
+    selection_criteria = swift_dataset.bound_subhalo
+    scale_factor       = swift_dataset.metadata.a
+    if verbose:
+        print(f"As selection criteria taking {selection_criteria.group_name}, ie {selection_criteria.group}")
+    # We have to define based on what we select - or if we want other criteria
     #selection_criteria = sd.spherical_overdensity_200_crit
-    selection_criteria = sd.bound_subhalo
-    if verbose:
-        print("As selection criteria we are taking the ",selection_criteria.group_name,", ie ",selection_criteria.group)
     #m200c = selection_criteria.total_mass.to_physical_value("Msun")
-    Mboundhalo = selection_criteria.total_mass.to_physical_value("Msun")
-    #if verbose:
-    #    print("And considering its total_mass")
-    #    print(m200c)
-    min_mass = cosmo_quantity(min_mass,u.Msun, comoving=False, scale_factor=sd.metadata.a, scale_exponent=0)
+
+    list_candidates_gal = []
+    if "min_mass" in kw_criteria.keys():
+        candidates_gal = select_minmass(selection_criteria=selection_criteria,
+                                        min_mass = kw_criteria["min_mass"],
+                                        scale_factor=scale_factor,
+                                        verbose=verbose)
+        list_candidates_gal.append(candidates_gal)
+    if 'min_mass_stars' in kw_criteria.keys():
+        candidates_gal = select_minmass_stars(selection_criteria=selection_criteria,
+                                        min_mass_stars = kw_criteria["min_mass_stars"],
+                                        scale_factor=scale_factor,
+                                        verbose=verbose)
+        list_candidates_gal.append(candidates_gal)
+    if 'min_vel_disp' in kw_criteria.keys():
+        candidates_gal = select_minveldisp(selection_criteria=selection_criteria,
+                                           min_vel_disp= kw_criteria["min_vel_disp"],
+                                           scale_factor=scale_factor,
+                                           verbose=verbose)
+        list_candidates_gal.append(candidates_gal)
+    if 'min_hmr' in kw_criteria.keys():
+        candidates_gal = select_half_mass_radius(selection_criteria=selection_criteria,
+                                        min_hmr = kw_criteria["min_hmr"],
+                                        scale_factor=scale_factor,
+                                        verbose=verbose)
+        list_candidates_gal.append(candidates_gal)
+        
+    comb_candidates_gal = np.logical_and(*list_candidates_gal)
+    comb_candidates_gal_index = np.argwhere(comb_candidates_gal).squeeze()
     if verbose:
-        print("and selecting only galaxies w. mass more than ",min_mass.to("Msun").to_string())
-    candidates_gal = np.argwhere(Mboundhalo> min_mass).squeeze()
-    if verbose:
-        print(f"Found N={len(candidates_gal)} candidates") 
-    return candidates_gal
+        print(f"Found N={len(comb_candidates_gal_index)} candidates") 
+    return comb_candidates_gal_index
     
-def get_rnd_kw_swiftgal(sim=std_sim,
+def get_rnd_kw_gal(sim=std_sim,
                         subsim=std_subsim,
                         max_z=max_z,
                         min_z=min_z,
-                        min_mass=min_mass,
+                        kw_criteria={"min_mass":float(min_mass)},
                         colibre_base_path=colibre_base_path,
                         soap_catalogue_file=None,
                         verbose=True):
     """ Return inputs for the SimPartGal of COLIBRE for a random
-    galaxy within a range of redshift and a min mass
+    galaxy within a range of redshift and respecting the criteria
     """
     min_z = float(min_z)
     max_z = float(max_z)
-    min_mass = float(min_mass)
     if verbose:
         print("We randomly select a redshift/snap:")
-    snap_str = get_rnd_snap(sim=sim,
+    snap = get_rnd_snap(sim=sim,
                             subsim=subsim,
                             max_z=max_z,
                             min_z=min_z)
     if verbose:
-        print("Snap selected:",snap_str)
+        print(f"Snap selected:{snap}")
         
-    z = get_z(snap_str,sim=sim,subsim=subsim)
+    z = get_z(snap,sim=sim,subsim=subsim)
     if verbose:
-        print("z=",z)
+        print(f"z={z}")
         
     if soap_catalogue_file is None:
-        soap_catalogue_file = get_soap_cat(snap_str=snap_str,
+        soap_catalogue_file = get_soap_cat(snap=snap,
                                            sim=sim,
                                            subsim=subsim,
                                            colibre_base_path=colibre_base_path)
 
-    candidates_gal = get_gal_candidates(snap=snap_str,
+    candidates_gal = get_gal_candidates(snap=snap,
                                         sim=sim,
                                         subsim=subsim,
                                         soap_catalogue_file=soap_catalogue_file,
-                                        min_mass=min_mass,
+                                        kw_criteria=kw_criteria,
                                         colibre_base_path=colibre_base_path,
-                                       verbose=verbose)
+                                        verbose=verbose)
                                         
     chosen_halo_index = np.random.choice(candidates_gal)
 
+        
     # for reproducibility
     inputs     = {"sim":sim,
                   "subsim":subsim,
@@ -225,38 +341,85 @@ def get_rnd_kw_swiftgal(sim=std_sim,
                   "soap_catalogue_file":soap_catalogue_file}
     
     kw_rnd_gal = {"soap_catalogue_file":soap_catalogue_file,
-                  "chosen_halo_index":chosen_halo_index,
+                  "soap_index":chosen_halo_index,
                   #"candidates":candidates,
-                  "snap_str":snap_str,
+                  "snap":snap,
                   "inputs":inputs}
-    return kw_rnd_gal
     
-def _get_swiftgal(chosen_halo_index, 
-                 virtual_snapshot_file,
-                 soap_catalogue_file,
-                 **kwargs # to ignore
-                ):
-    swift_gal = SWIFTGalaxy(
-        virtual_snapshot_file,
-        SOAP(
-            soap_catalogue_file,
-            soap_index=chosen_halo_index,
-        ),
-    )
-    return swift_gal
+    # add virtual snapshot file
+    virtual_snapshot_file = get_virtual_snapfile(**kw_rnd_gal)
+    kw_rnd_gal["virtual_snapshot_file"] = virtual_snapshot_file
+    
+    return kw_rnd_gal
 
+def get_all_kw_gal(sim=std_sim,
+                    subsim=std_subsim,
+                    max_z=max_z,
+                    min_z=min_z,
+                    kw_criteria={"min_mass":float(min_mass)},
+                    colibre_base_path=colibre_base_path,
+                    verbose=True):
+    """ Return list of kw inputs for the SimPartGal of COLIBRE for ALL
+    galaxies within a range of redshift and respecting the criteria
+    """
+    min_z = float(min_z)
+    max_z = float(max_z)
+
+    all_snap = get_all_snap(sim=sim,
+                            subsim=subsim,
+                            max_z=max_z,
+                            min_z=min_z)
+    if verbose:
+        print(f"Snaps selected: {all_snap}")
+        
+    # for reproducibility
+    inputs     = {"sim":sim,
+                  "subsim":subsim,
+                  "max_z":max_z,
+                  "min_z":min_z,
+                  "min_mass":min_mass,
+                  "colibre_base_path": colibre_base_path}
+    kw_all_gal = []
+    for snap in all_snap:
+        z = get_z(snap,sim=sim,subsim=subsim)
+        if verbose:
+            print(f"z={z}")
+        
+        soap_catalogue_file = get_soap_cat(snap=snap,
+                                           sim=sim,
+                                           subsim=subsim,
+                                           colibre_base_path=colibre_base_path)
+        inputs["soap_catalogue_file"]=soap_catalogue_file
+
+        candidates_gal = get_gal_candidates(snap=snap,
+                                            sim=sim,
+                                            subsim=subsim,
+                                            soap_catalogue_file=soap_catalogue_file,
+                                            kw_criteria=kw_criteria,
+                                            colibre_base_path=colibre_base_path,
+                                            verbose=verbose)
+        kw_gal_snap = {"soap_catalogue_file":soap_catalogue_file,
+                  "snap":snap,
+                  "inputs":inputs}
+        # flat structure
+        for halo_index in candidates_gal:
+            kw_all_gal.append({"soap_index":halo_index}|kw_gal_snap)
+    if verbose:
+        print(f"Found {len(kw_all_gal)} total galaxies")
+    return kw_all_gal
+    
 def get_swiftgal(soap_index,
                  sim=std_sim,subsim=std_subsim,
                 z=None,snap=None,
                 colibre_base_path=colibre_base_path
                 ):
-    z,snap_str = get_z_snap(z=z,snap=snap,sim=sim,subsim=subsim)
+    z,snap_ = get_z_snap(z=z,snap=snap,sim=sim,subsim=subsim)
     
-    soap_catalogue_file = get_soap_cat(snap_str=snap_str,
+    soap_catalogue_file = get_soap_cat(snap=snap,
                                            sim=sim,
                                            subsim=subsim,
                                            colibre_base_path=colibre_base_path)
-    virtual_snapshot_file = get_virtual_snapfile(snap_str,
+    virtual_snapshot_file = get_virtual_snapfile(snap,
                          sim=sim,
                          subsim=subsim,
                          colibre_base_path=colibre_base_path)
@@ -273,31 +436,22 @@ def get_swiftgal(soap_index,
 
 
 
-def get_rnd_kw_gal(sim=std_sim,
-                   subsim=std_subsim,
-                   max_z=max_z,
-                   min_z=min_z,
-                   min_mass=min_mass,
-                   colibre_base_path=colibre_base_path):
-    min_z = float(min_z)
-    max_z = float(max_z)
-    min_mass = float(min_mass)
-    kw_rnd_gal = get_rnd_kw_swiftgal(max_z=max_z,
-                                     min_z=min_z,
-                                     min_mass=min_mass,
-                                     sim=sim,
-                                     subsim=subsim,
-                                     colibre_base_path=colibre_base_path)
-    
-    virtual_snapshot_file = get_virtual_snapfile(**kw_rnd_gal)
-    kw_rnd_gal["virtual_snapshot_file"] = virtual_snapshot_file
-    # change name
-    kw_rnd_gal["soap_index"] = kw_rnd_gal.pop("chosen_halo_index")
-    kw_rnd_gal["snap"] = kw_rnd_gal.pop("snap_str")
-    return kw_rnd_gal
-
 """
 from nazgul.pathfinder import get_catdir
+
+def _get_swiftgal(chosen_halo_index, 
+                 virtual_snapshot_file,
+                 soap_catalogue_file,
+                 **kwargs # to ignore
+                ):
+    swift_gal = SWIFTGalaxy(
+        virtual_snapshot_file,
+        SOAP(
+            soap_catalogue_file,
+            soap_index=chosen_halo_index,
+        ),
+    )
+    return swift_gal
 
 def _from_simdir_to_sim_subsim(simulation_dir=std_simulation_dir):
     simulation_dir= Path(simulation_dir)
