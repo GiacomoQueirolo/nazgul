@@ -16,7 +16,7 @@ from nazgul.Translator.particle_galaxy import BasicPartGal,store_class
 from nazgul.Translator.COLIBRE import simsuite_name
 from nazgul.Translator.COLIBRE.get_Gal import get_swiftgal,get_snap,get_z_snap
 from nazgul.Translator.COLIBRE.get_Gal import std_sim,std_subsim,colibre_base_path
-from nazgul.Translator.COLIBRE.get_Gal import min_z,max_z,min_mass,get_rnd_kw_gal
+from nazgul.Translator.COLIBRE.get_Gal import min_z,max_z,min_mass,get_rnd_kw_gal,get_all_kw_gal
 
 def gal_path2kwGal(gal_pkl_path):
     gal_pkl_path = Path(gal_pkl_path)
@@ -268,7 +268,7 @@ def LoadGal(path,if_fail_recompute=True,verbose=True):
     return Gal
     
 def get_rnd_SPG(sim=std_sim,subsim=std_subsim,
-               min_mass= min_mass,
+                kw_criteria={"min_mass":min_mass},
                min_z=min_z,
                max_z=max_z,
                colibre_base_path=colibre_base_path
@@ -285,7 +285,7 @@ def get_rnd_SPG(sim=std_sim,subsim=std_subsim,
               "snap":kw_swiftgal["snap"]}
     """
     kw_Gal = get_rnd_kw_gal(sim=std_sim,subsim=std_subsim,
-                           min_mass= min_mass,
+                           kw_criteria= kw_criteria,
                            min_z=min_z,
                            max_z=max_z,
                            colibre_base_path=colibre_base_path)
@@ -296,10 +296,22 @@ def get_rnd_SPG(sim=std_sim,subsim=std_subsim,
 
 def get_all_SPG(sim=std_sim,subsim=std_subsim,
                colibre_base_path=colibre_base_path,
-               min_mass= min_mass,
+               kw_criteria= {"min_mass":min_mass},
                min_z=min_z,
                max_z=max_z,
                limit_n=1e3
                ):
     """Get all possible galaxies in the range"""
-    raise NotImplementedError("Still to write up")
+    all_SPG = []
+    all_kw_Gal = get_all_kw_gal(sim=std_sim,subsim=std_subsim,
+                           kw_criteria= kw_criteria,
+                           min_z=min_z,
+                           max_z=max_z,
+                           colibre_base_path=colibre_base_path)
+    
+    for kw_Gal in all_kw_Gal:
+        SPG    = SimPartGal(kw_Gal=kw_Gal,
+                       sim=sim,
+                       subsim=subsim)
+        all_SPG.append(SPG)
+    return all_SPG
