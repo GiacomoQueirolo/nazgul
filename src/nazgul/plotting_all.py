@@ -1,23 +1,26 @@
 # Plot all lenses
+import warnings
 import numpy as np
-from stat_lenses import get_all_gallens
-from nazgul.mount_doom.lens_system import LensSystem
-import math
+import argparse,sys
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+from stat_lenses import get_all_gallens
+from nazgul.Translator import std_sim,std_simsuite
+from nazgul.mount_doom.lens_system import LensSystem
+
 def auto_grid(n):
-    ncols = math.ceil(math.sqrt(n))
-    nrows = math.ceil(n / ncols)
-    return nrows, ncols
+    ncols = np.ceil(np.sqrt(n))
+    nrows = np.ceil(n / ncols)
+    return int(nrows), int(ncols)
 
 
-def plot_grid(images,savename,extents=None,cmap="hot",titles=None,label=None,suptitle=None):
+def plot_grid(images,savename,extents=None,cmap="hot",titles=None,label=None,suptitle=None,extent_type="arc"):
     n = len(images)  # or any list of things to plot
     
     nrows, ncols = auto_grid(n)
     
-    fig, axes = plt.subplots(nrows, ncols, figsize=(4*ncols, 4*nrows))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4*ncols, 4*nrows+.2))
     
     axes = axes.ravel()  # flatten for easy iteration
     
@@ -25,8 +28,13 @@ def plot_grid(images,savename,extents=None,cmap="hot",titles=None,label=None,sup
         if extents is not None:
             extent = extents[i]
         im0 = axes[i].imshow(img,origin="lower",extent=extent,cmap=cmap)
-        axes[i].set_xlabel("X [kpc]")
-        axes[i].set_ylabel("Y [kpc]")
+        if extent_type=="kpc":
+            axes[i].set_xlabel("X [kpc]")
+            axes[i].set_ylabel("Y [kpc]")
+        elif extent_type=="arc":
+            axes[i].set_xlabel('RA ["]')
+            axes[i].set_ylabel('DEC ["]')
+
         if titles is not None:
             axes[i].set_title(titles[i])
         divider = make_axes_locatable(axes[i])
@@ -43,13 +51,29 @@ def plot_grid(images,savename,extents=None,cmap="hot",titles=None,label=None,sup
     print(f"Saved {savename}")
     
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot a grid of give precomputed lenses")
+    parser.add_argument('-snap','--snap',nargs="+",type=int,dest="snaps",default=[],help=f"List of snaps to consider - default is all")
+    parser.add_argument('-sim','--sim',type=str,dest="sim",default=std_sim,help=f"Simulation name")
+    parser.add_argument('-ss','--simsuite',type=str,dest="simsuite",default=std_simsuite,help=f"Simulation suite name")
+    parser.add_argument('-ext','--extent_type',type=str,dest="extent_type",default="arc",help=f"Extent type: either 'arc' (arcseconds, default) or 'kpc'")
 
-    lenses  = get_all_gallens()
+    args      = parser.parse_args()
+    snaps     = args.snaps #[25,26,27]
+    sim       = args.sim
+    simsuite  = args.simsuite
+    extent_type = args.extent_type 
+    if extent_type not in ["arc","kpc"]:
+        raise ValueError(f'extent_type must be either "arc" or "kpc", not {extent_type}')
+    lenses  =  get_all_gallens(sim=sim,
+                              simsuite=simsuite,
+                              snaps=snaps)
     kappas  = []
     images  = []
     extents_arc = []
     extents_kpc = []
     gal_names   = []
+    z_str       = ""
+    zls         = []
     for l in lenses:
         kappas.append(l.kappa_map)
         kw_extents = l.kw_extents
@@ -57,16 +81,39 @@ if __name__ == "__main__":
         extents_arc.append(kw_extents["extent_arcsec"])
         lns = LensSystem.from_GalLens(l)
         lns.setup()
-        print("Very arbitrary moving the source 'by hand'")
-        sig_source = lns.gallens.thetaE.value/3
+        warnings.warn("Very arbitrary moving the source 'by hand'")
+        sig_source     = lns.gallens.thetaE.value/3
         rad_source     = np.random.uniform(0,sig_source)
         phi_source     = np.random.uniform(0,2*np.pi)
         ra_source      = rad_source*np.cos(phi_source) 
         dec_source     = rad_source*np.sin(phi_source) 
         lns.update_source_position(ra_source,dec_source)
         images.append(lns.get_lensed_image())
-        gal_names.append(l.Gal.name+" "+str(l.proj_index) )
+        zl = np.round(lns.gallens.z_lens,2)
+        zls.append(zl)
+        if len(snaps)!=1:
+            z_str = f" z:{zl:0.3}"  
+        gal_names.append(f"{l.Gal.name} prj:{l.proj_index}{z_str}")
+        
+    if len(snaps)!=1:
+        zls = np.sort(list(set(zls)))
+        z_str_range = f"{np.round(zls[0],2)}<z<{np.round(zls[1],2)}"
+        if snaps==[]:
+            # all snaps
+            z_str = z_str_range
+        elif np.diff(np.sort(snaps))==np.ones(len(snaps)-1):
+            # snaps are sequential -> it's a range of z
+            z_str = z_str_range
+        else:
+            z_str = f"z = {[float(np.round(z,2)) for z in zls]}"
+    else:
+        z_str = f"z = {np.round(np.mean(zls),2)}"
     log_images = np.log10(np.array(images))
-    plot_grid(log_images,"tmp/grid_gal_images.png",extents=extents_kpc,cmap="winter",titles=gal_names,label=r"log$_{10}$ flux [arbitrary]",suptitle="Lensed Images")
-    plot_grid(kappas,"tmp/grid_gal_kappas.png",extents=extents_kpc,titles=gal_names,label=r"$\kappa$",suptitle="Convergence Map")
+    if extent_type=="arc":
+        extents = extents_arc
+    elif extent_type=="kpc":
+        extents = extents_kpc
+    
+    plot_grid(log_images,"tmp/grid_gal_images.png",extents=extents,cmap="winter",titles=gal_names,label=r"log$_{10}$ flux [arbitrary]",suptitle=f"Lensed Images {z_str}",extent_type=extent_type)
+    plot_grid(kappas,"tmp/grid_gal_kappas.png",extents=extents,titles=gal_names,label=r"$\kappa$",suptitle=f"Convergence Map {z_str}",extent_type=extent_type)
     

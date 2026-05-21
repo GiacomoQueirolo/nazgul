@@ -1,5 +1,6 @@
 # count effective lenses
-import dill
+import dill,sys
+import argparse
 import numpy as np
 from glob import glob
 import matplotlib.pyplot as plt
@@ -11,17 +12,22 @@ from nazgul.pathfinder import get_catlensdir
 from nazgul.project_gal import ProjectionError
 
 from nazgul.Translator import std_sim,std_simsuite
-from nazgul.pathfinder import get_snap_dir,std_data_dir
+from nazgul.pathfinder import get_sim_dir,get_snap_dir,std_data_dir
 
 def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,data_dir=std_data_dir):
     """
     Loacate position of all computed
     """
-    computed_gallenses = []
-    for snap in snaps:
-        snap_dir = get_snap_dir(snap,sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
-        gallenses = glob(f"{snap_dir}/Gn*SGn*/Sub/Sub_*Prj?.pkl")
-        computed_gallenses.extend(gallenses)
+    if len(snaps)!=0:
+        computed_gallenses = []
+        for snap in snaps:
+            snap_dir = get_snap_dir(snap,sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
+            gallenses = glob(f"{snap_dir}/Gn*SGn*/Sub/Sub_*Prj?.pkl")
+            computed_gallenses.extend(gallenses)
+    else:
+        sim_dir = get_sim_dir(sim=sim,subsim=subsim,
+                    simsuite=simsuite,data_dir=data_dir)
+        computed_gallenses = glob(f"{sim_dir}/*/Gn*SGn*/Sub/Sub_*Prj?.pkl")
     return computed_gallenses
         
 def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,data_dir=std_data_dir):
@@ -40,12 +46,22 @@ def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,dat
     return lenses
 
 if __name__ =="__main__":
-    snaps  = [25,26,27]
-    sim    = "RefL0050N0752"
+    parser = argparse.ArgumentParser(prog=sys.argv[0],description="Compute and plot some useful statistic on the computed lenses")
+    parser.add_argument('-snap','--snap',nargs="+",type=int,dest="snaps",default=[],help=f"List of snaps to consider - default is all")
+    parser.add_argument('-sim','--sim',type=str,dest="sim",default=std_sim,help=f"Simulation name")
+    parser.add_argument('-ss','--simsuite',type=str,dest="simsuite",default=std_simsuite,help=f"Simulation suite name")
+    
+    args      = parser.parse_args()
+    snaps     = args.snaps #[25,26,27]
+    sim       = args.sim
+    simsuite  = args.simsuite
     snaps_str = "_".join([str(s) for s in snaps])
+    if snaps_str=="":
+        snaps_str="all"
     lenses =  get_all_gallens(sim=sim,
+                              simsuite=simsuite,
                               snaps=snaps)
-    catdir = get_catlensdir(sim=sim)
+    catdir = get_catlensdir(sim=sim,simsuite=simsuite)
 
     catdir = catdir.with_name(f"CatGal_snap_{snaps_str}")
     mkdir(catdir)
