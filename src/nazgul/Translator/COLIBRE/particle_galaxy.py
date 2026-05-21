@@ -152,6 +152,10 @@ class SimPartGal(BasicPartGal):
         self.gas         = sg.gas
         self.dark_matter = sg.dark_matter
         self.black_holes = sg.black_holes
+        self.M_stars     = np.sum(self.stars.masses.to_physical().in_units(u.Msun))
+        self.M_gas       = np.sum(self.gas.masses.to_physical().in_units(u.Msun))
+        self.M_dm        = np.sum(self.dark_matter.masses.to_physical().in_units(u.Msun))
+        self.M_bh        = np.sum(self.black_holes.masses.to_physical().in_units(u.Msun))
         self.N_part = len(sg.gas.particle_ids) +\
                  len(sg.dark_matter.particle_ids) +\
                  len(sg.stars.particle_ids) +\
