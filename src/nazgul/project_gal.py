@@ -521,7 +521,7 @@ def Gal2kw_samples(Gal,proj_index,MD_coords,arcXkpc,dist_thresh=50*u.arcsec):
     # RA,DEC= arcsec, Ms = Msun
     #print("Some galaxy have a 'shifted' CM")
     RA_cm,DEC_cm = get_CM(Ms,RAs,DECs)
-    print(f"We recenter around the maximum density point (MD) obtained with AMR") 
+    print(f"Recentering around the maximum density point (MD) obtained with AMR")
     RA_MD,DEC_MD = MD_coords.to("kpc")*arcXkpc
     print("Info:  CM vs MD ")
     print("CM:",np.round(RA_cm,2),np.round(DEC_cm,2))
@@ -530,7 +530,7 @@ def Gal2kw_samples(Gal,proj_index,MD_coords,arcXkpc,dist_thresh=50*u.arcsec):
     print("Dist:",np.round(dist,2))
     dist = ensure_unit(dist,u.arcsec)
     if dist>dist_thresh:
-        warnings.warn(RuntimeWarning(f"The distance between MD and CM {np.round(dist,2)} is larger then {np.round(dist_thresh,2)}."))
+        warnings.warn(RuntimeWarning(f"The distance between MD and CM {np.round(dist,2)} is larger than {np.round(dist_thresh,2)}."))
     kw_samples   = {}
     kw_samples["RAs"]  = RAs-RA_MD   #arcsec
     kw_samples["DECs"] = DECs-DEC_MD  #arcsec
