@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from stat_lenses import get_all_gallens
-from nazgul.Translator import std_sim,std_simsuite
+from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.mount_doom.lens_system import LensSystem
 
 def auto_grid(n):
@@ -54,17 +54,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot a grid of give precomputed lenses")
     parser.add_argument('-snap','--snap',nargs="+",type=int,dest="snaps",default=[],help=f"List of snaps to consider - default is all")
     parser.add_argument('-sim','--sim',type=str,dest="sim",default=std_sim,help=f"Simulation name")
+    parser.add_argument('-ssim','--subsim',type=str,dest="subsim",default=std_subsim,help=f"Sub-Simulation name")
     parser.add_argument('-ss','--simsuite',type=str,dest="simsuite",default=std_simsuite,help=f"Simulation suite name")
     parser.add_argument('-ext','--extent_type',type=str,dest="extent_type",default="arc",help=f"Extent type: either 'arc' (arcseconds, default) or 'kpc'")
 
     args      = parser.parse_args()
     snaps     = args.snaps #[25,26,27]
     sim       = args.sim
+    subsim    = args.subsim
     simsuite  = args.simsuite
     extent_type = args.extent_type 
     if extent_type not in ["arc","kpc"]:
         raise ValueError(f'extent_type must be either "arc" or "kpc", not {extent_type}')
     lenses  =  get_all_gallens(sim=sim,
+                               subsim=subsim,
                               simsuite=simsuite,
                               snaps=snaps)
     kappas  = []

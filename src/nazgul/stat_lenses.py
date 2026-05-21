@@ -11,10 +11,10 @@ from python_tools.get_res import load_whatever
 from nazgul.pathfinder import get_catlensdir
 from nazgul.project_gal import ProjectionError
 
-from nazgul.Translator import std_sim,std_simsuite
+from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.pathfinder import get_sim_dir,get_snap_dir,std_data_dir
 
-def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,data_dir=std_data_dir):
+def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=std_subsim,data_dir=std_data_dir):
     """
     Loacate position of all computed
     """
@@ -22,12 +22,17 @@ def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=No
         computed_gallenses = []
         for snap in snaps:
             snap_dir = get_snap_dir(snap,sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
-            gallenses = glob(f"{snap_dir}/Gn*SGn*/Sub/Sub_*Prj?.pkl")
+            print("DEBUG",snap_dir)
+            gallenses = glob(f"{snap_dir}/Gn*/Sub/Sub_*Prj?.pkl")
+            print("DEBUG",gallenses)
             computed_gallenses.extend(gallenses)
     else:
         sim_dir = get_sim_dir(sim=sim,subsim=subsim,
                     simsuite=simsuite,data_dir=data_dir)
-        computed_gallenses = glob(f"{sim_dir}/*/Gn*SGn*/Sub/Sub_*Prj?.pkl")
+        computed_gallenses = glob(f"{sim_dir}/*/Gn*/Sub/Sub_*Prj?.pkl")
+        
+    if len(computed_gallenses)==0:
+        raise RuntimeError("No computed gallenses found")
     return computed_gallenses
         
 def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,data_dir=std_data_dir):
@@ -50,18 +55,23 @@ if __name__ =="__main__":
     parser.add_argument('-snap','--snap',nargs="+",type=int,dest="snaps",default=[],help=f"List of snaps to consider - default is all")
     parser.add_argument('-sim','--sim',type=str,dest="sim",default=std_sim,help=f"Simulation name")
     parser.add_argument('-ss','--simsuite',type=str,dest="simsuite",default=std_simsuite,help=f"Simulation suite name")
+    parser.add_argument('-ssim','--subsim',type=str,dest="subsim",default=std_subsim,help=f"Sub-Simulation name")
     
     args      = parser.parse_args()
     snaps     = args.snaps #[25,26,27]
     sim       = args.sim
+    subsim    = args.subsim
     simsuite  = args.simsuite
     snaps_str = "_".join([str(s) for s in snaps])
     if snaps_str=="":
         snaps_str="all"
     lenses =  get_all_gallens(sim=sim,
+                              subsim=subsim,
                               simsuite=simsuite,
                               snaps=snaps)
-    catdir = get_catlensdir(sim=sim,simsuite=simsuite)
+    catdir = get_catlensdir(sim=sim,
+                            subsim=subsim,
+                            simsuite=simsuite)
 
     catdir = catdir.with_name(f"CatGal_snap_{snaps_str}")
     mkdir(catdir)
@@ -87,7 +97,8 @@ if __name__ =="__main__":
         
     print("\n\n")
     print("Actual lenses:"+str(N_lenses))
-    
+    if N_lenses==0:
+        raise RuntimeWarning("No lenses found")
     thetaEs  = np.array(thetaEs)
     masses   = np.array(masses)
     z_lens   = np.array(z_lens)
@@ -179,8 +190,7 @@ if __name__ =="__main__":
     # (to comp. w SEAGLE selection M_* > 1.76 *1e10 Msun)
     m_s = []
     for g in gals:
-        # ugly but works
-        ms = float(str(g).split("and Mass in ")[1].split("Stars:")[1].split(" ")[0] )
+        ms = np.float(g.M_stars)  #float(str(g).split("and Mass in ")[1].split("Stars:")[1].split(" ")[0] )
         m_s.append(ms)
     m_s = np.array(m_s)
     plt.hist(m_s,bins=15)
