@@ -4,6 +4,7 @@
 # get random swift galaxy from get_rand_gal.py
 
 import dill
+import warnings
 import unyt as u  # package used by swiftsimio to provide physical units
 import numpy as np
 from pathlib import Path
@@ -39,7 +40,7 @@ def get_masses(Gal):
     Mstar = Gal.stars.masses.to_physical().in_units(u.Msun)        # Msun
     Mgas  = Gal.gas.masses.to_physical().in_units(u.Msun)          # Msun
     Mdm   = Gal.dark_matter.masses.to_physical().in_units(u.Msun)  # Msun
-    print("warning: using dynamical mass for bh, verify that it make sense") 
+    warnings.warn("Using dynamical mass for BH, verify that it make sense") 
     # according to cgpt, the 2 important components are dynamical_mass and subgrid_mass
     # the first is done to compute the potential, the other is updated w. the accretion and used for feedback calc.
     # -> should be correct to use dynamical mass
@@ -152,14 +153,17 @@ class SimPartGal(BasicPartGal):
         self.gas         = sg.gas
         self.dark_matter = sg.dark_matter
         self.black_holes = sg.black_holes
+        # The following are very inefficient, they should be optimised
         self.M_stars     = np.sum(self.stars.masses.to_physical().in_units(u.Msun))
         self.M_gas       = np.sum(self.gas.masses.to_physical().in_units(u.Msun))
         self.M_dm        = np.sum(self.dark_matter.masses.to_physical().in_units(u.Msun))
-        self.M_bh        = np.sum(self.black_holes.masses.to_physical().in_units(u.Msun))
+        # again using dynamical masses for BH
+        self.M_bh        = np.sum(self.black_holes.dynamical_masses.to_physical().in_units(u.Msun))
         self.N_part = len(sg.gas.particle_ids) +\
                  len(sg.dark_matter.particle_ids) +\
                  len(sg.stars.particle_ids) +\
                  len(sg.black_holes.particle_ids) 
+        
         self.M = np.sum(get_masses(self.swift_gal).to_astropy().value) #Msun
         # verify that the total mass is ~ to sum of particles' masses
         #self.verbose_assert_almost_equal( self.M_tot,self.M,decimal=0,msg="Total mass vs Sum(part. masses)")
@@ -319,3 +323,41 @@ def get_all_SPG(sim=std_sim,subsim=std_subsim,
                        subsim=subsim)
         all_SPG.append(SPG)
     return all_SPG
+
+def get_vdisp(simpartgal,
+              verbose=True,
+             **kw_other       # ignored
+             ):
+    # Get velocity dispersion for a given galaxy 
+    # Note: in principle we should recover it similarly as how it's done in get_Gal
+    # but I couldn't find a way to do it that way. Instead I re-computed it from the star velocities
+    
+    #selection_criteria = part_gal.swift_gal.bound_subhalo
+    #if verbose:
+    #    print(f"As selection criteria taking {selection_criteria.group_name}, ie {selection_criteria.group}")
+    #return _get_vdisp(selection_criteria,unit="km/s")
+    
+    swfg = simpartgal.swift_gal
+    
+    # Follows from equation 15 of Vandenbroucke et al., 2024
+    # https://ftp.strw.leidenuniv.nl/mcgibbon/SOAP.pdf
+    # recenter velocities wrt velocity of center of mass:
+    dv =  swfg.stars.velocities - swfg.velocity_centre
+    # similarly take the masses  
+    # ~and do not convert in phys. coord.~ No, it's very inefficient
+    # -> doens't matter as long as it's consistent -> it is by construction
+    masses = swfg.stars.masses.value #.to_physical_value("Msun")
+    # broadcast them to match the 3D velocity matrix
+    masses_broad = np.broadcast_to(masses,(3,len(masses))).T
+    """
+    # reattach the correct unit -> not needed as we just take the value of masses
+    unit_mass  = cosmo_quantity(1,masses.unit_quantity,comoving=masses.comoving,
+                               scale_factor=swfg.metadata.a,scale_exponent=0)
+    masses_broad = masses_broad*unit_mass"""
+    # eq. 15: (note we only consider the diagonal i=i, ie vxx**2,vyy**2,vzz**2)
+    vdisp2 = np.sum(dv*dv*masses_broad,axis=0)/np.sum(masses)
+    # we get 1D vel disp from eq. 17: 
+    vdisp = np.sqrt(np.sum(vdisp2)/3)
+    # convert in physical coordinates and km/s
+    vdisp_ph = vdisp.to_physical_value("km/s")
+    return vdisp_ph   # km/s

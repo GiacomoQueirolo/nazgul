@@ -22,8 +22,7 @@ from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass
 from python_tools.get_res import load_whatever
 
-from nazgul.Translator.EAGLE.get_gal_indexes import get_gals
-from nazgul.Translator.EAGLE.get_gal_indexes import get_catpath
+from nazgul.Translator.EAGLE.get_gal_indexes import get_gals,get_catpath,get_query
 from nazgul.pathfinder import get_gal_dir,get_part_dir,std_sim,std_data_dir,path_nazgul
 from nazgul.Translator.EAGLE.fnct import _count_part,_mass_part
 from nazgul.Translator.EAGLE.fnct import get_z_snap,read_snap_header,get_nfiles
@@ -83,6 +82,32 @@ def get_rnd_gal_indexes(sim=std_sim,
     kwGal    = {"z":z,"kw_Gal":kw_Gal,"sim":sim,"M":M,"Centre":Centre}
     return kwGal
 
+def get_vdisp(simpargal,**kwargs_query):
+    snap,Gn,SGn = simpargal.snap,simpargal.Gn,simpargal.SGn
+    try:
+        cat_path = get_catpath(**kwargs_query)
+        query_out = load_whatever(cat_path)
+        if not "SVD" in query_out.keys():
+            if "Vdisp" in query_out.keys():
+                query_out["SVD"] = query_out["Vdisp"]
+            else:
+                raise RuntimeError(f"Query results do not contain velocity dispersion. Keys:{query_out.keys()}")
+    except Exception as e:
+        print(f"Failed to recover previous cat due to Error: {e}\nRerunning query...")
+        if "simsuite" in kwargs_query:
+            del kwargs_query["simsuite"]
+        myQuery = get_query(**kwargs_query)
+        from nazgul.Translator.EAGLE.sql_connect import exec_query
+        query_out = exec_query(myQuery)
+        
+    vdisp_stars_all = query_out["SVD"]*u.km/u.s
+    list_Gn   = query_out["Gn"]
+    list_SGn  = query_out["SGn"]
+    list_z    = query_out["z"]
+    list_snap = np.array([int(get_snap(zi)) for zi in list_z])
+    vdisp_stars = vdisp_stars_all[(list_Gn==Gn) & (list_SGn==SGn) & (list_snap==int(snap))]
+    assert len(vdisp_stars)==1    
+    return vdisp_stars[0] # km/s
 
 def get_kw_SimPartGal(kw_Gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload):
     

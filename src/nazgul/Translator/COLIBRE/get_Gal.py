@@ -200,20 +200,29 @@ def select_minmass_stars(selection_criteria,min_mass_stars,scale_factor,verbose=
         print(f"and selecting only galaxies w. stellar mass more than {min_mass_stars} {unit}")
     candidates_gal = Mboundhalo_stars> min_mass_stars
     return candidates_gal
+
+def _get_vdisp(selection_criteria,unit = "km/s"):
+    if unit=="km/s":
+        unit2 = "km**2/s**2"
+    else:
+        raise NotImplementedError(f"To implement the square of the unit {unit}") 
+    # veldisp2_matrix = 6 dim matrix of vel disp - sigma_xx^2,sigma_yy^2,sigma_zz^2,sigma_xy^2,sigma_xz^2,sigma_yz^2 (note the square!)
+    veldisp2_matrix = selection_criteria.stellar_velocity_dispersion_matrix.to_physical_value(unit2)
+    # our vel disp is expected to be sigma_v = sqrt( (sigma_xx^2+sigma_yy^2+sigma_zz^2)/3):
+    # see eq 17 Vandenbroucke et al
+    # https://ftp.strw.leidenuniv.nl/mcgibbon/SOAP.pdf
+    vel_disp = (np.sum(veldisp2_matrix[:,:3],axis=1)/3)**.5
+    return vel_disp
     
 def select_minveldisp(selection_criteria,min_vel_disp,scale_factor,verbose=True):
     """
     Return index list of candidates galaxies with velocity dispersion (bound_halo tot mass) higher than min_mass
     """
-    unit = "km**2/s**2"
-    veldisp2_matrix = selection_criteria.stellar_velocity_dispersion_matrix.to_physical_value(unit)
-    # veldisp_matrix = 6 dim matrix of vel disp - sigma_xx^2,sigma_yy^2,sigma_zz^2,sigma_xy^2,sigma_xz^2,sigma_yz^2
-    # our vel disp is expected to be sigma_v = sqrt(sigma_xx^2+sigma_yy^2+sigma_zz^2):
-    vel_disp = np.sum(veldisp2_matrix[:,:3],axis=1)**.5
-    min_vel_disp = cosmo_quantity(min_vel_disp,u.km**2/u.s**2,comoving=False,scale_factor=scale_factor, scale_exponent=0).to_physical_value(unit)
+    unit = "km/s"
+    vel_disp = _get_vdisp(selection_criteria,unit)
+    min_vel_disp = cosmo_quantity(min_vel_disp,u.km/u.s,comoving=False,scale_factor=scale_factor, scale_exponent=0).to_physical_value(unit)
     if verbose:
         print(f"and selecting only galaxies w. velocity dispersion more than {min_vel_disp} {unit}")
-    #candidates_gal = np.argwhere(vel_disp>min_vel_disp).squeeze()
     candidates_gal = vel_disp>min_vel_disp
     return candidates_gal
     
