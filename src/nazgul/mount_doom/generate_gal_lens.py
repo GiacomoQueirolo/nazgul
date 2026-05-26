@@ -348,7 +348,7 @@ def wrapper_get_all_lens(reload=True,
     if verbose:
         print(f"Found n={len(all_lenses)} Lenses")
         print(f"i.e. {np.round(len(all_lenses)/len(all_Gal*3)*100,1)}% of Galaxies (considering their rotations)")
-        
+
     return all_lenses
 
 # get a lens no matter what:
@@ -357,7 +357,7 @@ def wrapper_get_rnd_lens(reload=True,
                         kw_galpart={}):
     """Try to get a lens from random galaxies, repeat until finds one
     which is an actual lens (i.e. supercritical)
-    """    
+    """
     kw_lenspart = get_kw_lenspart(reload,kw_lenspart)
     kw_galpart  = get_kw_galpart(kw_galpart)
     while True:
@@ -371,7 +371,8 @@ def wrapper_get_rnd_lens(reload=True,
                 mod_LP = GalLens(Galaxy=Gal,
                               **kw_lenspart)
                 mod_LP.run(read_prev=reload)
-                return mod_LP            
+                return mod_LP
             except ProjectionError as PE:
                 kw_lenspart["projection_index"]+=1
         print("All projections of this galaxy are not supercritical #\n","Trying different galaxy")
+        kw_lenspart["projection_index"] = 0

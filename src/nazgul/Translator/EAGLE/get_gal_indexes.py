@@ -30,12 +30,12 @@ def get_gals(sim=std_sim, simsuite=std_simsuite,
     min_z = str(min_z)
     max_z = str(max_z)
 
-    cat_path = get_catpath(min_mass=min_mass,
-                           min_z=min_z, max_z=max_z,
+    cat_path = get_catpath(min_mass=min_mass, \
+                           min_z=min_z, max_z=max_z, \
                            sim=sim, simsuite=simsuite, **kwargs_query)
 
     # select higher masses bc 1) lenses 2) else we have too many points
-    myQuery = get_query(sim=sim, min_mass=min_mass,
+    myQuery = get_query(sim=sim, min_mass=min_mass, \
                         min_z=min_z, max_z=max_z, **kwargs_query)
 
     # NOTE: center of mass is in comoving coord.(cMpc)
@@ -133,7 +133,7 @@ def get_catpath(sim=std_sim, simsuite=std_simsuite,
         cat_name += f"{k}{short_SciNot(kwargs_query[k])}"
     cat_name += ".pkl"
 
-    sim_path = get_catdir(sim=sim, simsuite=simsuite)
+    sim_path = get_catdir(sim=sim, simsuite=std_simsuite)
     cat_path = sim_path / cat_name
     return cat_path
 
