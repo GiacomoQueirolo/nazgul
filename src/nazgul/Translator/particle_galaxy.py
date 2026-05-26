@@ -5,6 +5,7 @@ Define the basic galaxy class PartGal (storing all particle data), as well as re
 import dill
 import numpy as np
 from decimal import Decimal
+from pathlib import Path
 from astropy.stats import sigma_clip
 
 from python_tools.tools import mkdir
@@ -46,6 +47,15 @@ class BasicPartGal(BasicGal):
                 f"Cannot make dill_path relative: '{full_path}' contains no "
                 f"'{data_root}' component"
             )
+
+    def rebase(self, new_nazgul_path=None):
+        """Update gal_dir to use the local (or given) nazgul_path.
+
+        Call this after loading a pickle that was created on a different machine
+        so that derived paths (proj_dir, etc.) resolve correctly on this host.
+        """
+        base = Path(new_nazgul_path) if new_nazgul_path is not None else path_nazgul
+        self.gal_dir = base / self.dill_path.parent
 
     def dill_path_abs(self, path_nazgul_load=None):
         """Absolute path for file I/O.

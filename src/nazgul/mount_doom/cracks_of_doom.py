@@ -373,6 +373,7 @@ class BasicLensPart(BasicGal):
         # reload Galaxy and cosmology
         if not hasattr(self,"Gal"):
             Galaxy   = LoadGal(_resolve_gal_path(self.Gal_path))
+            Galaxy.rebase()
             if not isinstance(Galaxy,ProjGal):
                 Galaxy   = ProjGal(Gal=Galaxy,
                                projection_index=self.proj_index)
