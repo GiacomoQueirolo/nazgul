@@ -53,7 +53,9 @@ class GalLens(BasicLensPart):
                  kw_prior_z_source = kw_prior_z_source_stnd, # could likelihood of z_source
                  min_thetaE = min_thetaE, # minimum theta observable
                  #subdir="./",           # subdirectory (to differentiate btw versions)
+                 ignore_OoBErr=False,   # ignore Out of Bound errors in lenstronomy lens profile
                  reload=True # reload previous instance
+                 
                  ):
         super().__init__(Galaxy=Galaxy,
                          projection_index=projection_index,
@@ -63,6 +65,7 @@ class GalLens(BasicLensPart):
                          min_thetaE=min_thetaE,
                          #subdir=subdir,
                          reload=reload)
+        self.ignore_OoBErr = ignore_OoBErr
         self.savedir  = get_lens_lowdir_from_galdir(galdir=self.Gal.gal_dir)
         mkdir(self.savedir)
 
@@ -165,6 +168,8 @@ class GalLens(BasicLensPart):
             kwLnsPart,LnsProfPart  = self.PartLens.get_lens_PART(samples=samples,Ms=Ms)
             self.kwargs_lens       = kwLnsPart
             self.lens_prof         = LnsProfPart
+            if self.ignore_OoBErr:
+                self.lens_prof.ignore_OoBErr = self.ignore_OoBErr
             print("... Lensing params set up (GalLens)")
         
     def _psi_map(self,_radec=None):
