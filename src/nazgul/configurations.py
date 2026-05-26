@@ -3,10 +3,11 @@ import astropy.units as u
 
 
 ## Set the path to the nazgul directory - may be needed for hpc systems
-nazgul_path = Path(__file__).parent
+nazgul_path = Path(__file__).parent #Path('/cosma8/data/dp004/dc-lang2/ColibreLens/EAGLE_Lensing/src/nazgul')
+#Path('/Users/samlange/Code/ColibreLens/EAGLE_Lensing/src/nazgul')
 
 ## Set which lens populations to use: LSST, Euclid or DES
-forecast_telescope = 'LSST'
+forecast_telescope = 'Euclid'
 
 ## Set standard simsuite
 SimSuiteNames = ["EAGLE", "COLIBRE"] #allowed simusuites - do not edit
@@ -24,5 +25,5 @@ min_thetaE    = .3*u.arcsec # minimum theta_E allowed for a lens
 pixel_num     = 200 # pix for image
 verbose       = True
 z_source_max  = 4
-scale_tE      = 2 # How many times larger than the einstein radius should the image be
+scale_tE      = 10 # How many times larger than the einstein radius should the image be
 

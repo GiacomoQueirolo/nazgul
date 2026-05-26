@@ -19,7 +19,7 @@ from python_tools.get_res import load_whatever,get_path_str
 from python_tools.tools import mkdir,to_dimless,ensure_unit,short_SciNot
 
 import nazgul.pathfinder as pthf 
-from nazgul.pathfinder import get_proj_dir_from_galdir,path_nazgul
+from nazgul.pathfinder import get_proj_dir_from_galdir, path_nazgul, tmp_dir
 from nazgul.pathfinder import nm_proj_dir as dir_name
 from nazgul.lib_cosmo import SigCrit,DsDds
 from nazgul.AMR2D_PLL import AMR_density_PLL,plot_AMR_cells,get_MDfromAMRcells_PLL
@@ -262,7 +262,7 @@ def dens_map_AMR(kw_parts_proj,
     kw_2Ddens = {"MD_value":MD_value,"MD_coords":MD_coords,"AMR_cells":AMR_cells}
     return kw_2Ddens
 
-def get_min_z_source(GalProj,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,savenameSigmaEnc = "tmp/Sigma_enc.png"):
+def get_min_z_source(GalProj,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,savenameSigmaEnc = tmp_dir/"Sigma_enc.png"):
     """Given a projection, return the minimal z_source
     fails if it can't produce a supercritical lens w. z_source<z_source_max and 
     Sigma(theta_min)>Sigma_crit
@@ -408,7 +408,7 @@ def _get_min_z_source(cosmo,z_lens,thresh_DsDds,z_source_max,verbose=True):
             ax.axhline(thresh_DsDds,ls="--",c="r",label=r"thr(dens)*4$\pi$*G*$D_{\text{l}}$/c$^2$="+str( short_SciNot(thresh_DsDds)))
             ax.set_title("Comparison between Distance ratio and threshold density")
             ax.legend()
-            name = "tmp/DsDds.pdf"
+            name = tmp_dir/"DsDds.pdf"
             fig_dsdds.savefig(name)
             plt.close(fig_dsdds)
             print("threshold density",short_SciNot(thresh_DsDds))
@@ -418,7 +418,7 @@ def _get_min_z_source(cosmo,z_lens,thresh_DsDds,z_source_max,verbose=True):
         z_source_min = _get_min_z_source_thresh_DsDds(z_source_range,thresh_DsDds,cosmo,z_d=z_lens)
         return z_source_min
 
-def get_rough_thetaE(kw_2Ddens,cosmo,z_lens,z_source,nm_sigmaplot="Sigma_AMR.png",path=Path("tmp/"),fig_Sig=None):
+def get_rough_thetaE(kw_2Ddens,cosmo,z_lens,z_source,nm_sigmaplot="Sigma_AMR.png",path=tmp_dir,fig_Sig=None):
     # approximate theta_E of the galaxy
 
     Dd      = cosmo.angular_diameter_distance(z_lens).to("Mpc")
@@ -470,8 +470,8 @@ def cells2SigRad(kw_2Ddens):
     # Compute enclosed density Sigma(<r)
     Sigma_encl = cumulative_mass/cumulative_area
     return r_sorted,Sigma_encl
-    
-def theta_E_from_AMR_densitymap(kw_2Ddens, Dd, Ds, Dds,fig_Sig=None,nm_sigmaplot="Sigma.png",path=Path("tmp/")):
+
+def theta_E_from_AMR_densitymap(kw_2Ddens, Dd, Ds, Dds,fig_Sig=None,nm_sigmaplot="Sigma.png",path=tmp_dir):
     # Critical density
     Sigma_crit = (const.c**2 / (4*np.pi*const.G) * (Ds/(Dd*Dds))).to("Msun/kpc^2")
     # Physical scale of 1 arcsec at Dd
@@ -505,7 +505,7 @@ def theta_E_from_AMR_densitymap(kw_2Ddens, Dd, Ds, Dds,fig_Sig=None,nm_sigmaplot
     nm_savefig = path/nm_sigmaplot
     print(f"Saving {nm_savefig}")
     fig.savefig(nm_savefig)
-    fig.savefig("tmp/Sig_enc.png")
+    fig.savefig(path/'Sig_enc.png')
     plt.close(fig)
     return thetaE
     

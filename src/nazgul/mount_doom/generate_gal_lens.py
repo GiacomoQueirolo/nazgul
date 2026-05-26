@@ -204,6 +204,7 @@ class GalLens(BasicLensPart):
         # compute from density map
         # actually better bc does not depend on the particle profile
         if _radec is None:
+            _radec     = self._radec
             kw_extents = self.kw_extents
         else:
             kw_extents = get_extents(arcXkpc=self.arcXkpc,_radec=_radec)
@@ -282,7 +283,8 @@ def wrapper_get_all_lens(reload=True,
                         kw_lenspart={},
                         kw_galpart={},
                         verbose=True,
-                        _test=False):
+                        _test=False,
+                        _list_of_skippable_gals=None):
     """Get a lens from all available galaxies"""
     kw_lenspart = get_kw_lenspart(reload,kw_lenspart)
     kw_galpart  = get_kw_galpart(kw_galpart)
@@ -294,48 +296,55 @@ def wrapper_get_all_lens(reload=True,
         # Verify if all proj. have not already been computed 
         # (not important if it is a lens or not)
         print(f"\nNew Gal:\n     {Gal.name}\n")
-        
-        if gal_already_computed(Gal):
-            print("Galaxy already computed")
-            if reload:
-                print("Skipping")
-                continue
+        try:
+            if gal_already_computed(Gal):
+                print("Galaxy already computed")
+                if _list_of_skippable_gals is not None:
+                    if Gal.name in _list_of_skippable_gals:
+                        print("Skipping because in skippable list")
+                        continue
+                if reload:
+                    print("Reloading")
+                else:
+                    print("Recomputing")
+                    Gal.run(reload=reload)
             else:
-                print("Re-computing")
-        Gal.run(reload=reload)
-        strikes = 0
-        while kw_lenspart["projection_index"]<3:
-            try:
-                mod_LP = GalLens(Galaxy=Gal,
-                              **kw_lenspart)
-                mod_LP.run(read_prev=reload)
-                all_lenses.append(mod_LP)
-                pji = kw_lenspart["projection_index"]
-                print(f"Projection {pji} of {Gal.name} is supercritical!\n")
-            except ProjectionError as PE:
-                strikes+=1
-            kw_lenspart["projection_index"]+=1
-        if strikes==3:
-            print(f"All projections of Galaxy {Gal.name} are not supercritical")
-        print("Next galaxy.")
-        if verbose:
-            print("#########\nTime stamp:\n")
-            print(strftime("%Y-%m-%d %H:%M:%S", gmtime()))
-            print("#########\n")
+                Gal.run(reload=reload)
+            strikes = 0
+            while kw_lenspart["projection_index"]<3:
+                try:
+                    mod_LP = GalLens(Galaxy=Gal,
+                                  **kw_lenspart)
+                    mod_LP.run(read_prev=reload)
+                    all_lenses.append(mod_LP)
+                    pji = kw_lenspart["projection_index"]
+                    print(f"Projection {pji} of {Gal.name} is supercritical!\n")
+                except ProjectionError as PE:
+                    strikes+=1
+                kw_lenspart["projection_index"]+=1
+            if strikes==3:
+                print(f"All projections of Galaxy {Gal.name} are not supercritical")
+            print("Next galaxy.")
+            if verbose:
+                print("#########\nTime stamp:\n")
+                print(strftime("%Y-%m-%d %H:%M:%S", gmtime()))
+                print("#########\n")
 
-        kw_lenspart["projection_index"] = 0
-        if _test:
-            print("TEST - Stopping after only one")
-            return all_lenses
+            kw_lenspart["projection_index"] = 0
+            if _test:
+                print("TEST - Stopping after only one")
+                return all_lenses
+        except RuntimeError:
+            print('RUNTIME ERROR FOR THIS GALAXY, MOVING TO NEXT')
+            continue
     if _test:
         print("TEST - Stopping after only one")
         return all_lenses
     if verbose:
         print(f"Found n={len(all_lenses)} Lenses")
-        print(f"i.e. {np.round(len(all_lenses)/len(all_Gal)*100,1)}% of Galaxies")
+        print(f"i.e. {np.round(len(all_lenses)/len(all_Gal*3)*100,1)}% of Galaxies (considering their rotations)")
         
     return all_lenses
-
 
 # get a lens no matter what:
 def wrapper_get_rnd_lens(reload=True,

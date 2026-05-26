@@ -45,7 +45,7 @@ def get_sim_dir(sim=std_sim,subsim=None,
     return sim_dir
 
 def get_catdir(sim=std_sim,subsim=None,simsuite=std_simsuite,data_dir=std_data_dir):
-    sim_path = get_sim_dir(sim=sim,subsim=subsim,simsuite=std_simsuite,data_dir=data_dir)
+    sim_path = get_sim_dir(sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
     catdir = sim_path/"CatGal"
     mkdir(catdir)
     return catdir
