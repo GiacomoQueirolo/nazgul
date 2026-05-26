@@ -11,7 +11,7 @@ from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass
 
 from nazgul.basic_gal import BasicGal,store_class
-from nazgul.pathfinder import path_nazgul, path_nazgul_origin, std_data_dir
+from nazgul.pathfinder import path_nazgul, std_data_dir
 
 class BasicPartGal(BasicGal):
     """Given the simulation, snap (or z) and galaxy numbers, set up a class
@@ -50,10 +50,11 @@ class BasicPartGal(BasicGal):
     def dill_path_abs(self, path_nazgul_load=None):
         """Absolute path for file I/O.
 
-        Defaults to configurations.nazgul_path_origin (the machine where files
-        were created).  Pass path_nazgul_load to override explicitly.
+        Resolves the relative dill_path against the local path_nazgul by default.
+        Pass path_nazgul_load to override (e.g. to reference the original
+        remote location given by configurations.nazgul_path_origin).
         """
-        base = Path(path_nazgul_load) if path_nazgul_load is not None else path_nazgul_origin
+        base = Path(path_nazgul_load) if path_nazgul_load is not None else path_nazgul
         return base / self.dill_path
         
     ### Class Structure ####
