@@ -39,7 +39,7 @@ class BasicPartGal(BasicGal):
         str_gal = f"Sim {self.sim}"
         str_gal = f"Gal {self.name}"
         str_gal += f", at z={str(np.round(self.z,3))}/snap={self.snap},"
-        str_gal += f" with \nN={'%.1E'%Decimal(self.N_part)} part.\nof \ntot Mass={'%.1E'%Decimal(self.M)} [M_sun]\n"
+        str_gal += f" with \nN={'%.1E'%Decimal(int(self.N_part))} part.\nof \ntot Mass={'%.1E'%Decimal(float(self.M))} [M_sun]\n"
         return str_gal 
     ########################
     ########################
@@ -64,9 +64,17 @@ class BasicPartGal(BasicGal):
 
 def clip_coord(m,x,y,z,sigma=10):
     # clip coordinates outliers
-    mask = np.ones(len(x),dtype=bool)
-    for coord in x,y,z:
-        mask *= np.invert(sigma_clip(coord,sigma=sigma).mask)
+    dists = np.sum(np.array([x,y,z])**2,axis=1)
+    mask = np.invert(sigma_clip(dists,sigma=sigma).mask)
+
+    #mask = np.ones(len(x),dtype=bool)
+    #for coord in x,y,z:
+    #    mask *= np.invert(sigma_clip(coord,sigma=sigma).mask)
+    perc_final = np.round(len(m[mask])*100/len(m),3)
+    if perc_final<99:
+        print(100-perc_final,"% of particle discarded")
+        raise RuntimeError("Too many particles discarded")
+        
     return m[mask],x[mask],y[mask],z[mask]
     
 

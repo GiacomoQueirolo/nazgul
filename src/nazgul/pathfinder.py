@@ -1,8 +1,8 @@
 from pathlib import Path
 from python_tools.tools import mkdir
-from nazgul.configurations import std_simsuite
-from nazgul.Translator import std_sim,test_sim,tutorial_sim
+
 import nazgul.configurations as conf
+from   nazgul.Translator import std_sim,std_simsuite,test_sim,tutorial_sim
 """
 Data structure:
 ---------------

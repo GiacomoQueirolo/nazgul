@@ -26,15 +26,15 @@ do
     tar -xvf ${SIM}_snap_${snap}.tar
 done
 # check that all directories have 16 files
-cd $SIM
-
-for i in `ls -d */` 
-do  
-        NF=`ls $i/* | wc -l` 
-        if (($NF!=16)) 
-                then echo "${i} doesn't have 16 files, check it" 
-        fi  
-done
+# The following is not true for all the simulations
+#cd $SIM
+#for i in `ls -d */` 
+#do  
+#        NF=`ls $i/* | wc -l` 
+#        if (($NF!=16)) 
+#                then echo "${i} doesn't have 16 files, check it" 
+#        fi  
+#done
 
 # we can then remove the *tar files
 cd -

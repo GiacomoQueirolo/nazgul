@@ -1,23 +1,44 @@
+
+import os
+import warnings
+import importlib
+
 import nazgul.configurations as conf
 
-from nazgul.Translator.EAGLE import sim as sim_EAGLE
-from nazgul.Translator.COLIBRE import sim as sim_COLIBRE
-from nazgul.Translator.COLIBRE import subsim as subsim_COLIBRE
+sims = {}
+subsims = {}
+path_trnsl = conf.nazgul_path/"Translator"
 
-
-sims    = {"EAGLE":  sim_EAGLE,
-           "COLIBRE":sim_COLIBRE}
-subsims = {"EAGLE":{},
-           "COLIBRE":subsim_COLIBRE}
-
+for file in path_trnsl.iterdir():
+    file_name = str(file.name)
+    if file.is_dir() and not file_name.startswith('.') and not file_name.startswith('__'):
+        # those should be only directories representing availalbe simulations
+        simsuite = file_name
+        simsuite_module = importlib.import_module(f'.{simsuite}',"nazgul.Translator")
+        sim = simsuite_module.sim
+        # Not all simsuites have subsims
+        subsim = getattr(simsuite_module,"subsim",{})
+        sims[simsuite] = sim
+        subsims[simsuite] = subsim
+        
+        
 # Define the standard simulation (for convenience)
-std_simsuite = conf.std_simsuite
+std_simsuite  = conf.std_simsuite
 std_sim       = sims[std_simsuite][0]
+try:
+    std_subsim = subsims[std_simsuite][std_sim][0]
+except KeyError:
+    std_subsim = None
+try:
+    # use the following simulation only as test case
+    test_sim      = sims[std_simsuite][1]
+except IndexError:
+    test_sim = None
+    pass
+    #warnings.warn("Test simulation not implemented")
 
-# use the following simulation only as test case
-test_sim      = sims[std_simsuite][1]
 # used for tutorial -linked ONLY snap 20 of test_sim
-tutorial_sim  = sims[std_simsuite][2]
+tutorial_sim  = sims["EAGLE"][2]
 
 # Default values - kept here fore backwards compatability but now chosen in configurations
 min_z        = conf.min_z

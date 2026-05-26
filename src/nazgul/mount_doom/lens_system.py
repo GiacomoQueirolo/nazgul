@@ -21,7 +21,6 @@ from lenstronomy.ImSim.Numerics.numerics_subframe import NumericsSubFrame
 from python_tools.tools import to_dimless,mkdir
 import nazgul.mount_doom.cracks_of_doom as cod
 from nazgul.project_gal import get_2Dkappa_map
-from nazgul.Translator.translator import get_rnd_PG,get_all_PG
 from nazgul.mount_doom.generate_gal_lens import GalLens
 
 # Default values
@@ -198,7 +197,7 @@ class LensSystem():
         if _radec is None:
             _radec = self.gallens._radec
         _ra,_dec = _radec
-        alpha_x,alpha_y = self.gallens.lens_model.alpha(_ra, _dec, self.kwargs_lens)
+        alpha_x,alpha_y = self.lens_model.alpha(_ra, _dec, self.kwargs_lens)
         alpha_x,alpha_y = array2image(alpha_x),array2image(alpha_y)
         return alpha_x,alpha_y
         

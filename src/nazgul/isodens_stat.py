@@ -8,37 +8,34 @@ import matplotlib.pyplot as plt
 from python_tools.tools import to_dimless
 
 from nazgul.pathfinder import std_sim
-from nazgul.mount_doom.generate_particle_lens import LoadLens,default_savedir_sim
-from nazgul.mount_doom.generate_particle_lens import std_sim_lens_path as sim_lens_path
+from nazgul.stat_lenses import get_all_gallens_paths
+from nazgul.mount_doom.cracks_of_doom import LoadLens
+from nazgul.mount_doom.lens_system import LensSystem
+
 from nazgul.isodens import fit_isodens,plot_isodens
 
 if __name__=="__main__":
-    # this directory structure has to be rechecked
-    savedir_sim=default_savedir_sim
-    #lenses = glob.glob(f"{sim_lens_path}/{std_sim}/snap*/{savedir_sim}/*.pkl")
-    lenses = sim_lens_path.glob(f"{std_sim}/snap*/{savedir_sim}/*.pkl")
+    gal_lenses_path = get_all_gallens_paths()
     gamma_distr = [] 
     f_ellipt_distr = []
     DPA_distr = []
     f_bxdk_distr = [] # boxydiskyness, b4
     drift_x,drift_y = [],[]
     fig,axis = plt.subplots(6,2,figsize=(10,23))
-    for i,lens_pth in enumerate(lenses):
-        
-        lens    = LoadLens(lens_pth)
+    for i,gal_lens_path in enumerate(gal_lenses_path):        
+        lens = LoadLens(gal_lens_path)
         if lens is False:
             continue
         try:
             kw_res  = fit_isodens(lens)
-            #plot_isodens(lens,kw_res=kw_res)
         except Exception as e:
-            print(f"Lens {lens_pth} failed:\n{e}")
+            print(f"Lens {gal_lens_path} failed:\n{e}")
             print("skipping")
             continue
         logr    = kw_res["loglogfit"]["fitx"]
         r       = 10**np.array(logr) #kpc
-        theta   = r*to_dimless(lens.arcXkpc) #arcsec
-        th_nrm  = theta/to_dimless(lens.thetaE) #dimless
+        theta   = r*to_dimless(gal_lens.arcXkpc) #arcsec
+        th_nrm  = theta/to_dimless(gal_lens.thetaE) #dimless
         i_thetaE = np.argmin(np.abs(th_nrm-1))
         isolist = kw_res["isodens"]["isolist"]
     
@@ -59,11 +56,11 @@ if __name__=="__main__":
 
         geom  = kw_res["isodens"]["geom"]
         dx    = (isolist.x0[1:]-geom.x0) #pix
-        dxarc = dx*to_dimless(lens.deltaPix) #arcsec
-        x0    = dxarc/to_dimless(lens.thetaE) # dimless
+        dxarc = dx*to_dimless(gal_lens.deltaPix) #arcsec
+        x0    = dxarc/to_dimless(gal_lens.thetaE) # dimless
         
         dy    = (isolist.y0[1:]-geom.y0) #pix
-        y0    = to_dimless(dy*lens.deltaPix/lens.thetaE) #dimless
+        y0    = to_dimless(dy*gal_lens.deltaPix/gal_lens.thetaE) #dimless
 
         bxdk   = isolist.b4[1:] # boxy-diskyness
         f_bxdk = bxdk/bxdk[i_thetaE]
@@ -158,10 +155,6 @@ if __name__=="__main__":
     ax.legend()
 
     ax = axis[5][1]
-    #med_bd,std_bd = np.median(bxdk_distr),np.std(bxdk_distr)
-    #axis[3][0].set_ylim(np.max(med_bd-3*std_bd,np.min(bxdk_distr)),np.min(med_bd+3*std_bd,np.max(bxdk_distr)))
-    # Arbitrary by hand for simplicity
-    #axis[5][0].set_ylim(-.1,0.5)
 
     ax.hist(f_bxdk_distr,bins=n_bins)
     med_fb4 = np.median(f_bxdk_distr)

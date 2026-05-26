@@ -10,91 +10,63 @@ from python_tools.tools import Read_Column_File
 from nazgul.configurations import forecast_telescope
 
 
-if forecast_telescope == 'LSST':
-    file0       = LensPop_dir/"lenses_LSSTa.txt"
-    if LensPop_dir.is_dir() is False:
-        LensPop_dir.mkdir()
-    if file0.is_file() is False:
-        print("Downloading the LensPop catalogue for LSST")
-        import requests
-        git_path = "https://raw.githubusercontent.com/tcollett/LensPop/master"
-        for lett in "a","b","c":
-            file_name = "lenses_LSST"+lett+".txt"
-            raw_file  = requests.get(git_path+"/"+file_name).text
-            with open(LensPop_dir/file_name,"w") as f:
-                f.write(raw_file)
-        
-    print("Source z prior inferred from tcollett/LensPop.git, assuming the LSST telescope")
+def get_stat_z(forecast_telescope="LSST",verbose=False):
+    git_path = "https://raw.githubusercontent.com/tcollett/LensPop/master"
     
-    zla = Read_Column_File(LensPop_dir/"lenses_LSSTa.txt")[0]
-    zsa = Read_Column_File(LensPop_dir/"lenses_LSSTa.txt")[1]
-    zlb = Read_Column_File(LensPop_dir/"lenses_LSSTb.txt")[0]
-    zsb = Read_Column_File(LensPop_dir/"lenses_LSSTb.txt")[1]
-    zlc = Read_Column_File(LensPop_dir/"lenses_LSSTc.txt")[0]
-    zsc = Read_Column_File(LensPop_dir/"lenses_LSSTc.txt")[1]
-
-    stat_zl = np.hstack([zla,zlb,zlc])
-    stat_zs = np.hstack([zsa,zsb,zsc])
-
-
-elif forecast_telescope == 'DES':
-    file0 = LensPop_dir / "lenses_DESa.txt"
-    if LensPop_dir.is_dir() is False:
-        LensPop_dir.mkdir()
-    if file0.is_file() is False:
-        print("Downloading the LensPop catalogue for DES")
-        import requests
-
-        git_path = "https://raw.githubusercontent.com/tcollett/LensPop/master"
-        for lett in "a", "b", "c":
-            file_name = "lenses_DES" + lett + ".txt"
+    if forecast_telescope in ["LSST","DES"]: 
+        file0 = LensPop_dir / f"lenses_{forecast_telescope}a.txt"
+        if LensPop_dir.is_dir() is False:
+            LensPop_dir.mkdir()
+        if file0.is_file() is False:
+            print(f"Downloading the LensPop catalogue for {forecast_telescope}")
+            import requests
+            for lett in "a", "b", "c":
+                file_name = f"lenses_{forecast_telescope}" + lett + ".txt"
+                raw_file = requests.get(git_path + "/" + file_name).text
+                with open(LensPop_dir / file_name, "w") as f:
+                    f.write(raw_file)
+        if verbose:
+            print(f"Source z prior inferred from tcollett/LensPop.git, assuming the {forecast_telescope} telescope")
+        
+        zla = Read_Column_File(LensPop_dir/f"lenses_{forecast_telescope}a.txt")[0]
+        zsa = Read_Column_File(LensPop_dir/f"lenses_{forecast_telescope}a.txt")[1]
+        zlb = Read_Column_File(LensPop_dir/f"lenses_{forecast_telescope}b.txt")[0]
+        zsb = Read_Column_File(LensPop_dir/f"lenses_{forecast_telescope}b.txt")[1]
+        zlc = Read_Column_File(LensPop_dir/f"lenses_{forecast_telescope}c.txt")[0]
+        zsc = Read_Column_File(LensPop_dir/f"lenses_{forecast_telescope}c.txt")[1]
+    
+        stat_zl = np.hstack([zla,zlb,zlc])
+        stat_zs = np.hstack([zsa,zsb,zsc])
+        
+    elif forecast_telescope == 'Euclid':
+        file0 = LensPop_dir / "lenses_Euclid.txt"
+        if LensPop_dir.is_dir() is False:
+            LensPop_dir.mkdir()
+        if file0.is_file() is False:
+            print("Downloading the LensPop catalogue for Euclid")
+            import requests
+            file_name = "lenses_Euclid.txt"
             raw_file = requests.get(git_path + "/" + file_name).text
             with open(LensPop_dir / file_name, "w") as f:
                 f.write(raw_file)
-
-    print("Source z prior inferred from tcollett/LensPop.git, assuming the DES telescope")
-
-    zla = Read_Column_File(LensPop_dir / "lenses_DESa.txt")[0]
-    zsa = Read_Column_File(LensPop_dir / "lenses_DESa.txt")[1]
-    zlb = Read_Column_File(LensPop_dir / "lenses_DESb.txt")[0]
-    zsb = Read_Column_File(LensPop_dir / "lenses_DESb.txt")[1]
-    zlc = Read_Column_File(LensPop_dir / "lenses_DESc.txt")[0]
-    zsc = Read_Column_File(LensPop_dir / "lenses_DESc.txt")[1]
-
-    stat_zl = np.hstack([zla, zlb, zlc])
-    stat_zs = np.hstack([zsa, zsb, zsc])
-
-
-elif forecast_telescope == 'Euclid':
-    file0 = LensPop_dir / "lenses_Euclid.txt"
-    if LensPop_dir.is_dir() is False:
-        LensPop_dir.mkdir()
-    if file0.is_file() is False:
-        print("Downloading the LensPop catalogue for Euclid")
-        import requests
-
-        git_path = "https://raw.githubusercontent.com/tcollett/LensPop/master"
-
-        file_name = "lenses_Euclid.txt"
-        raw_file = requests.get(git_path + "/" + file_name).text
-        with open(LensPop_dir / file_name, "w") as f:
-            f.write(raw_file)
-
-    print("Source z prior inferred from tcollett/LensPop.git, assuming the Euclid telescope")
-
-    zla = Read_Column_File(LensPop_dir / "lenses_Euclid.txt")[0]
-    zsa = Read_Column_File(LensPop_dir / "lenses_Euclid.txt")[1]
-
-    stat_zl = np.hstack([zla])
-    stat_zs = np.hstack([zsa])
     
-else:
-    raise ValueError('The forecast_telescope in the configurations.py file must be one of "LSST", "Euclid" or "DES". ')
-
+        print("Source z prior inferred from tcollett/LensPop.git, assuming the Euclid telescope")
+    
+        zla = Read_Column_File(LensPop_dir / "lenses_Euclid.txt")[0]
+        zsa = Read_Column_File(LensPop_dir / "lenses_Euclid.txt")[1]
+    
+        stat_zl = np.hstack([zla])
+        stat_zs = np.hstack([zsa])
+        
+    else:
+        raise ValueError('The forecast_telescope in the configurations.py file must be one of "LSST", "Euclid" or "DES". ')
+    return stat_zl,stat_zs
+    
 # the simplest way would be to return a likelihood based on
 # all z_sources
-def logL_z_source_all(z_source,z_lens=None,*args):
+def logL_z_source_all(z_source,z_lens=None,forecast_telescope="LSST",*args):
     # ignore z_lens
+    stat_zl,stat_zs = get_stat_z(forecast_telescope=forecast_telescope)
     lkl,bins = np.histogram(stat_zs,bins=40,density=1)
     zs       = (bins[1:]+bins[:-1])/2
     return np.interp(z_source,zs,lkl)
@@ -102,7 +74,8 @@ def logL_z_source_all(z_source,z_lens=None,*args):
 # slighly more complex (not sure how correct)
 # given the z_lens, select a range of zl around, 
 # and only fit for z_s of these lenses
-def logL_z_source_zl(z_source,z_lens,dzl=0.2,*args):
+def logL_z_source_zl(z_source,z_lens,dzl=0.2,forecast_telescope="LSST",*args):
+    stat_zl,stat_zs = get_stat_z(forecast_telescope=forecast_telescope)
     stat_zs_cut = stat_zs[np.where(np.abs(stat_zl-z_lens)<dzl)]
     lkl,bins = np.histogram(stat_zs_cut,bins=40,density=1)
     zs       = (bins[1:]+bins[:-1])/2

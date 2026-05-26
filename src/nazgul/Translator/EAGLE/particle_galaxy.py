@@ -6,6 +6,7 @@ Define the galaxy class PartGal (storing all particle data), as well as related 
 import glob
 import dill
 import h5py
+import warnings
 import numpy as np
 from copy import copy
 from pathlib import Path
@@ -21,8 +22,7 @@ from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass
 from python_tools.get_res import load_whatever
 
-from nazgul.Translator.EAGLE.get_gal_indexes import get_gals
-from nazgul.Translator.EAGLE.get_gal_indexes import get_catpath
+from nazgul.Translator.EAGLE.get_gal_indexes import get_gals,get_catpath,get_query
 from nazgul.pathfinder import get_gal_dir,get_part_dir,std_sim,std_data_dir,path_nazgul
 from nazgul.Translator.EAGLE.fnct import _count_part,_mass_part
 from nazgul.Translator.EAGLE.fnct import get_z_snap,read_snap_header,get_nfiles
@@ -67,14 +67,47 @@ def get_rnd_gal_indexes(sim=std_sim,
                         **kwargs_query)
     index = np.arange(len(data["z"]))
     rnd_i = np.random.choice(index)
-    kw = {}
+    kw_gal = {}
     for k in data.keys():
         if k=="query" or k=="sim":
-            kw[k] = data[k]
+            kw_gal[k] = data[k]
         else:
-            kw[k] = data[k][rnd_i]
-    return kw
+            kw_gal[k] = data[k][rnd_i]
 
+    z        = kw_gal["z"]
+    M        = kw_gal["M"]
+    kw_Gal   = {"Gn":kw_gal["Gn"],"SGn":kw_gal["SGn"]}
+    Centre   = np.array([kw_gal["CMx"],kw_gal["CMy"],kw_gal["CMz"]])
+
+    kwGal    = {"z":z,"kw_Gal":kw_Gal,"sim":sim,"M":M,"Centre":Centre}
+    return kwGal
+
+def get_vdisp(simpargal,**kwargs_query):
+    snap,Gn,SGn = simpargal.snap,simpargal.Gn,simpargal.SGn
+    try:
+        cat_path = get_catpath(**kwargs_query)
+        query_out = load_whatever(cat_path)
+        if not "SVD" in query_out.keys():
+            if "Vdisp" in query_out.keys():
+                query_out["SVD"] = query_out["Vdisp"]
+            else:
+                raise RuntimeError(f"Query results do not contain velocity dispersion. Keys:{query_out.keys()}")
+    except Exception as e:
+        print(f"Failed to recover previous cat due to Error: {e}\nRerunning query...")
+        if "simsuite" in kwargs_query:
+            del kwargs_query["simsuite"]
+        myQuery = get_query(**kwargs_query)
+        from nazgul.Translator.EAGLE.sql_connect import exec_query
+        query_out = exec_query(myQuery)
+
+    vdisp_stars_all = query_out["SVD"]*u.km/u.s
+    list_Gn   = query_out["Gn"]
+    list_SGn  = query_out["SGn"]
+    list_z    = query_out["z"]
+    list_snap = np.array([int(get_snap(zi)) for zi in list_z])
+    vdisp_stars = vdisp_stars_all[(list_Gn==Gn) & (list_SGn==SGn) & (list_snap==int(snap))]
+    assert len(vdisp_stars)==1
+    return vdisp_stars[0] # km/s
 
 def get_kw_SimPartGal(kw_Gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload):
     
@@ -110,7 +143,7 @@ class SimPartGal(BasicPartGal):
         self.SGn      = kw_Gal["SGn"]
         # n* of files per snapshot:
         self.nfiles   = get_nfiles(sim)
-    
+
         # Input Dir:
         self.part_dir = get_part_dir(snap,sim=sim,simsuite=self.simsuite,data_dir=data_dir)
         # Output dir:
@@ -316,6 +349,15 @@ class SimPartGal(BasicPartGal):
         output = {"coords":[],"mass":[]}
         if itype!=1:
             output["smooth"] = []
+        if results==[]:
+            # create an empty output for missing particles
+            output["coords"] = np.array([[],[],[]]).T
+            output["mass"] = np.array([])
+            if itype!=1:
+                output["smooth"] = np.array([])
+            warnings.warn(f"This galaxy do not contain particle of type {itype}")
+            return output
+
         for r in results:
             output["coords"].append(r["coords"])
             output["mass"].append(r["mass"])
@@ -465,7 +507,7 @@ def _load_one_file(args):
             # Convert to proper/physical mass 
             dm_scale        = cgs_massdm*(a**aexp_massdm)*(h**hexp_massdm)
             results["mass"] = np.multiply(mass2scale, dm_scale, dtype='f8')*u.g.to(u.Msun)
-            
+
             # DM has no smoothing scale
             results["smooth"] = None
 
@@ -563,15 +605,10 @@ def get_rnd_SPG(sim=std_sim,min_mass=min_mass,min_z=min_z,max_z=max_z,
     """Randomly sample a galaxy from the simulation 
     """
 
-    kw_gal   = get_rnd_gal_indexes(sim=sim,min_mass=min_mass,
+    kwGal   = get_rnd_gal_indexes(sim=sim,min_mass=min_mass,
                                    min_z=min_z,max_z=max_z,
                                    check_prev=check_prev,save_pkl=save_pkl)
-    z        = kw_gal["z"] 
-    M        = kw_gal["M"] 
-    kw_Gal   = {"Gn":kw_gal["Gn"],"SGn":kw_gal["SGn"]}
-    Centre   = np.array([kw_gal["CMx"],kw_gal["CMy"],kw_gal["CMz"]]) 
-    
-    kwGal    = {"z":z,"kw_Gal":kw_Gal,"sim":sim,"M":M,"Centre":Centre}
+
     SPG      = SimPartGal(**kwGal)
     return SPG
 
@@ -649,19 +686,19 @@ def compute_axis_ratio(Gal):
 
     # clip particle outliers
     Ms,Xs,Ys,Zs = clip_coord(Mstar,Xstar,Ystar,Zstar)
-     
-    Cx,Cy,Cz = Gal.centre*u.Mpc.to("kpc")*u.kpc/(Gal.xy_propr2comov) # (now) kpc 
-    
+
+    Cx,Cy,Cz = Gal.centre*u.Mpc.to("kpc")*u.kpc/(Gal.xy_propr2comov) # (now) kpc
+
     Xs -= Cx
     Ys -= Cy
     Zs -= Cz
-    
+
     mass = Mstar.value
     # center positions first!
     x = Xs.value
     y = Ys.value
     z = Zs.value
-    
+
     pos = np.transpose([x,y,z])
     I = np.zeros((3,3))
     for i in range(len(pos)):

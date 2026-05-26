@@ -285,7 +285,7 @@ def get_min_z_source(GalProj,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,
     _interpSigEncArc2   = interp1d(theta,Sigma_encl_arc)
     # define it such that it preserves the units
     def interpSigEncArc2(thetaE):
-        ensure_unit(thetaE,u.arcsec)
+        thetaE = ensure_unit(thetaE,u.arcsec)
         return _interpSigEncArc2(thetaE)*Sigma_encl_arc.unit
     # create a function to verify that the given lens is is indeed a lens
     verify_lens  = create_verify_lens_fnc(interpSigEncArc2)
@@ -521,7 +521,7 @@ def Gal2kw_samples(Gal,proj_index,MD_coords,arcXkpc,dist_thresh=50*u.arcsec):
     # RA,DEC= arcsec, Ms = Msun
     #print("Some galaxy have a 'shifted' CM")
     RA_cm,DEC_cm = get_CM(Ms,RAs,DECs)
-    print(f"We recenter around the maximum density point (MD) obtained with AMR") 
+    print(f"Recentering around the maximum density point (MD) obtained with AMR")
     RA_MD,DEC_MD = MD_coords.to("kpc")*arcXkpc
     print("Info:  CM vs MD ")
     print("CM:",np.round(RA_cm,2),np.round(DEC_cm,2))
@@ -530,7 +530,7 @@ def Gal2kw_samples(Gal,proj_index,MD_coords,arcXkpc,dist_thresh=50*u.arcsec):
     print("Dist:",np.round(dist,2))
     dist = ensure_unit(dist,u.arcsec)
     if dist>dist_thresh:
-        warnings.warn(RuntimeWarning(f"The distance between MD and CM {np.round(dist,2)} is larger then {np.round(dist_thresh,2)}."))
+        warnings.warn(RuntimeWarning(f"The distance between MD and CM {np.round(dist,2)} is larger than {np.round(dist_thresh,2)}."))
     kw_samples   = {}
     kw_samples["RAs"]  = RAs-RA_MD   #arcsec
     kw_samples["DECs"] = DECs-DEC_MD  #arcsec
@@ -552,7 +552,10 @@ def get_2Dkappa_map(Gal,proj_index,MD_coords,SigCrit,kwargs_extents,arcXkpc=None
                                        weights=Ms,
                                        density=False) 
     # mass_grid shape: (nx, ny) -> transpose to (ny, nx) -> given the circular simmetry, doesn't really matter
-    Dra01,Ddec01 = kwargs_extents["DRaDec"]
+    ra_edges,dec_edges = kwargs_extents["bins_arcsec"]
+    Dra01   = np.diff(ra_edges) 
+    Ddec01  = np.diff(dec_edges)
+    
     # density_ij = M_ij/(Area_bin_ij)
     density    = mass_grid.T / (Dra01*Ddec01/(arcXkpc**2)) # Msun/kpc^2
     kappa = density/SigCrit

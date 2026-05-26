@@ -10,9 +10,8 @@ nazgul_path = Path(__file__).parent #Path('/cosma8/data/dp004/dc-lang2/ColibreLe
 forecast_telescope = 'Euclid'
 
 ## Set standard simsuite
-SimSuiteNames = ["EAGLE", "COLIBRE"] #allowed simusuites - do not edit
-std_simsuite  = SimSuiteNames[0]
-
+SimSuiteNames = ["EAGLE", "COLIBRE","ANL_TEST"] #allowed simsuites - do not edit
+std_simsuite  = SimSuiteNames[1]
 
 ## Set Default values
 #The below came from Translator/init

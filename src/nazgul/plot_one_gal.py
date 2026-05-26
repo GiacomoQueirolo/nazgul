@@ -60,30 +60,46 @@ def plot_gal(gl):
     xm,ym=np.mean(xy_dm,axis=1)
 
     fg,axes = plt.subplots(2,2)
+    nbins = 60
     ax = axes[0][0]
     ax.set_title("Stars particles")
-    im0 = ax.scatter(*xy_str,c=np.log(m_str),alpha=.2,cmap="coolwarm_r",marker=".")
+    #im0 = ax.scatter(*xy_str,c=np.log(m_str),alpha=.2,cmap="coolwarm_r",marker=".")
+    hist,edgex,edgey = np.histogram2d(*xy_str,bins=nbins,weights=np.log10(m_str))
+    extent = [edgex[0],edgex[-1],edgey[0],edgey[-1]]
+    im0 = ax.imshow(hist.T,extent=extent,origin="lower",cmap="coolwarm_r")
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fg.colorbar(im0, cax=cax, orientation='vertical',label="log(Star Mass)")
 
     ax = axes[0][1]
     ax.set_title("DM particles")
-    im0 = ax.scatter(*xy_dm,c=np.log(m_dm),alpha=.2,cmap="winter",marker=".")
+    #im0 = ax.scatter(*xy_dm,c=np.log(m_dm),alpha=.2,cmap="winter",marker=".")
+    hist,edgex,edgey = np.histogram2d(*xy_dm,bins=nbins,weights=np.log10(m_dm))
+    extent = [edgex[0],edgex[-1],edgey[0],edgey[-1]]
+    im0 = ax.imshow(hist.T,extent=extent,origin="lower",cmap="winter")
+    
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fg.colorbar(im0, cax=cax, orientation='vertical',label="log(DM Mass)")
 
     ax = axes[1][0]
     ax.set_title("Gas particles")
-    im0 = ax.scatter(*xy_gas,c=np.log(m_gas),alpha=.2,cmap="coolwarm_r",marker=".")
+    #im0 = ax.scatter(*xy_gas,c=np.log(m_gas),alpha=.2,cmap="coolwarm_r",marker=".")
+    hist,edgex,edgey = np.histogram2d(*xy_gas,bins=nbins,weights=np.log10(m_gas))
+    extent = [edgex[0],edgex[-1],edgey[0],edgey[-1]]
+    im0 = ax.imshow(hist.T,extent=extent,origin="lower",cmap="coolwarm")
+
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fg.colorbar(im0, cax=cax, orientation='vertical',label="log(Gas Mass)")
     
     ax = axes[1][1]
     ax.set_title("Blackholes particles")
-    im0 = ax.scatter(*xy_bh,c=np.log(m_bh),alpha=.2,cmap="coolwarm_r",marker=".")
+    #im0 = ax.scatter(*xy_bh,c=np.log(m_bh),alpha=.2,cmap="coolwarm_r",marker=".")
+    hist,edgex,edgey = np.histogram2d(*xy_bh,bins=nbins,weights=np.log10(m_bh))
+    extent = [edgex[0],edgex[-1],edgey[0],edgey[-1]]
+    im0 = ax.imshow(hist.T,extent=extent,origin="lower",cmap="coolwarm")
+
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fg.colorbar(im0, cax=cax, orientation='vertical',label="log(BH Mass)")

@@ -66,7 +66,7 @@ def get_z_snap(simsuite,z=None,snap=None):
     return get_z_snap(z=z,snap=snap)
 
 def Gal2MXYZ(Gal):
-    print("DEBUG: Running gal in translator Gal2MXYZ")
+    print("Running Gal2MXYZ...")
     Gal.run()
     simsuite = Gal.simsuite
     Gal2MXYZ = get_sim_func(simsuite,"Gal2MXYZ")
@@ -110,6 +110,10 @@ def get_all_PG(simsuite,**kw_galpart):
         PG  = PartGal.SPG2PG(SPG)
         all_PG.append(PG)
     return all_PG
+
+def get_vdisp(simsuite,simpartgal,**kw_veldisp):
+    get_vdisp_sim = get_sim_func(simsuite,"get_vdisp")
+    return get_vdisp_sim(simpartgal,**kw_veldisp)
     
 def LoadGal(path,if_fail_recompute=True,verbose=True):
     # Try loading galaxy - if fail and fail_recompute==True, try recomputing it

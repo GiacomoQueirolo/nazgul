@@ -21,13 +21,15 @@ from python_tools.get_res import load_whatever
 from nazgul.plot_PL import plot_all
 from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
 from nazgul.mount_doom.cracks_of_doom import LoadLens,get_extents
-#from nazgul.mount_doom.generate_particle_lens_dom import wrapper_get_rnd_lens,LensPart
 from nazgul.mount_doom.lens_system import LensSystem
 from nazgul.plot_PL import plot_kappamap
 
 from nazgul.lens_part_LOS import get_kw_los
+from nazgul.pathfinder import get_sim_dir
+
 #default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_023/Gn7SGn0/Sub/Sub_Gn7SGn0_Npix200_PartAS_Prj0.pkl"
-default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_027/Gn3SGn0/Sub/Sub_Gn3SGn0_Npix200_PartAS_Prj1.pkl"
+#default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_027/Gn3SGn0/Sub/Sub_Gn3SGn0_Npix200_PartAS_Prj1.pkl"
+default_lens_path = f"{get_sim_dir()}/snap_027/Gn22SGn0/Sub/Sub_Gn22SGn0_Npix200_PartAS_Prj0.pkl"
 
 lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
 source_model_list = ["SERSIC"]
@@ -193,7 +195,7 @@ if __name__=="__main__":
        (PSO_it: PSO iterations, PSO_prt: PSO particles, MCMCr: MCMC run steps, MCMCb: MCMC burn in steps)\n""")
     parser.add_argument('-mtE','--min_theta_E',type=float,default=0.5,dest="min_thetaE",
                         help="Minimum thetaE threshold for the galaxy to be considered a lens (float, e.g. 0.9)")
-    parser.add_argument('-mM','--min_Mass',type=str,default="3e12",dest="min_mass",
+    parser.add_argument('-mM','--min_Mass',type=str,default="1e12",dest="min_mass",
                         help="Minimum mass threshold for the galaxy to be loaded (str, e.g. 3e12)")
     parser.add_argument('-lp','--lens_path',type=str,default=default_lens_path,
                         dest="lens_path",

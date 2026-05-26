@@ -1,23 +1,46 @@
 # count effective lenses
-import dill
+import dill,sys
+import argparse
 import numpy as np
 from glob import glob
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from python_tools.tools import mkdir
 from python_tools.get_res import load_whatever
 from nazgul.pathfinder import get_catlensdir
 from nazgul.project_gal import ProjectionError
 
+from nazgul.Translator import std_sim,std_simsuite,std_subsim
+from nazgul.pathfinder import get_sim_dir,get_snap_dir,std_data_dir
 
-def get_all_gallens():    
+def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=std_subsim,data_dir=std_data_dir):
+    """
+    Loacate position of all computed
+    """
+    if len(snaps)!=0:
+        computed_gallenses = []
+        for snap in snaps:
+            snap_dir = get_snap_dir(snap,sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
+            print("DEBUG",snap_dir)
+            gallenses = glob(f"{snap_dir}/Gn*/Sub/Sub_*Prj?.pkl")
+            print("DEBUG",gallenses)
+            computed_gallenses.extend(gallenses)
+    else:
+        sim_dir = get_sim_dir(sim=sim,subsim=subsim,
+                    simsuite=simsuite,data_dir=data_dir)
+        computed_gallenses = glob(f"{sim_dir}/*/Gn*/Sub/Sub_*Prj?.pkl")
+        
+    if len(computed_gallenses)==0:
+        raise RuntimeError("No computed gallenses found")
+    return computed_gallenses
+        
+def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,data_dir=std_data_dir):
     lenses= []
-    # to implement a better selection function
-    computed_sublenses = glob("RingBearer/EAGLE/RefL0025N0752/snap_027/Gn*SGn*/Sub/Sub_*Prj?.pkl")
-    N_computed_sublenses = len(computed_sublenses)
+    computed_gallenses = get_all_gallens_paths(snaps=snaps,sim=sim,simsuite=simsuite,subsim=subsim,data_dir=data_dir)
     
-    for sub_lns in computed_sublenses:
-        ln = load_whatever(sub_lns)
+    for gal_lns in computed_gallenses:
+        ln = load_whatever(gal_lns)
         ln.unpack()
         try:
             ln.run()
@@ -28,12 +51,31 @@ def get_all_gallens():
     return lenses
 
 if __name__ =="__main__":
-    lenses =  get_all_gallens()
-    catdir = get_catlensdir()
+    parser = argparse.ArgumentParser(prog=sys.argv[0],description="Compute and plot some useful statistic on the computed lenses")
+    parser.add_argument('-snap','--snap',nargs="+",type=int,dest="snaps",default=[],help=f"List of snaps to consider - default is all")
+    parser.add_argument('-sim','--sim',type=str,dest="sim",default=std_sim,help=f"Simulation name")
+    parser.add_argument('-ss','--simsuite',type=str,dest="simsuite",default=std_simsuite,help=f"Simulation suite name")
+    parser.add_argument('-ssim','--subsim',type=str,dest="subsim",default=std_subsim,help=f"Sub-Simulation name")
     
-    catdir = catdir.with_name("CatGal_snap_27")
-    catdir.mkdir(parents=True,exist_ok=True)
+    args      = parser.parse_args()
+    snaps     = args.snaps #[25,26,27]
+    sim       = args.sim
+    subsim    = args.subsim
+    simsuite  = args.simsuite
+    snaps_str = "_".join([str(s) for s in snaps])
+    if snaps_str=="":
+        snaps_str="all"
+    lenses =  get_all_gallens(sim=sim,
+                              subsim=subsim,
+                              simsuite=simsuite,
+                              snaps=snaps)
+    catdir = get_catlensdir(sim=sim,
+                            subsim=subsim,
+                            simsuite=simsuite)
 
+    catdir = catdir.with_name(f"CatGal_snap_{snaps_str}")
+    mkdir(catdir)
+    
     lens_paths= []
     N_lenses= len(lenses)
     # Study thetaE distribution
@@ -45,7 +87,7 @@ if __name__ =="__main__":
     gals   = []
     for ln in lenses:
         gals.append(ln.Gal)
-        lens_paths.append(ln.pkl_path) # sub-lens
+        lens_paths.append(ln.pkl_path) # gal-lens
         thetaEs.append(ln.thetaE.value)
         z_source.append(ln.z_source)
         
@@ -55,7 +97,8 @@ if __name__ =="__main__":
         
     print("\n\n")
     print("Actual lenses:"+str(N_lenses))
-    
+    if N_lenses==0:
+        raise RuntimeWarning("No lenses found")
     thetaEs  = np.array(thetaEs)
     masses   = np.array(masses)
     z_lens   = np.array(z_lens)
@@ -74,6 +117,14 @@ if __name__ =="__main__":
     plt.xlabel(r"$\theta_E$ ['']")
     plt.ylabel("N (tot="+str(N_lenses)+")")
     fig_tE = str(catdir)+"/Distr_thetaE.png"
+    plt.savefig(fig_tE)
+    print(f"Saving {fig_tE}")
+    plt.close()
+    plt.title(r"$\theta_E^2$ of Lenses")
+    plt.hist(thetaEs**2,bins=20)
+    plt.xlabel(r"$\theta_E^2$ [arcsec^2]")
+    plt.ylabel("N (tot="+str(N_lenses)+")")
+    fig_tE = str(catdir)+"/Distr_thetaE2.png"
     plt.savefig(fig_tE)
     print(f"Saving {fig_tE}")
     plt.close()
@@ -108,6 +159,18 @@ if __name__ =="__main__":
     plt.savefig(fig_MtE)
     print(f"Saving {fig_MtE}")
     plt.close()
+
+        
+    plt.scatter(masses,thetaEs**2,c=z_lens,cmap="viridis")
+    plt.colorbar(label=r"z$_{lens}$")
+    plt.xlabel(r"M [M$_\odot$]")
+    plt.ylabel(r"$\theta_E^2$ [arcsec^2]")
+    plt.title("Relation between total galaxy masses and Einstein radius^2 (N="+str(N_lenses)+")")
+    plt.tight_layout()
+    fig_MtE = str(catdir)+"/MvstE2.png"
+    plt.savefig(fig_MtE)
+    print(f"Saving {fig_MtE}")
+    plt.close()
     
     #Cropping mass outliers
     i_crop = masses<np.median(masses)+3*np.std(masses)
@@ -127,8 +190,7 @@ if __name__ =="__main__":
     # (to comp. w SEAGLE selection M_* > 1.76 *1e10 Msun)
     m_s = []
     for g in gals:
-        # ugly but works
-        ms = float(str(g).split("and Mass in ")[1].split("Stars:")[1].split(" ")[0] )
+        ms = np.float(g.M_stars)  #float(str(g).split("and Mass in ")[1].split("Stars:")[1].split(" ")[0] )
         m_s.append(ms)
     m_s = np.array(m_s)
     plt.hist(m_s,bins=15)
@@ -136,4 +198,38 @@ if __name__ =="__main__":
     plt.xlabel(r"M$_{*}* [M$_\odot$]")
     fig_ms = str(catdir)+"/Mstars.png"
     plt.savefig(fig_ms)
+    plt.close()
+
+
+
+    # "corner plot" of theta_E^2 and mass 
+    fig,axes = plt.subplots(2,2,figsize=(10,10))
+    
+    plt.suptitle(r"Total galaxy masses vs $\theta_E^2$ (N="+str(N_lenses)+")")
+    ax = axes[0][1]
+    ax.remove()
+
+    
+    ax = axes[1][1]
+    ax.hist(thetaEs**2,bins=20)
+    ax.set_xlabel(r"$\theta_E^2$ [arcsec^2]")
+    ax.set_ylabel("N (tot="+str(N_lenses)+")")
+        
+    ax = axes[0][0]
+    ax.set_title(r"M$_{tot\,lens}$ [M$_\odot$]")
+    ax.hist(masses,bins=20)
+    ax.set_xlabel(r"M")
+    ax.set_ylabel("N (tot="+str(N_lenses)+")")
+
+    ax = axes[1][0]
+    im0 = ax.scatter(masses,thetaEs**2,c=z_lens,cmap="viridis")
+    ax.set_xlabel(r"M [M$_\odot$]")
+    ax.set_ylabel(r"$\theta_E^2$ [arcsec^2]")
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    fig.colorbar(im0, cax=cax, orientation='vertical',label=r"z$_{lens}$")
+    fig_MtE = str(catdir)+"/corner_MvstE2.png"
+    plt.tight_layout()
+    plt.savefig(fig_MtE)
+    print(f"Saving {fig_MtE}")
     plt.close()

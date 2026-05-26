@@ -4,6 +4,7 @@
 # get random swift galaxy from get_rand_gal.py
 
 import dill
+import warnings
 import unyt as u  # package used by swiftsimio to provide physical units
 import numpy as np
 from pathlib import Path
@@ -16,7 +17,7 @@ from nazgul.Translator.particle_galaxy import BasicPartGal,store_class
 from nazgul.Translator.COLIBRE import simsuite_name
 from nazgul.Translator.COLIBRE.get_Gal import get_swiftgal,get_snap,get_z_snap
 from nazgul.Translator.COLIBRE.get_Gal import std_sim,std_subsim,colibre_base_path
-from nazgul.Translator.COLIBRE.get_Gal import min_z,max_z,min_mass,get_rnd_kw_swiftgal
+from nazgul.Translator.COLIBRE.get_Gal import min_z,max_z,min_mass,get_rnd_kw_gal,get_all_kw_gal
 
 def gal_path2kwGal(gal_pkl_path):
     gal_pkl_path = Path(gal_pkl_path)
@@ -34,22 +35,26 @@ def gal_path2kwGal(gal_pkl_path):
                              "soap_index": int(Gn)}
     # M,center not necessary
     return kw_gal_full
-    
-# adapted from wip_select_swiftgal
-def Gal2MXYZ(ColGal):
-    Gal   = ColGal.swift_gal
-    # Given a ColibreGal galaxy, which then plot to as swift galaxy, return Masses (in Msun) and
-    # XY coords. of particles in kpc  centered around center of mass
+
+def get_masses(Gal):
     Mstar = Gal.stars.masses.to_physical().in_units(u.Msun)        # Msun
     Mgas  = Gal.gas.masses.to_physical().in_units(u.Msun)          # Msun
     Mdm   = Gal.dark_matter.masses.to_physical().in_units(u.Msun)  # Msun
-    print("warning: using dynamical mass for bh, verify that it make sense") 
+    warnings.warn("Using dynamical mass for BH, verify that it make sense") 
     # according to cgpt, the 2 important components are dynamical_mass and subgrid_mass
     # the first is done to compute the potential, the other is updated w. the accretion and used for feedback calc.
     # -> should be correct to use dynamical mass
     Mbh   = Gal.black_holes.dynamical_masses.to_physical().in_units(u.Msun)  # Msun
     Ms    = np.concatenate([Mstar,Mgas,Mdm,Mbh]) #Msun
-    
+    #Ms = Ms.to_astropy()
+    return Ms
+
+# adapted from wip_select_swiftgal
+def Gal2MXYZ(ColGal):
+    Gal   = ColGal.swift_gal
+    # Given a ColibreGal galaxy, which then plot to as swift galaxy, return Masses (in Msun) and
+    # XY coords. of particles in kpc  centered around center of mass
+    Ms                = get_masses(Gal)
     # Particle pos
     Xstar,Ystar,Zstar =  np.transpose(Gal.stars.coordinates.to_physical().in_units(u.kpc))        # kpc
     Xgas,Ygas,Zgas    =  np.transpose(Gal.gas.coordinates.to_physical().in_units(u.kpc))          # kpc
@@ -65,6 +70,12 @@ def Gal2MXYZ(ColGal):
     Xs-=X_cm
     Ys-=Y_cm
     Zs-=Z_cm
+    
+    #Convert all to astropy for convenience
+    Ms = Ms.to_astropy()
+    Xs = Xs.to_astropy()
+    Ys = Ys.to_astropy()
+    Zs = Zs.to_astropy()
     
     return Ms, Xs,Ys,Zs
 
@@ -103,7 +114,7 @@ class SimPartGal(BasicPartGal):
         #'/cosma8/data/dp004/colibre/Runs/L0025N0752/THERMAL_AGN_m5/SOAP-HBT/halo_properties_0127.hdf5'
         
         self.a =  self.swift_gal.metadata.a
-        self.verbose_assert_almost_equal((1/self.a)-1,self.z,msg_title="Redshifts")
+        self.verbose_assert_almost_equal((1/self.a)-1,self.z,msg="Redshifts")
         self.verify_snap()
 
         self.gal_dir  = get_gal_dir(kw_Gal,snap=self.snap,
@@ -112,10 +123,12 @@ class SimPartGal(BasicPartGal):
         mkdir(self.gal_dir)
         
         # total mass
-        SphOverDens = self.swift_gal.halo_catalogue.spherical_overdensity_500_crit
-        self.M      = SphOverDens.total_mass.to_comoving_value("Msun")[0] #Msun
+        #SphOverDens = self.swift_gal.halo_catalogue.spherical_overdensity_500_crit
+        #self.M_tot  = SphOverDens.total_mass.to_physical_value("Msun")[0] #Msun
+        BoundSubHalo = self.swift_gal.halo_catalogue.bound_subhalo
+        self.M_tot  = BoundSubHalo.total_mass.to_physical_value("Msun")[0] # Msun
         # coord of the centre
-        self.centre = self.swift_gal.centre.to_comoving_value("Mpc") 
+        self.centre = self.swift_gal.centre.to_physical_value("Mpc") 
         #self.part_dir = get_part_dir(self.snap,data_dir=data_dir,**kw_sim)
        
         
@@ -140,10 +153,21 @@ class SimPartGal(BasicPartGal):
         self.gas         = sg.gas
         self.dark_matter = sg.dark_matter
         self.black_holes = sg.black_holes
+        # The following are very inefficient, they should be optimised
+        self.M_stars     = np.sum(self.stars.masses.to_physical().in_units(u.Msun))
+        self.M_gas       = np.sum(self.gas.masses.to_physical().in_units(u.Msun))
+        self.M_dm        = np.sum(self.dark_matter.masses.to_physical().in_units(u.Msun))
+        # again using dynamical masses for BH
+        self.M_bh        = np.sum(self.black_holes.dynamical_masses.to_physical().in_units(u.Msun))
         self.N_part = len(sg.gas.particle_ids) +\
                  len(sg.dark_matter.particle_ids) +\
                  len(sg.stars.particle_ids) +\
                  len(sg.black_holes.particle_ids) 
+        
+        self.M = np.sum(get_masses(self.swift_gal).to_astropy().value) #Msun
+        # verify that the total mass is ~ to sum of particles' masses
+        #self.verbose_assert_almost_equal( self.M_tot,self.M,decimal=0,msg="Total mass vs Sum(part. masses)")
+        
         return 0
         
     @property
@@ -213,7 +237,7 @@ class SimPartGal(BasicPartGal):
         nm_file        = str(self.soap_file.name)
         snap_from_file = nm_file.split("_")[-1].split(".")[0]
         assert self.snap==snap_from_file
-        
+    
     def run(self,reload=True):
         upload_successful = False
         if reload:
@@ -252,13 +276,13 @@ def LoadGal(path,if_fail_recompute=True,verbose=True):
     return Gal
     
 def get_rnd_SPG(sim=std_sim,subsim=std_subsim,
-               colibre_base_path=colibre_base_path,
-               min_mass= min_mass,
+                kw_criteria={"min_mass":min_mass},
                min_z=min_z,
-               max_z=max_z
+               max_z=max_z,
+               colibre_base_path=colibre_base_path
               ):
     """Randomly sample a galaxy from the simulation 
-    """
+    
     kw_swiftgal = get_rnd_kw_swiftgal(colibre_base_path=colibre_base_path,
                             sim=sim,
                             subsim=subsim,
@@ -266,7 +290,13 @@ def get_rnd_SPG(sim=std_sim,subsim=std_subsim,
                             min_z=min_z,
                             min_mass=min_mass)
     kw_Gal = {"soap_index":kw_swiftgal["soap_index"],
-              "snap":kw_swiftgal["snap_str"]}
+              "snap":kw_swiftgal["snap"]}
+    """
+    kw_Gal = get_rnd_kw_gal(sim=std_sim,subsim=std_subsim,
+                           kw_criteria= kw_criteria,
+                           min_z=min_z,
+                           max_z=max_z,
+                           colibre_base_path=colibre_base_path)
     SPG    = SimPartGal(kw_Gal=kw_Gal,
                        sim=sim,
                        subsim=subsim)
@@ -274,10 +304,60 @@ def get_rnd_SPG(sim=std_sim,subsim=std_subsim,
 
 def get_all_SPG(sim=std_sim,subsim=std_subsim,
                colibre_base_path=colibre_base_path,
-               min_mass= min_mass,
+               kw_criteria= {"min_mass":min_mass},
                min_z=min_z,
                max_z=max_z,
                limit_n=1e3
                ):
     """Get all possible galaxies in the range"""
-    raise NotImplementedError("Still to write up")
+    all_SPG = []
+    all_kw_Gal = get_all_kw_gal(sim=std_sim,subsim=std_subsim,
+                           kw_criteria= kw_criteria,
+                           min_z=min_z,
+                           max_z=max_z,
+                           colibre_base_path=colibre_base_path)
+    
+    for kw_Gal in all_kw_Gal:
+        SPG    = SimPartGal(kw_Gal=kw_Gal,
+                       sim=sim,
+                       subsim=subsim)
+        all_SPG.append(SPG)
+    return all_SPG
+
+def get_vdisp(simpartgal,
+              verbose=True,
+             **kw_other       # ignored
+             ):
+    # Get velocity dispersion for a given galaxy 
+    # Note: in principle we should recover it similarly as how it's done in get_Gal
+    # but I couldn't find a way to do it that way. Instead I re-computed it from the star velocities
+    
+    #selection_criteria = part_gal.swift_gal.bound_subhalo
+    #if verbose:
+    #    print(f"As selection criteria taking {selection_criteria.group_name}, ie {selection_criteria.group}")
+    #return _get_vdisp(selection_criteria,unit="km/s")
+    
+    swfg = simpartgal.swift_gal
+    
+    # Follows from equation 15 of Vandenbroucke et al., 2024
+    # https://ftp.strw.leidenuniv.nl/mcgibbon/SOAP.pdf
+    # recenter velocities wrt velocity of center of mass:
+    dv =  swfg.stars.velocities - swfg.velocity_centre
+    # similarly take the masses  
+    # ~and do not convert in phys. coord.~ No, it's very inefficient
+    # -> doens't matter as long as it's consistent -> it is by construction
+    masses = swfg.stars.masses.value #.to_physical_value("Msun")
+    # broadcast them to match the 3D velocity matrix
+    masses_broad = np.broadcast_to(masses,(3,len(masses))).T
+    """
+    # reattach the correct unit -> not needed as we just take the value of masses
+    unit_mass  = cosmo_quantity(1,masses.unit_quantity,comoving=masses.comoving,
+                               scale_factor=swfg.metadata.a,scale_exponent=0)
+    masses_broad = masses_broad*unit_mass"""
+    # eq. 15: (note we only consider the diagonal i=i, ie vxx**2,vyy**2,vzz**2)
+    vdisp2 = np.sum(dv*dv*masses_broad,axis=0)/np.sum(masses)
+    # we get 1D vel disp from eq. 17: 
+    vdisp = np.sqrt(np.sum(vdisp2)/3)
+    # convert in physical coordinates and km/s
+    vdisp_ph = vdisp.to_physical_value("km/s")
+    return vdisp_ph   # km/s

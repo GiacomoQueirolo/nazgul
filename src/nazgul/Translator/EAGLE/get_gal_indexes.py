@@ -6,7 +6,6 @@
 # - Group and Subgroup
 
 import dill
-import warnings
 import numpy as np
 from glob import glob
 from pathlib import Path
@@ -23,8 +22,7 @@ def get_gals(sim=std_sim,simsuite=std_simsuite,
              min_mass=min_mass,
              min_z=min_z,
              max_z=max_z,
-             save_pkl=True,plot=True,check_prev=True,verbose=True,
-            **kwargs_query):
+             save_pkl=True,plot=True,check_prev=True,verbose=True):
 
     min_mass = short_SciNot(min_mass)
     min_z    = str(min_z)
@@ -79,25 +77,11 @@ def get_gals(sim=std_sim,simsuite=std_simsuite,
         _plot(myData)
     return myData
 
-def get_query(sim=std_sim,min_mass=min_mass,min_z=min_z,max_z=max_z,
-             min_mass_stars=None,min_vel_disp=None,min_hmr=None,
-             AP_size = 10
-             ):
+def get_query(sim=std_sim,min_mass=min_mass,min_z=min_z,max_z=max_z):
     min_mass = short_SciNot(min_mass)
     min_z    = str(min_z)
     max_z    = str(max_z)
-    mass_constr = f"gal.Mass > {min_mass}"
-    if min_mass_stars is not None:
-        mass_constr = f"AP.Mass_Star > {min_mass_stars}"
-    vel_disp_constr = ""
-    if min_vel_disp is not None:
-        vel_disp_constr = f"and gal.StellarVelDisp > {min_vel_disp}"
-    hmr_constr=""
-    if min_hmr is not None:
-        hmr_constr = f"and gal.HalfMassProjRad_Star > {min_hmr}"
-    if AP_size!=10:
-        warnings.warn("Aperture size != 10 pkpc - this differs from SEAGLE params")
-    myQuery = f"SELECT \
+    myQuery = "SELECT \
         gal.GroupNumber as Gn, \
         gal.SubGroupNumber as SGn, \
         gal.Redshift as z, \
@@ -107,32 +91,27 @@ def get_query(sim=std_sim,min_mass=min_mass,min_z=min_z,max_z=max_z,
         gal.CentreOfMass_y as CMy, \
         gal.CentreOfMass_z as CMz  \
     FROM \
-        {sim}_Subhalo as gal, \
-        {sim}_Aperture as AP \
+        %s_Subhalo as gal \
     WHERE \
-        AP.GalaxyID = gal.GalaxyID and \
-        AP.ApertureSize = {AP_size} and \
-        (gal.Redshift between {min_z} and {max_z}) and \
-        {mass_constr}\
-        {vel_disp_constr}\
-        {hmr_constr}\
+        (gal.Redshift between %s and %s) and \
+        gal.Mass > %s \
     ORDER BY \
-        gal.Redshift"
+        gal.Redshift"%(sim,min_z,max_z,min_mass)
     return myQuery
 
 def get_catpath(sim=std_sim,simsuite=std_simsuite,
-                min_mass = min_mass,min_z=min_z,max_z=max_z,**kwargs_query):
+                min_mass = min_mass,min_z=min_z,max_z=max_z):
     min_mass = short_SciNot(min_mass)
     min_z    = short_SciNot(str(min_z))
     max_z    = short_SciNot(str(max_z))
     
-    
+
     cat_name = f"CatGal_minM{min_mass}_minZ{min_z}_maxZ{max_z}"
     for k in kwargs_query:
         cat_name+=f"{k}{short_SciNot(kwargs_query[k])}"
     cat_name+=".pkl"
 
-    sim_path = get_catdir(sim=sim, simsuite=simsuite)
+    sim_path = get_catdir(sim=sim,simsuite=std_simsuite)
     cat_path = sim_path/cat_name 
     return cat_path
     

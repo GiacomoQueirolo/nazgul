@@ -1,12 +1,13 @@
-# copy isophote4isodens_alpha.py 12/12/25
-# adapted for AMR and small debugs
-# -> add isopotential fit
+# for some reason it was not able to fit anymore- 
+# corrected for it by pre-fitting, 
 import dill
+import warnings
 import numpy as np
 from pathlib import Path
 import astropy.units as u
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from scipy.ndimage import gaussian_filter
 from lenstronomy.Data.imaging_data import ImageData
 import lenstronomy.Util.simulation_util as sim_util
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -14,7 +15,19 @@ from photutils.isophote import Ellipse, EllipseGeometry, build_ellipse_model
 
 from python_tools.get_res import load_whatever
 from python_tools.tools import ensure_unit,to_dimless
-    
+
+from nazgul.fit_ellipses import get_initial_kwfit
+
+def rescale_kappa(kappa,sigma_smooth=1.0,thrs_scale=3,add_k=1e-6):
+    # smooth it
+    kappa_smooth = gaussian_filter(kappa, sigma=sigma_smooth)
+    # crop low 
+    threshold_kappa_smooth = thrs_scale*np.min(kappa_smooth)
+    kappa_masked = np.where(kappa_smooth >threshold_kappa_smooth, kappa_smooth, 0)
+    # take the log
+    kappa_masked_log = np.log10(kappa_masked+add_k)
+    return kappa_masked_log
+
 def linlaw(x, a, b) :
     return a + x * b
 
@@ -28,8 +41,45 @@ def get_radius2radecgrid(rad,pixel_num):
 
 def _err_map_type(map_type):
     raise RuntimeError(f"map_type must be 'kappa' or 'psi', not {map_type}")
+
+def _get_kwiso(map,optimise_init_prms=True):
+    # Force map to be positive
+    if np.any(map<0):
+        warnings.warn(RuntimeWarning("Found negative values in map - masking them"))
+        map[np.where(map<0)] = 0
     
-def get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa"):
+    # x0, y0, sma(semimajor), eps(ellipticity=1-b/a), pa
+    if optimise_init_prms:
+        kw_init_prms = get_initial_kwfit(map)
+        geom = EllipseGeometry(**kw_init_prms)
+        print("Original guesstimate with fit_ellipse:", kw_init_prms["x0"], kw_init_prms["y0"])
+    else:
+        geom = EllipseGeometry(map.shape[0]/2., map.shape[1]/2., 10., 0.5, 0./180.*np.pi)
+        print("Original rough guesstimate:", map.shape[0]/2., map.shape[1]/2.)
+    geom.find_center(map)
+    ellipse = Ellipse(map, geometry=geom)
+    isolist = ellipse.fit_image()
+    if len(isolist.a3)==0:
+        print("DEBUG - no iso-fit successful")
+        print("map has negative:",np.any(map<0))
+        print("map has nan:",np.any(map==np.nan))
+        plt.close()
+        plt.title("Log10(map)")
+        plt.imshow(np.log10(np.abs(map)+1e-12),origin="lower",cmap="hot")
+        plt.colorbar(orientation='vertical',label=r"log$_{10}$(map)")
+        plt.axvline(kw_init_prms["x0"],c="k",label="x-y guestimates")
+        plt.axhline(kw_init_prms["y0"],c="k")
+        plt.legend()
+        nm = "tmp/map.png"
+        plt.savefig(nm)
+        plt.close()
+        print(f"DEBUG - Saved {nm}")
+        raise RuntimeError("The isofit has failed")
+    model = build_ellipse_model(map.shape, isolist)
+    return {"isolist":isolist,"geom":geom,"map":map,"model":model}
+
+def get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa",
+              _rescale_kappa=True,optimise_init_prms=True):
     if cutoff_rad is None:
         cutoff_rad = get_iso_cutoff(Lens)
     cutoff_rad = ensure_unit(cutoff_rad,u.kpc)
@@ -44,6 +94,9 @@ def get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa"):
         cutoff_rad = image_rad
         if map_type =="kappa":
             map  = Lens.kappa_map
+            if _rescale_kappa:
+                map = rescale_kappa(map)
+            
         elif map_type =="psi":
             map    = Lens.psi_map
         else:
@@ -56,27 +109,18 @@ def get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa"):
         _radec = get_radius2radecgrid(cutoff_rad*Lens.arcXkpc,Lens.pixel_num)
         if map_type =="kappa":
             map  = Lens._kappa_map(_radec=_radec)
+            if _rescale_kappa:
+                map = rescale_kappa(map)
+
         elif map_type =="psi":
             print("Warning - this might take a while")
             map    = Lens.compute_psi_map(_radec=_radec)
         else:
             _err_map_type(map_type)
-
-    # x0, y0, sma(semimajor), eps(ellipticity=1-b/a), pa
-    geom = EllipseGeometry(map.shape[0]/2., map.shape[1]/2., 10., 0.5, 0./180.*np.pi)
-    geom.find_center(map)
-    print("Original guesstimate:", map.shape[0]/2., map.shape[1]/2.)
-    ellipse = Ellipse(map, geometry=geom)
-    
-    isolist = ellipse.fit_image()
-
-    print("DEBUG")
-    plt.imshow(map)
-    nm = "tmp/map.png"
-    plt.savefig(nm)
-    print(f"DEBUG - Saved {nm}")
-    model = build_ellipse_model(map.shape, isolist)
-    return {"isolist":isolist,"geom":geom,"map":map,"model":model,"cutoff_rad":cutoff_rad,"map_type":map_type}
+    kw_iso= _get_kwiso(map,optimise_init_prms=optimise_init_prms) 
+    kw_iso["cutoff_rad"] = cutoff_rad
+    kw_iso["map_type"] = map_type
+    return kw_iso
 
 def get_kwisodens(Lens,cutoff_rad=None,verbose=True):
     kwiso_kappa = get_kwiso(Lens,cutoff_rad=None,verbose=True,map_type="kappa")
