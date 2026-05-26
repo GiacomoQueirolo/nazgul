@@ -23,6 +23,7 @@ all_lenses = wrapper_get_all_lens(kw_galpart={
     "max_z":0.3,#0.51,
     "min_vel_disp":120,
     "min_mass_stars":1.76e10*.6777},
+    kw_lenspart={"ignore_OoBErr":True}, # test
    reload=True,
     _test=False,
     _list_of_skippable_gals=[])#_list)
