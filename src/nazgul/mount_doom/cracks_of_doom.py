@@ -20,7 +20,7 @@ from lenstronomy.SimulationAPI.sim_api import SimAPI
 from python_tools.get_res import LoadClass
 from python_tools.tools import mkdir,to_dimless,ensure_unit,convert_error_to_warning
 # general path
-from nazgul.pathfinder import path_nazgul
+from nazgul.pathfinder import path_nazgul, path_nazgul_origin
 # basic galaxy class
 from nazgul.basic_gal import BasicGal,store_class
 # cosmology
@@ -347,7 +347,7 @@ class BasicLensPart(BasicGal):
     def _unpack_Gal(self):
         # reload Galaxy and cosmology
         if not hasattr(self,"Gal"):
-            Galaxy   = LoadGal(self.Gal_path)
+            Galaxy   = LoadGal(path_nazgul_origin / self.Gal_path)
             if not isinstance(Galaxy,ProjGal):
                 Galaxy   = ProjGal(Gal=Galaxy,
                                projection_index=self.proj_index)

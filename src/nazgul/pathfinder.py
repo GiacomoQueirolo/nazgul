@@ -17,7 +17,8 @@ RingBearer
                          |     |_pkl       |_pkl    
                          |_pkl                  
 """
-path_nazgul = conf.nazgul_path
+path_nazgul        = conf.nazgul_path
+path_nazgul_origin = conf.nazgul_path_origin if conf.nazgul_path_origin is not None else conf.nazgul_path
 
 std_data_dir = path_nazgul/"RingBearer"
 # (base)/tmp will be a collector of intermediate, mildly useful plots/results, with the advantage of being easily accessible

@@ -11,7 +11,7 @@ from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass
 
 from nazgul.basic_gal import BasicGal,store_class
-from nazgul.pathfinder import path_nazgul
+from nazgul.pathfinder import path_nazgul, path_nazgul_origin, std_data_dir
 
 class BasicPartGal(BasicGal):
     """Given the simulation, snap (or z) and galaxy numbers, set up a class
@@ -28,10 +28,33 @@ class BasicPartGal(BasicGal):
         
     @property
     def dill_path(self):
-        """Define dill path to store the class instance
+        """Relative path (relative to nazgul_path) for the dill file.
+
+        Uses the RingBearer anchor as a fallback so this works even when the
+        object was pickled on a different host with a different nazgul_path.
         """
-        dill_path = self.gal_dir/f"{self.name}.dll"
-        return dill_path
+        full_path = self.gal_dir / f"{self.name}.dll"
+        try:
+            return full_path.relative_to(path_nazgul)
+        except ValueError:
+            data_root = std_data_dir.name
+            parts = full_path.parts
+            for i, part in enumerate(parts):
+                if part == data_root:
+                    return Path(*parts[i:])
+            raise ValueError(
+                f"Cannot make dill_path relative: '{full_path}' contains no "
+                f"'{data_root}' component"
+            )
+
+    def dill_path_abs(self, path_nazgul_load=None):
+        """Absolute path for file I/O.
+
+        Defaults to configurations.nazgul_path_origin (the machine where files
+        were created).  Pass path_nazgul_load to override explicitly.
+        """
+        base = Path(path_nazgul_load) if path_nazgul_load is not None else path_nazgul_origin
+        return base / self.dill_path
         
     ### Class Structure ####
     ########################

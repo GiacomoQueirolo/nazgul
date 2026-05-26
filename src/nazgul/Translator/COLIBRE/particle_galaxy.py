@@ -202,7 +202,7 @@ class SimPartGal(BasicPartGal):
     
     def store_gal(self):
         # store class instance 
-        store_class(self,path=self.dill_path)
+        store_class(self,path=self.dill_path_abs())
 
     # ------------------------------------------------------------------
     # Lazy reconstruction logic
@@ -248,9 +248,9 @@ class SimPartGal(BasicPartGal):
             
 # this function is a wrapper for convenience - it takes the class itself as input
 def ReadGal(Gal,verbose=True):
-    if not Path(Gal.dill_path).is_file():
+    if not Gal.dill_path_abs().is_file():
         return False
-    other_Gal = LoadClass(path=Gal.dill_path,verbose=verbose,path_base=path_nazgul)
+    other_Gal = LoadClass(path=Gal.dill_path_abs(),verbose=verbose,path_base=path_nazgul)
     # If failed, return False
     if not other_Gal: 
         if verbose:

@@ -225,7 +225,7 @@ class SimPartGal(BasicPartGal):
         
     def store_gal(self,update=True):
         # store class instance 
-        store_class(self,path=self.dill_path,update=update)
+        store_class(self,path=self.dill_path_abs(),update=update)
 
     def run(self,reload=True,verbose=True):
         if reload:
@@ -522,9 +522,9 @@ def ReadGal(Gal,verbose=True):
 
 def ReadGalNoUnpack(Gal,verbose=True):
     "This Reads store galaxy but doesn't unpack it"
-    if not Path(Gal.dill_path).is_file():
+    if not Gal.dill_path_abs().is_file():
         return False
-    other_Gal = LoadClass(path=Gal.dill_path,verbose=verbose,path_base=path_nazgul)
+    other_Gal = LoadClass(path=Gal.dill_path_abs(),verbose=verbose,path_base=path_nazgul)
     # If failed, return False
     if not other_Gal: 
         if verbose:
