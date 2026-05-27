@@ -100,9 +100,8 @@ class BasicPartGal(BasicGal):
 
 def clip_coord(m,x,y,z,sigma=10):
     # clip coordinates outliers
-    dists = np.sum(np.array([x,y,z])**2,axis=1)
+    dists = np.sum(np.array([x,y,z])**2,axis=0)
     mask = np.invert(sigma_clip(dists,sigma=sigma).mask)
-
     #mask = np.ones(len(x),dtype=bool)
     #for coord in x,y,z:
     #    mask *= np.invert(sigma_clip(coord,sigma=sigma).mask)
