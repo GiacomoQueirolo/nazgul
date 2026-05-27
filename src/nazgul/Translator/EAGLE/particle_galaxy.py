@@ -683,7 +683,6 @@ def compute_axis_ratio(Gal):
     Mstar = Gal.stars["mass"]*u.Msun
     # Particle pos
     Xstar,Ystar,Zstar =  np.transpose(Gal.stars["coords"])*u.Mpc.to("kpc")*u.kpc #kpc
-
     # clip particle outliers
     Ms,Xs,Ys,Zs = clip_coord(Mstar,Xstar,Ystar,Zstar)
      
