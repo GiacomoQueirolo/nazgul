@@ -310,18 +310,41 @@ def wrapper_get_all_lens(reload=True,
         # Verify if all proj. have not already been computed 
         # (not important if it is a lens or not)
         print(f"\nNew Gal:\n     {Gal.name}\n")
-        
-        if gal_already_computed(Gal):
-            print("Galaxy already computed")
-            if _list_of_skippable_gals is not None:
-                if Gal.name in _list_of_skippable_gals:
-                    print("Skipping because in skippable list")
-                    continue
-            if reload:
-                print("Reloading")
+        try:
+            if gal_already_computed(Gal):
+                print("Galaxy already computed")
+                if _list_of_skippable_gals is not None:
+                    if Gal.name in _list_of_skippable_gals:
+                        print("Skipping because in skippable list")
+                        continue
+                if reload:
+                    print("Reloading")
+                else:
+                    print("Recomputing")
+                    Gal.run(reload=reload)
             else:
-                print("Recomputing")
                 Gal.run(reload=reload)
+<<<<<<< HEAD
+            strikes = 0
+            while kw_lenspart["projection_index"]<3:
+                try:
+                    mod_LP = GalLens(Galaxy=Gal,
+                                  **kw_lenspart)
+                    mod_LP.run(read_prev=reload)
+                    all_lenses.append(mod_LP)
+                    pji = kw_lenspart["projection_index"]
+                    print(f"Projection {pji} of {Gal.name} is supercritical!\n")
+                except ProjectionError as PE:
+                    strikes+=1
+                kw_lenspart["projection_index"]+=1
+            if strikes==3:
+                print(f"All projections of Galaxy {Gal.name} are not supercritical")
+            print("Next galaxy.")
+            if verbose:
+                print("#########\nTime stamp:\n")
+                print(strftime("%Y-%m-%d %H:%M:%S", gmtime()))
+                print("#########\n")
+=======
         else:
             Gal.run(reload=reload)
         strikes = 0
@@ -346,18 +369,22 @@ def wrapper_get_all_lens(reload=True,
             print("#########\nTime stamp:\n")
             print(strftime("%Y-%m-%d %H:%M:%S", gmtime()))
             print("#########\n")
+>>>>>>> 029fcf6 (monut_doom: scale_tE is now a variable that identifies the lensing class instance GalLens. added possibilty to consider only 1st supercritical projection for a given galaxy. + minor cleanups)
 
-        kw_lenspart["projection_index"] = 0
-        if _test:
-            print("TEST - Stopping after only one")
-            return all_lenses
+            kw_lenspart["projection_index"] = 0
+            if _test:
+                print("TEST - Stopping after only one")
+                return all_lenses
+        except RuntimeError:
+            print('RUNTIME ERROR FOR THIS GALAXY, MOVING TO NEXT')
+            continue
     if _test:
         print("TEST - Stopping after only one")
         return all_lenses
     if verbose:
         print(f"Found n={len(all_lenses)} Lenses")
         print(f"i.e. {np.round(len(all_lenses)/len(all_Gal*3)*100,1)}% of Galaxies (considering their rotations)")
-        
+
     return all_lenses
 
 # get a lens no matter what:
@@ -366,7 +393,7 @@ def wrapper_get_rnd_lens(reload=True,
                         kw_galpart={}):
     """Try to get a lens from random galaxies, repeat until finds one
     which is an actual lens (i.e. supercritical)
-    """    
+    """
     kw_lenspart = get_kw_lenspart(reload,kw_lenspart)
     kw_galpart  = get_kw_galpart(kw_galpart)
     while True:
@@ -380,7 +407,7 @@ def wrapper_get_rnd_lens(reload=True,
                 mod_LP = GalLens(Galaxy=Gal,
                               **kw_lenspart)
                 mod_LP.run(read_prev=reload)
-                return mod_LP            
+                return mod_LP
             except ProjectionError as PE:
                 kw_lenspart["projection_index"]+=1
         print("All projections of this galaxy are not supercritical #\n","Trying different galaxy")

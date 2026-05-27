@@ -153,4 +153,4 @@ class SimPartGal(BasicPartGal):
 
     def store_gal(self,update=True):
         # store class instance 
-        store_class(self,path=self.dill_path,update=update)
+        store_class(self,path=self.dill_path_abs(),update=update)

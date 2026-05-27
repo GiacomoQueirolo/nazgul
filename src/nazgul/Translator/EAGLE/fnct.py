@@ -6,7 +6,7 @@ import glob
 import h5py
 import pickle
 import numpy as np
-# Implement path handling 
+# Implement path handling
 from pathlib import Path
 
 from python_tools.get_res import load_whatever
@@ -15,41 +15,41 @@ from python_tools.tools import mkdir,to_dimless
 from nazgul.pathfinder import get_part_dir,get_sim_dir,std_sim,std_simsuite,std_data_dir
 from nazgul.pathfinder import std_sim,test_sim,tutorial_sim,path_nazgul
 #########
-# Setup # 
+# Setup #
 #########
 
 # from https://dataweb.cosma.dur.ac.uk:8443/eagle-snapshots/
 # valid fo all sims apart the variable IMF runs
 #-> corrected by hand to higher precision
 kw_snap_z = {
-    "28": 2.2204460e-16, 
-    "27":1.0063854e-01, 
-    "26":1.8270987e-01, 
-    "25":2.7090108e-01, 
-    "24":3.6566857e-01, 
-    "23":5.0310731e-01, 
-    "22":6.1518979e-01, 
-    "21":7.3562962e-01, 
-    "20":8.6505055e-01, 
-    "19":1.0041217e+00, 
-    "18":1.2593315e+00, 
-    "17":1.4867073, 
-    "16":1.7369658, 
-    "15":2.0124102, 
-    "14":2.237037, 
-    "13":2.4784133, 
+    "28": 2.2204460e-16,
+    "27":1.0063854e-01,
+    "26":1.8270987e-01,
+    "25":2.7090108e-01,
+    "24":3.6566857e-01,
+    "23":5.0310731e-01,
+    "22":6.1518979e-01,
+    "21":7.3562962e-01,
+    "20":8.6505055e-01,
+    "19":1.0041217e+00,
+    "18":1.2593315e+00,
+    "17":1.4867073,
+    "16":1.7369658,
+    "15":2.0124102,
+    "14":2.237037,
+    "13":2.4784133,
     "12":3.0165045,
     "11":3.5279765,
-    "10":3.9836636, 
-    "9":4.4852138, 
-    "8":5.0372367, 
-    "7":5.4874153, 
-    "6":5.9711623, 
-    "5":7.0495663, 
-    "4":8.074616, 
-    "3":8.987875, 
-    "2":9.993033, 
-    "1":15.132311, 
+    "10":3.9836636,
+    "9":4.4852138,
+    "8":5.0372367,
+    "7":5.4874153,
+    "6":5.9711623,
+    "5":7.0495663,
+    "4":8.074616,
+    "3":8.987875,
+    "2":9.993033,
+    "1":15.132311,
     "0":20.000021}
 #inverted kw
 kw_z_snap = {}
@@ -102,11 +102,11 @@ def get_nfiles(sim):
     else:
         raise NotImplementedError(f"The n* of files in the snapshot directory for simulation {sim} was not hardcoded")
     return nfiles
-    
+
 def get_partfiles(sim=std_sim,simsuite=std_simsuite,data_dir=std_data_dir,
                   z=None,snap=None,_i_="*"):
     """
-    Find the files 
+    Find the files
     If _i_ is specified, only that specific subsection of the snapshot (useful for DM)
     If no redshift/snapshots are defined, take all of them
     """
@@ -137,7 +137,7 @@ def get_partfiles(sim=std_sim,simsuite=std_simsuite,data_dir=std_data_dir,
 
 
 def read_snap_header(z=None,snap=None,sim=std_sim,simsuite=std_simsuite,data_dir=std_data_dir):
-    """Read various attributes from the header group. 
+    """Read various attributes from the header group.
     """
     verify_z_snap(z,snap)
     file    = get_partfiles(sim=sim,z=z,snap=snap,simsuite=simsuite,data_dir=data_dir,_i_=0)
@@ -155,5 +155,4 @@ def _count_part(part):
     return len(part["mass"])
 
 def _mass_part(part):
-    return np.sum(part["mass"]) 
-
+    return np.sum(part["mass"])

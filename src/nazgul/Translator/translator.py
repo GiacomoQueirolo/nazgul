@@ -180,7 +180,7 @@ class PartGal():
         
     def store_gal(self):
         # store class instance 
-        store_class(self._SimPartGal,path=self.dill_path)
+        store_class(self._SimPartGal,path=self.dill_path_abs())
         
     def __str__(self):
         return self._SimPartGal.__str__()

@@ -20,7 +20,32 @@ from lenstronomy.SimulationAPI.sim_api import SimAPI
 from python_tools.get_res import LoadClass
 from python_tools.tools import mkdir,to_dimless,ensure_unit,convert_error_to_warning
 # general path
-from nazgul.pathfinder import path_nazgul
+from nazgul.pathfinder import path_nazgul, std_data_dir
+
+def _resolve_gal_path(stored_path):
+    """Translate a stored Gal_path to an absolute path on this machine.
+
+    Handles three cases:
+      - relative path (new pickles): prepend path_nazgul
+      - absolute path, same machine (old same-machine pickles): unchanged via pathlib join
+      - absolute path, different machine (old cross-machine pickles): strip everything
+        before the RingBearer anchor and prepend the local path_nazgul
+    """
+    p = Path(stored_path)
+    if not p.is_absolute():
+        return path_nazgul / p
+    try:
+        return path_nazgul / p.relative_to(path_nazgul)
+    except ValueError:
+        parts = p.parts
+        data_root = std_data_dir.name
+        for i, part in enumerate(parts):
+            if part == data_root:
+                return path_nazgul / Path(*parts[i:])
+        raise ValueError(
+            f"Cannot resolve Gal_path '{p}': no '{data_root}' anchor found"
+        )
+
 # basic galaxy class
 from nazgul.basic_gal import BasicGal,store_class
 # cosmology
@@ -339,7 +364,8 @@ class BasicLensPart(BasicGal):
     def _unpack_Gal(self):
         # reload Galaxy and cosmology
         if not hasattr(self,"Gal"):
-            Galaxy   = LoadGal(self.Gal_path)
+            Galaxy   = LoadGal(_resolve_gal_path(self.Gal_path))
+            Galaxy.rebase()
             if not isinstance(Galaxy,ProjGal):
                 Galaxy   = ProjGal(Gal=Galaxy,
                                projection_index=self.proj_index)
@@ -376,7 +402,7 @@ class BasicLensPart(BasicGal):
         
     @property
     def pkl_path(self):
-        return self.savedir/f"{self.name}.pkl"
+        return _resolve_gal_path(self.savedir)/f"{self.name}.pkl"
 
     def is_precomputed(self):
         if self.pkl_path.exists():

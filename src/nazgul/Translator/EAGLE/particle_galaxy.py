@@ -73,12 +73,12 @@ def get_rnd_gal_indexes(sim=std_sim,
             kw_gal[k] = data[k]
         else:
             kw_gal[k] = data[k][rnd_i]
-            
-    z        = kw_gal["z"] 
-    M        = kw_gal["M"] 
+
+    z        = kw_gal["z"]
+    M        = kw_gal["M"]
     kw_Gal   = {"Gn":kw_gal["Gn"],"SGn":kw_gal["SGn"]}
-    Centre   = np.array([kw_gal["CMx"],kw_gal["CMy"],kw_gal["CMz"]]) 
-    
+    Centre   = np.array([kw_gal["CMx"],kw_gal["CMy"],kw_gal["CMz"]])
+
     kwGal    = {"z":z,"kw_Gal":kw_Gal,"sim":sim,"M":M,"Centre":Centre}
     return kwGal
 
@@ -99,14 +99,14 @@ def get_vdisp(simpargal,**kwargs_query):
         myQuery = get_query(**kwargs_query)
         from nazgul.Translator.EAGLE.sql_connect import exec_query
         query_out = exec_query(myQuery)
-        
+
     vdisp_stars_all = query_out["SVD"]*u.km/u.s
     list_Gn   = query_out["Gn"]
     list_SGn  = query_out["SGn"]
     list_z    = query_out["z"]
     list_snap = np.array([int(get_snap(zi)) for zi in list_z])
     vdisp_stars = vdisp_stars_all[(list_Gn==Gn) & (list_SGn==SGn) & (list_snap==int(snap))]
-    assert len(vdisp_stars)==1    
+    assert len(vdisp_stars)==1
     return vdisp_stars[0] # km/s
 
 def get_kw_SimPartGal(kw_Gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload):
@@ -143,7 +143,7 @@ class SimPartGal(BasicPartGal):
         self.SGn      = kw_Gal["SGn"]
         # n* of files per snapshot:
         self.nfiles   = get_nfiles(sim)
-    
+
         # Input Dir:
         self.part_dir = get_part_dir(snap,sim=sim,simsuite=self.simsuite,data_dir=data_dir)
         # Output dir:
@@ -225,7 +225,7 @@ class SimPartGal(BasicPartGal):
         
     def store_gal(self,update=True):
         # store class instance 
-        store_class(self,path=self.dill_path,update=update)
+        store_class(self,path=self.dill_path_abs(),update=update)
 
     def run(self,reload=True,verbose=True):
         if reload:
@@ -324,9 +324,8 @@ class SimPartGal(BasicPartGal):
                     # sort them to speed up the hdf5 readout:
                     idx = np.sort(idx)
                     index_map[i] = idx
-        # this is possible: some galaxy do not contain some type of particles
-        #if index_map == {}:
-        #    raise RuntimeError("Files do not contain any particle of this galaxy")
+        if index_map == {}:
+            raise RuntimeError("Files do not contain any particle of this galaxy")
         return index_map
         
     @property
@@ -345,6 +344,7 @@ class SimPartGal(BasicPartGal):
 
         with Pool(nproc) as pool:
             results = pool.map(_load_one_file, tasks)
+
         # ---- merge ----
         output = {"coords":[],"mass":[]}
         if itype!=1:
@@ -357,7 +357,7 @@ class SimPartGal(BasicPartGal):
                 output["smooth"] = np.array([])
             warnings.warn(f"This galaxy do not contain particle of type {itype}")
             return output
-        
+
         for r in results:
             output["coords"].append(r["coords"])
             output["mass"].append(r["mass"])
@@ -507,7 +507,7 @@ def _load_one_file(args):
             # Convert to proper/physical mass 
             dm_scale        = cgs_massdm*(a**aexp_massdm)*(h**hexp_massdm)
             results["mass"] = np.multiply(mass2scale, dm_scale, dtype='f8')*u.g.to(u.Msun)
-            
+
             # DM has no smoothing scale
             results["smooth"] = None
 
@@ -522,9 +522,9 @@ def ReadGal(Gal,verbose=True):
 
 def ReadGalNoUnpack(Gal,verbose=True):
     "This Reads store galaxy but doesn't unpack it"
-    if not Path(Gal.dill_path).is_file():
+    if not Gal.dill_path_abs().is_file():
         return False
-    other_Gal = LoadClass(path=Gal.dill_path,verbose=verbose,path_base=path_nazgul)
+    other_Gal = LoadClass(path=Gal.dill_path_abs(),verbose=verbose,path_base=path_nazgul)
     # If failed, return False
     if not other_Gal: 
         if verbose:
@@ -618,7 +618,7 @@ def get_all_SPG(sim=std_sim,min_mass=min_mass,min_z=min_z,max_z=max_z,
     min_mass = str(min_mass)
     min_z    = str(min_z)
     max_z    = str(max_z)
-    data     = get_gals(sim=sim,min_mass=min_mass,max_z=max_z,min_z=min_z,\
+    data     = get_gals(sim=sim,min_mass=min_mass,max_z=max_z,min_z=min_z,
                         check_prev=check_prev,plot=False,save_pkl=save_pkl,**kwargs_query)
     n_data   = len(data["z"])
     if n_data>limit_n:
@@ -685,19 +685,19 @@ def compute_axis_ratio(Gal):
     Xstar,Ystar,Zstar =  np.transpose(Gal.stars["coords"])*u.Mpc.to("kpc")*u.kpc #kpc
     # clip particle outliers
     Ms,Xs,Ys,Zs = clip_coord(Mstar,Xstar,Ystar,Zstar)
-     
-    Cx,Cy,Cz = Gal.centre*u.Mpc.to("kpc")*u.kpc/(Gal.xy_propr2comov) # (now) kpc 
-    
+
+    Cx,Cy,Cz = Gal.centre*u.Mpc.to("kpc")*u.kpc/(Gal.xy_propr2comov) # (now) kpc
+
     Xs -= Cx
     Ys -= Cy
     Zs -= Cz
-    
+
     mass = Mstar.value
     # center positions first!
     x = Xs.value
     y = Ys.value
     z = Zs.value
-    
+
     pos = np.transpose([x,y,z])
     I = np.zeros((3,3))
     for i in range(len(pos)):
