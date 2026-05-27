@@ -410,7 +410,7 @@ class BasicLensPart(BasicGal):
         
     @property
     def pkl_path(self):
-        return self.savedir/f"{self.name}.pkl"
+        return _resolve_gal_path(self.savedir)/f"{self.name}.pkl"
 
     def is_precomputed(self):
         if self.pkl_path.exists():

@@ -12,7 +12,7 @@ from nazgul.AMR2D_PLL import plot_AMR_cells,AMR_density_PLL,get_MDfromAMRcells_P
 from nazgul.Translator.particle_galaxy import clip_coord
 
 
-def plot_gal(gl):
+def plot_gal(gl, save_to_tmp: bool = True):
     gal_dir = gl.gal_dir 
     xyz_dm  = gl.dm["coords"].T
     xyz_str = gl.stars["coords"].T
@@ -43,9 +43,10 @@ def plot_gal(gl):
     plt.legend()
     plt.title("Mass Histogram For Different Particles of 1 EAGLE Gal.")
     plt.tight_layout()
-    nm = tmp_dir/"mHistGal1.png"
-    print(f"Saving {nm}")
-    plt.savefig(nm)
+    if save_to_tmp:
+        nm = tmp_dir/"mHistGal1.png"
+        print(f"Saving {nm}")
+        plt.savefig(nm)
     nm = gal_dir/"mHistGal1.png"
     print(f"Saving {nm}")
     plt.savefig(nm)
@@ -111,9 +112,10 @@ def plot_gal(gl):
             axii.set_xlabel("X [Mpc]")
             axii.set_ylabel("Y [Mpc]")
     plt.tight_layout()
-    nm = tmp_dir/"PartDistrGal.png"
-    print(f"Saving {nm}")
-    plt.savefig(nm)
+    if save_to_tmp:
+        nm = tmp_dir/"PartDistrGal.png"
+        print(f"Saving {nm}")
+        plt.savefig(nm)
     
     nm = gal_dir/"PartDistrGal.png"
     print(f"Saving {nm}")

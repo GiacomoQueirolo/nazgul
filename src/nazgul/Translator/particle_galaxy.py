@@ -49,13 +49,15 @@ class BasicPartGal(BasicGal):
             )
 
     def rebase(self, new_nazgul_path=None):
-        """Update gal_dir to use the local (or given) nazgul_path.
+        """Update gal_dir (and part_dir if present) to use the local (or given) nazgul_path.
 
         Call this after loading a pickle that was created on a different machine
         so that derived paths (proj_dir, etc.) resolve correctly on this host.
         """
         base = Path(new_nazgul_path) if new_nazgul_path is not None else path_nazgul
         self.gal_dir = base / self.dill_path.parent
+        if hasattr(self, "part_dir"):
+            self.part_dir = Path(self.gal_dir).parent.parent / "ParticleData"
 
     def dill_path_abs(self, path_nazgul_load=None):
         """Absolute path for file I/O.
