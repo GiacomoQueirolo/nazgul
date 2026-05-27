@@ -42,6 +42,9 @@ from nazgul.mount_doom.cracks_of_doom import BasicLensPart,get_extents,kw_prior_
 
 #Default values
 import nazgul.configurations as conf
+# Plotting tools 
+from nazgul.plot_AMRxpart import plot_AMR_densityXpart
+
 
 class GalLens(BasicLensPart): 
     _large_attributes_setup  = ["kwargs_lens","lens_prof","Gal","PartLens","cosmo"]
@@ -333,6 +336,10 @@ def wrapper_get_all_lens(reload=True,
                     all_lenses.append(mod_LP)
                     pji = kw_lenspart["projection_index"]
                     print(f"Projection {pji} of {Gal.name} is supercritical!\n")
+                    # Plotting density for each individual particle
+                    plot_AMR_densityXpart(Gal=Gal,
+                                          proj_index=pji,
+                                          savedir=mod_LP.savedir)
                     if not consider_all_proj:
                         print(f"Considering only the first supercritical solution.\n")
                         break
