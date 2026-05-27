@@ -197,7 +197,7 @@ def project_Gal(GalProj,z_source_max,sample_z_source,min_thetaE,
                               savenameSigmaEnc=savenameSigmaEnc,verbose=verbose)
     if plot_2Ddens:
         fig,ax = plot_AMR_cells(kw_2Ddens)
-        nm = f"{pthf.tmp_dir}/AMR_2DDens_{GalProj.name}_prj{proj_index}.png"
+        nm = f"{GalProj.proj_dir}/AMR_2DDens_{GalProj.name}_prj{proj_index}.png"
         fig.savefig(nm)
         print(f"Saved {nm}") 
         
@@ -214,7 +214,10 @@ Rerun trying different projection")
         kw_z_min["z_source"] = z_source
         
         # get an estimate of theta_E 
-        thetaE = get_rough_thetaE(kw_2Ddens,GalProj.cosmo,GalProj.z,z_source,path=GalProj.proj_dir,fig_Sig=kw_z_min["fig_Sig"])
+        nm_sigmaplot = GalProj.proj_dir/f"Sigma_AMR_proj_{GalProj.proj_index}.png"
+        thetaE = get_rough_thetaE(kw_2Ddens,GalProj.cosmo,GalProj.z,z_source,
+                                  nm_sigmaplot=nm_sigmaplot,
+                                  fig_Sig=kw_z_min["fig_Sig"])
 
         # AMR is not stored bc fairly large and not too long to compute
         del kw_2Ddens["AMR_cells"] 
@@ -418,14 +421,17 @@ def _get_min_z_source(cosmo,z_lens,thresh_DsDds,z_source_max,verbose=True):
         z_source_min = _get_min_z_source_thresh_DsDds(z_source_range,thresh_DsDds,cosmo,z_d=z_lens)
         return z_source_min
 
-def get_rough_thetaE(kw_2Ddens,cosmo,z_lens,z_source,nm_sigmaplot="Sigma_AMR.png",path=tmp_dir,fig_Sig=None):
+def get_rough_thetaE(kw_2Ddens,cosmo,z_lens,z_source,
+                     nm_sigmaplot="Sigma_AMR.png",fig_Sig=None):
     # approximate theta_E of the galaxy
 
     Dd      = cosmo.angular_diameter_distance(z_lens).to("Mpc")
     Ds      = cosmo.angular_diameter_distance(z_source).to("Mpc")
     Dds     = cosmo.angular_diameter_distance_z1z2(z_lens,z_source).to("Mpc") 
     kw_Ddds = {"Dd":Dd,"Dds":Dds,"Ds":Ds}
-    return theta_E_from_AMR_densitymap(kw_2Ddens=kw_2Ddens,nm_sigmaplot=nm_sigmaplot,path=path,fig_Sig=fig_Sig,**kw_Ddds)
+    return theta_E_from_AMR_densitymap(kw_2Ddens=kw_2Ddens,
+                                       nm_sigmaplot=nm_sigmaplot,
+                                       fig_Sig=fig_Sig,**kw_Ddds)
 
 def cells2SigRad(kw_2Ddens):    
     xc,yc = kw_2Ddens["MD_coords"] #kpc
@@ -471,7 +477,7 @@ def cells2SigRad(kw_2Ddens):
     Sigma_encl = cumulative_mass/cumulative_area
     return r_sorted,Sigma_encl
 
-def theta_E_from_AMR_densitymap(kw_2Ddens, Dd, Ds, Dds,fig_Sig=None,nm_sigmaplot="Sigma.png",path=tmp_dir):
+def theta_E_from_AMR_densitymap(kw_2Ddens, Dd, Ds, Dds,fig_Sig=None,nm_sigmaplot="Sigma_AMR.png"):
     # Critical density
     Sigma_crit = (const.c**2 / (4*np.pi*const.G) * (Ds/(Dd*Dds))).to("Msun/kpc^2")
     # Physical scale of 1 arcsec at Dd
@@ -502,11 +508,9 @@ def theta_E_from_AMR_densitymap(kw_2Ddens, Dd, Ds, Dds,fig_Sig=None,nm_sigmaplot
     # enforce a cutout of 5 thetaE
     fig.axes[0].set_xlim(0,5*to_dimless(thetaE))
     
-    nm_savefig = path/nm_sigmaplot
-    print(f"Saving {nm_savefig}")
-    fig.savefig(nm_savefig)
-    fig.savefig(path/'Sig_enc.png')
-    plt.close(fig)
+    print(f"Saving {nm_sigmaplot}")
+    fig.savefig(nm_sigmaplot)
+    
     return thetaE
     
 def Gal2MRADEC(Gal,proj_index,arcXkpc):
