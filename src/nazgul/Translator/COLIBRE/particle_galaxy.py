@@ -36,37 +36,92 @@ def gal_path2kwGal(gal_pkl_path):
     # M,center not necessary
     return kw_gal_full
 
+plural_part_type_list = ["stars","gas","dark_matter","black_holes"]
+singular_part_type_list = ["star","black_hole"]
+part_type_list = plural_part_type_list
+def check_part_type(part_type):
+    assert type(part_type)==str
+    if part_type not in plural_part_type_list:
+        if part_type in singular_part_type_list:
+            return part_type+"s"
+        else:
+            raise RuntimeError(f"Particle type {part_type} not an accepted particle type:\n{plural_part_type_list}")
+    return part_type
+
+
+def get_masses_part(Gal,part_type):
+    "Return masses in [Msun] of given particle type"
+    part_type = check_part_type(part_type)
+    part  = getattr(Gal,part_type)
+    if part_type!="black_holes":
+        masses = part.masses
+    else:
+        #warnings.warn("Using dynamical mass for BH, verify that it make sense")
+        # the first is done to compute the potential, the other is updated w. the accretion and used for feedback calc.
+        # -> should be correct to use dynamical mass
+        masses = part.dynamical_masses
+    Mpart = masses.to_physical().in_units(u.Msun)  # Msun
+    return Mpart
+
+def _get_coord_part(part):
+    "Return coordinates in [kpc] of given particle instance"
+    coords = part.coordinates
+    Xpart,Ypart,Zpart =  np.transpose(coords.to_physical().in_units(u.kpc))        # kpc
+    return Xpart,Ypart,Zpart
+    
+def _get_masses_part(part):
+    part_name = part.group_name
+    if part_name!="black_holes":
+        masses = part.masses
+    else:
+        #warnings.warn("Using dynamical mass for BH, verify that it make sense")
+        # the first is done to compute the potential, the other is updated w. the accretion and used for feedback calc.
+        # -> should be correct to use dynamical mass
+        masses = part.dynamical_masses
+    Mpart = masses.to_physical().in_units(u.Msun)  # Msun
+    return Mpart
+
+def get_coord_part(Gal,part_type):
+    "Return coordinates in [kpc] of given particle type"
+    part_type = check_part_type(part_type)
+    part  = getattr(Gal,part_type)
+    Xpart,Ypart,Zpart =  _get_coord_part(part)
+    return Xpart,Ypart,Zpart
+        
 def get_masses(Gal):
-    Mstar = Gal.stars.masses.to_physical().in_units(u.Msun)        # Msun
-    Mgas  = Gal.gas.masses.to_physical().in_units(u.Msun)          # Msun
-    Mdm   = Gal.dark_matter.masses.to_physical().in_units(u.Msun)  # Msun
-    warnings.warn("Using dynamical mass for BH, verify that it make sense") 
-    # according to cgpt, the 2 important components are dynamical_mass and subgrid_mass
-    # the first is done to compute the potential, the other is updated w. the accretion and used for feedback calc.
-    # -> should be correct to use dynamical mass
-    Mbh   = Gal.black_holes.dynamical_masses.to_physical().in_units(u.Msun)  # Msun
-    Ms    = np.concatenate([Mstar,Mgas,Mdm,Mbh]) #Msun
-    #Ms = Ms.to_astropy()
+    "Get masses of all particles"
+    masses = []
+    for part_type in part_type_list:
+        masses.append(get_masses_part(Gal,part_type))    
+    Ms    = np.concatenate(masses) #Msun
     return Ms
 
+def get_coords(Gal):
+    "Get coords of all particles"
+    _Xs,_Ys,_Zs = [],[],[]
+    for part_type in part_type_list:
+        xs,ys,zs  = get_coord_part(Gal,part_type)
+        _Xs.append(xs)
+        _Ys.append(ys)
+        _Zs.append(zs)
+    Xs = np.concatenate(_Xs) #kpc
+    Ys = np.concatenate(_Ys) #kpc
+    Zs = np.concatenate(_Zs) #kpc
+    return Xs,Ys,Zs
+    
 # adapted from wip_select_swiftgal
 def Gal2MXYZ(ColGal):
     Gal   = ColGal.swift_gal
     # Given a ColibreGal galaxy, which then plot to as swift galaxy, return Masses (in Msun) and
     # XY coords. of particles in kpc  centered around center of mass
-    Ms                = get_masses(Gal)
+    Ms       = get_masses(Gal)
     # Particle pos
-    Xstar,Ystar,Zstar =  np.transpose(Gal.stars.coordinates.to_physical().in_units(u.kpc))        # kpc
-    Xgas,Ygas,Zgas    =  np.transpose(Gal.gas.coordinates.to_physical().in_units(u.kpc))          # kpc
-    Xdm,Ydm,Zdm       =  np.transpose(Gal.dark_matter.coordinates.to_physical().in_units(u.kpc))  # kpc
-    Xbh,Ybh,Zbh       =  np.transpose(Gal.black_holes.coordinates.to_physical().in_units(u.kpc))  # kpc
-    Xs = np.concatenate([Xstar,Xgas,Xdm,Xbh]) #kpc
-    Ys = np.concatenate([Ystar,Ygas,Ydm,Ybh]) #kpc
-    Zs = np.concatenate([Zstar,Zgas,Zdm,Zbh]) #kpc
+    Xs,Ys,Zs = get_coords(Gal)
+    # Centre of Mass
     X_cm = np.sum(Xs*Ms)/np.sum(Ms)
     Y_cm = np.sum(Ys*Ms)/np.sum(Ms)
     Z_cm = np.sum(Zs*Ms)/np.sum(Ms)
-    
+    # recenter around CM
     Xs-=X_cm
     Ys-=Y_cm
     Zs-=Z_cm
@@ -77,6 +132,27 @@ def Gal2MXYZ(ColGal):
     Ys = Ys.to_astropy()
     Zs = Zs.to_astropy()
     
+    return Ms, Xs,Ys,Zs
+
+    
+def Gal2MXYZ_part(Gal,part_type): 
+    """Given the galaxy, return Masses (in Msun) and
+    XY coords. of a specific particle type in kpc centered around center
+    """
+    part_type = check_part_type(part_type)
+    part = getattr(Gal,part_type) 
+    
+    # Particle masses
+    Ms       = _get_masses_part(part)
+    # Particle pos
+    Xs,Ys,Zs = _get_coord_part(part)
+    
+    # center around the center of the galaxy 
+    Cx,Cy,Cz  = Gal.centre
+        
+    Xs -= Cx
+    Ys -= Cy
+    Zs -= Cz
     return Ms, Xs,Ys,Zs
 
 def get_kw_SimPartGal(kw_Gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload):
