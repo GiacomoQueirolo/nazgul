@@ -675,7 +675,32 @@ def Gal2MXYZ(Gal):
     Zs -= Cz
     return Ms, Xs,Ys,Zs
 
+def Gal2MXYZ_part(Gal,part_type): 
+    """Given the galaxy, return Masses (in Msun) and
+    XY coords. of a specific particle type in kpc  centered around center
+    """
+    part = getattr(Gal,part_type) 
+    # Particle masses
+    
+    Ms = part["mass"]*u.Msun #Msun
+    
+    # Particle pos
+    Xs,Ys,Zs =  np.transpose(part["coords"]) *u.Mpc.to("kpc")*u.kpc #kpc
 
+    # clip particle outliers
+    Ms,Xs,Ys,Zs = clip_coord(Ms,Xs,Ys,Zs)
+    
+    # center around the center of the galaxy
+    # center of mass is given in Comiving coord 
+    # see https://arxiv.org/pdf/1510.01320 D.23 
+    # ->  it's given in cMpc (not cMpc/h) fsr
+    Cx,Cy,Cz = Gal.centre*u.Mpc.to("kpc")*u.kpc/(Gal.xy_propr2comov) # (now) kpc 
+    
+    Xs -= Cx
+    Ys -= Cy
+    Zs -= Cz
+    return Ms, Xs,Ys,Zs
+    
 def compute_axis_ratio(Gal):
     """
     Compute the principal axial ratio c/b used by Vyvere et al. '22 to discard elliptical or lenticular galaxies
