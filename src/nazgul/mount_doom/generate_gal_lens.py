@@ -324,7 +324,6 @@ def wrapper_get_all_lens(reload=True,
                     Gal.run(reload=reload)
             else:
                 Gal.run(reload=reload)
-<<<<<<< HEAD
             strikes = 0
             while kw_lenspart["projection_index"]<3:
                 try:
@@ -334,6 +333,9 @@ def wrapper_get_all_lens(reload=True,
                     all_lenses.append(mod_LP)
                     pji = kw_lenspart["projection_index"]
                     print(f"Projection {pji} of {Gal.name} is supercritical!\n")
+                    if not consider_all_proj:
+                        print(f"Considering only the first supercritical solution.\n")
+                        break
                 except ProjectionError as PE:
                     strikes+=1
                 kw_lenspart["projection_index"]+=1
@@ -344,33 +346,6 @@ def wrapper_get_all_lens(reload=True,
                 print("#########\nTime stamp:\n")
                 print(strftime("%Y-%m-%d %H:%M:%S", gmtime()))
                 print("#########\n")
-=======
-        else:
-            Gal.run(reload=reload)
-        strikes = 0
-        while kw_lenspart["projection_index"]<3:
-            try:
-                mod_LP = GalLens(Galaxy=Gal,
-                              **kw_lenspart)
-                mod_LP.run(read_prev=reload)
-                all_lenses.append(mod_LP)
-                pji = kw_lenspart["projection_index"]
-                print(f"Projection {pji} of {Gal.name} is supercritical!\n")
-                if not consider_all_proj:
-                    print(f"Considering only the first supercritical solution.\n")
-                    break
-            except ProjectionError as PE:
-                strikes+=1
-            kw_lenspart["projection_index"]+=1
-        if strikes==3:
-            print(f"All projections of Galaxy {Gal.name} are not supercritical")
-        print("Next galaxy.")
-        if verbose:
-            print("#########\nTime stamp:\n")
-            print(strftime("%Y-%m-%d %H:%M:%S", gmtime()))
-            print("#########\n")
->>>>>>> 029fcf6 (monut_doom: scale_tE is now a variable that identifies the lensing class instance GalLens. added possibilty to consider only 1st supercritical projection for a given galaxy. + minor cleanups)
-
             kw_lenspart["projection_index"] = 0
             if _test:
                 print("TEST - Stopping after only one")
