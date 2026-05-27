@@ -198,7 +198,7 @@ def get_MDfromAMRcells_PLL(AMR_cells):
     MD_value  = np.max(density)
     return MD_coords,MD_value
     
-def plot_AMR_cells(kw_2Ddens):
+def plot_AMR_cells(kw_2Ddens,kw_extents):
     fig, ax = plt.subplots(figsize=(8,8))
     a,b= [],[]
     
@@ -244,8 +244,16 @@ def plot_AMR_cells(kw_2Ddens):
         linewidth=0.5)
 
     ax.add_collection(pc)
-    ax.set_xlim(np.min(x0.value),np.max(x0.value))
-    ax.set_ylim(np.min(y0.value),np.max(y0.value))
+    if not kw_extents:
+        ax.set_xlim(np.min(x0.value),np.max(x0.value))
+        ax.set_ylim(np.min(y0.value),np.max(y0.value))
+    else:
+        if "arc" in str(x0.unit):
+            ext = kw_extents["extent_arcsec"]
+        elif "kpc" in str(x0.unit):
+            ext = kw_extents["extent_kpc"]
+        ax.set_xlim(ext[0],ext[1])
+        ax.set_ylim(ext[2],ext[3])
     ax.set_aspect("equal")
     ax.set_xlabel("x ["+str(x0.unit)+"]")
     ax.set_ylabel("y ["+str(y0.unit)+"]")
