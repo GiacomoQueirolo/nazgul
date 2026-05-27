@@ -38,12 +38,9 @@ from nazgul.project_gal import ProjGal,ProjectionError,project_Gal
 #Default values
 import nazgul.configurations as conf
 
-
-
 # Path definitions:
 # define where to store the obtained lenses classes
 std_sim_lens_path   = path_nazgul/"sim_lens/"
-default_savedir_sim = "forged" # subdirectory depending on the lensing algorithm
 
 def get_lens_dir(Gal,sim_lens_path=std_sim_lens_path):
     lens_dir = Path(sim_lens_path)/Gal.sim/f"snap{Gal.snap}_G{Gal.Gn}.{Gal.SGn}"
@@ -140,17 +137,12 @@ def fit_xy_spline(x, y,
     errs = np.empty(len(s_vals))
 
     for i, s in enumerate(s_vals):
-        # DEBUG
-        try:
-            tck, _ = splprep(
-                [x_ord, y_ord],
-                s=s * n,
-                per=True,
-                quiet=True
-            )
-        except TypeError as e:
-            print(x_ord,y_ord,s,n)
-            raise TypeError(e)
+        tck, _ = splprep(
+            [x_ord, y_ord],
+            s=s * n,
+            per=True,
+            quiet=True
+        )
         xs, ys = splev(u_sub, tck)
         errs[i] = np.sum(np.hypot(xs - x_sub, ys - y_sub))
 
@@ -272,10 +264,10 @@ class BasicLensPart(BasicGal):
                  Galaxy,      # class instance of PartGal
                  projection_index, # projection index
                  kwlens_part=kwlens_part_AS, # if PM or AS, and if so size of the core
-                 pixel_num=conf.pixel_num, # number of pixels
                  kw_prior_z_source = kw_prior_z_source_stnd, # could likelihood of z_source
+                 pixel_num=conf.pixel_num, # number of pixels
                  min_thetaE = conf.min_thetaE, # minimum theta observable
-                 #subdir="./",           # subdirectory (to differentiate btw versions)
+                 scale_tE = conf.scale_tE,     # rescaling of theta E to get radius (ie size of image cutout) = tE*scale_tE 
                  reload=True # reload previous instance
                  ):
 
@@ -311,7 +303,7 @@ class BasicLensPart(BasicGal):
         self.kw_like_zs        = kw_prior2like_zs(kw_prior_z_source=kw_prior_z_source,
                                               z_lens=self.z_lens)
         self.min_thetaE        = ensure_unit(min_thetaE,u.arcsec) #arcsec
-
+        self.scale_tE          = scale_tE
 
     def __str__(self): 
         """Human-readable identifier.

@@ -39,7 +39,9 @@ from nazgul.project_gal import Gal2kw_samples,ProjGal
 from nazgul.pathfinder import get_lens_lowdir_from_galdir,get_proj_dir_from_galdir
 
 from nazgul.mount_doom.cracks_of_doom import BasicLensPart,get_extents,kw_prior_z_source_stnd
-from nazgul.configurations import scale_tE,pixel_num,min_thetaE
+
+#Default values
+import nazgul.configurations as conf
 
 class GalLens(BasicLensPart): 
     _large_attributes_setup  = ["kwargs_lens","lens_prof","Gal","PartLens","cosmo"]
@@ -49,10 +51,10 @@ class GalLens(BasicLensPart):
                  Galaxy,      # class instance of PartGal
                  projection_index, # projection index of the galaxy
                  kwlens_part=kwlens_part_AS, # if PM or AS, and if so size of the core
-                 pixel_num=pixel_num, # number of pixels 
                  kw_prior_z_source = kw_prior_z_source_stnd, # could likelihood of z_source
-                 min_thetaE = min_thetaE, # minimum theta observable
-                 #subdir="./",           # subdirectory (to differentiate btw versions)
+                 pixel_num = conf.pixel_num, # number of pixels 
+                 min_thetaE = conf.min_thetaE, # minimum theta E observable
+                 scale_tE = conf.scale_tE,     # rescaling of theta E to get radius (ie size of image cutout) = tE*scale_tE 
                  ignore_OoBErr=False,   # ignore Out of Bound errors in lenstronomy lens profile
                  reload=True # reload previous instance
                  
@@ -63,7 +65,7 @@ class GalLens(BasicLensPart):
                          pixel_num=pixel_num,
                          kw_prior_z_source=kw_prior_z_source,
                          min_thetaE=min_thetaE,
-                         #subdir=subdir,
+                         scale_tE = scale_tE,
                          reload=reload)
         self.ignore_OoBErr = ignore_OoBErr
         self.savedir  = get_lens_lowdir_from_galdir(galdir=self.Gal.gal_dir)
@@ -76,12 +78,17 @@ class GalLens(BasicLensPart):
 
         The identity is used for hashing, equality, and cache keys.
         """
+        #MONKEY_PATCH
+        if not hasattr(self,"scale_tE"):
+            print("Recovering scale_tE from radius and thetaE") 
+            self.scale_tE = (self.radius/self.thetaE).value
         return (
             self.Gal._identity(),
             self.PartLens._identity(),
             self.pixel_num,
             self.z_source_max,
             self.kwlens_part,
+            self.scale_tE
             )
     ########################
     @property
@@ -93,7 +100,7 @@ class GalLens(BasicLensPart):
         
     #############################
     def run(self,read_prev=True,
-            verbose=True,scale_tE=scale_tE):
+            verbose=True):
         """Main function that computes the deflection map:
             - read the particles
             - iteratively test projections given a source at redshift 
@@ -128,13 +135,13 @@ class GalLens(BasicLensPart):
 
             # Lensing computations:
             #######################
-            self.create_lens(verbose=verbose,scale_tE=scale_tE)
+            self.create_lens(verbose=verbose)
 
-    def create_lens(self,verbose=True,scale_tE=scale_tE):
+    def create_lens(self,verbose=True):
         # setup lensing keywords
         self.PartLens.setup(self) # only run now as it needs z_source 
         # Define the radius based on ~ theta_E
-        self.radius = self.thetaE*scale_tE
+        self.radius = self.thetaE*self.scale_tE
         if verbose:
             print("Image radius:",np.round(self.radius,3))
         # setup lenses 
@@ -262,8 +269,9 @@ def get_kw_lenspart(reload,kw_lenspart={}):
     default_kw_lenspart={"kwlens_part":kwlens_part_AS,
                          "projection_index":0,
                          "kw_prior_z_source":kw_prior_z_source_stnd,
-                         "pixel_num":pixel_num,
-                         "min_thetaE":min_thetaE,
+                         "pixel_num":conf.pixel_num,
+                         "min_thetaE":conf.min_thetaE,
+                         "scale_tE":conf.scale_tE,
                          "reload":reload}
     default_kw_lenspart.update(kw_lenspart)
     kw_lenspart = default_kw_lenspart
@@ -288,6 +296,7 @@ def wrapper_get_all_lens(reload=True,
                         kw_lenspart={},
                         kw_galpart={},
                         verbose=True,
+                        consider_all_proj=True,
                         _test=False,
                         _list_of_skippable_gals=None):
     """Get a lens from all available galaxies"""
@@ -324,6 +333,9 @@ def wrapper_get_all_lens(reload=True,
                 all_lenses.append(mod_LP)
                 pji = kw_lenspart["projection_index"]
                 print(f"Projection {pji} of {Gal.name} is supercritical!\n")
+                if not consider_all_proj:
+                    print(f"Considering only the first supercritical solution.\n")
+                    break
             except ProjectionError as PE:
                 strikes+=1
             kw_lenspart["projection_index"]+=1
