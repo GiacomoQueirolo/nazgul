@@ -95,7 +95,7 @@ def verify_z_snap(z,snap):
 
 def get_nfiles(sim):
     # n* of files per snapshot:
-    if sim == "RefL0025N0752":
+    if sim=="RefL0025N0752":
         nfiles = 16
     elif sim == "RefL0050N0752":
         nfiles = 128
