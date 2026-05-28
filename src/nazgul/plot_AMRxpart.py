@@ -46,7 +46,7 @@ def plot_AMR_densityXpart(Gal,
 
     Sigma_crit = (const.c**2 / (4*np.pi*const.G) * (Ds/(Dd*Dds))).to("Msun/kpc^2")
     
-    kw_parts_all = Gal2kwMXYZ(gal)
+    kw_parts_all      = Gal2kwMXYZ(Gal)
     kw_parts_all_proj = project_kw_parts(kw_parts_all,proj_index)
     kw_2Ddens_all     = dens_map_AMR(kw_parts_proj=kw_parts_all_proj,
                                      max_particles=max_particles,
