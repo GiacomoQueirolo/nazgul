@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 
 from python_tools.get_res import LoadClass
-
+from python_tools.tools import to_uid,to_uid_base64
 def store_class(ist_class,path=None,overwrite=True,update=True,LoadClass=LoadClass):
     """If overwrite=True or not present
     serialize the current object to disk using dill.
@@ -35,6 +35,7 @@ def _store_class(ist_class,path=None):
         dill.dump(ist_class, f)
     print(f"Saved {path}")
 
+    
 class BasicGal:
     """General useful class for galaxies (being ensemble of particles or already lenses)
     """
@@ -50,8 +51,14 @@ class BasicGal:
         
     def __hash__(self):
         # simplify the hash method
-        return hash(self._identity())
+        #return hash(self._identity())
+        # implement better hashing to consider identity with dictionaries
+        return to_uid(self._identity())
 
+    @property
+    def _hash_b64(self):
+        return to_uid_base64(self._identity(),n_chars=6)
+        
     def __eq__(self, other):
         return self._identity() == other._identity()
 

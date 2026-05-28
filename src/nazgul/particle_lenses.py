@@ -222,13 +222,15 @@ class PartLens_basis():
     ########################
     def _identity(self):
         """Returns tuple to identify uniquely this galaxy
-        convert kwargs in immuatable tuple to be hashable"""
+        convert kwargs in immutable tuple to be hashable"""
         Id = (self.name,
               tuple(sorted(self.kwargs_lens.items())))
         return Id
     
     def __hash__(self):
         """simplify the hash method"""
+        # note: this works only if _identity does not contain
+        # dictionary/kwargs
         return hash(self._identity())
 
     def __eq__(self, other):

@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 from nazgul.pathfinder import std_simsuite, std_sim, get_sim_dir, get_catdir
 
-from python_tools.tools import short_SciNot
+from python_tools.tools import short_SciNot,to_uid_base64
 from python_tools.get_res import load_whatever
 
 from nazgul.configurations import min_z, max_z, min_mass
@@ -124,15 +124,18 @@ def get_query(sim=std_sim, min_mass=min_mass, min_z=min_z, max_z=max_z,
 
 def get_catpath(sim=std_sim, simsuite=std_simsuite,
                 min_mass=min_mass, min_z=min_z, max_z=max_z, **kwargs_query):
+
+    """
     min_mass = short_SciNot(min_mass)
     min_z = short_SciNot(str(min_z))
     max_z = short_SciNot(str(max_z))
-
     cat_name = f"CatGal_minM{min_mass}_minZ{min_z}_maxZ{max_z}"
     for k in kwargs_query:
         cat_name += f"{k}{short_SciNot(kwargs_query[k])}"
     cat_name += ".pkl"
-
+    """
+    kw_naming = {"min_mass":min_mass,"min_z":min_z,"max_z":max_z} | kwargs_query
+    cat_name = f"CatGal_{to_uid_base64(kw_naming)}.pkl"
     sim_path = get_catdir(sim=sim, simsuite=std_simsuite)
     cat_path = sim_path / cat_name
     return cat_path

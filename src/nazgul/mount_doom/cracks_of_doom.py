@@ -340,7 +340,7 @@ class BasicLensPart(BasicGal):
     @property
     def name(self):
         # define name and path of savefile
-        name= f"{self.Gal_name}_Npix{self.pixel_num}_Part{self.PartLens_name}_Prj{self.proj_index}"
+        name= f"Lens_{self.Gal_name}_Prj{self.proj_index}"
         return name
         
     def get_kw_sublenspart(self):
@@ -402,7 +402,7 @@ class BasicLensPart(BasicGal):
         
     @property
     def pkl_path(self):
-        return _resolve_gal_path(self.savedir)/f"{self.name}.pkl"
+        return _resolve_gal_path(self.savedir)/f"{self.name}_{self._hash_b64}.pkl"
 
     def is_precomputed(self):
         if self.pkl_path.exists():
