@@ -64,8 +64,8 @@ def plot_AMR_densityXpart(Gal,
     
     cutout_arcs = tE*scale_tE_cutout
     cutout_kpc  = RE*scale_tE_cutout
-    kw_extents = {"extent_arcsec":[-cutout_arcs,cutout_arcs,-cutout_arcs,cutout_arcs],
-                  "extent_kpc":[-cutout_kpc,cutout_kpc,-cutout_kpc,cutout_kpc]}
+    kw_extents = {"extent_arcsec":[-cutout_arcs.value,cutout_arcs.value,-cutout_arcs.value,cutout_arcs.value],
+                  "extent_kpc":[-cutout_kpc.value,cutout_kpc.value,-cutout_kpc.value,cutout_kpc.value]}
     print("TESTING kw_extents:",kw_extents)
 
     # Plotting allthe density
