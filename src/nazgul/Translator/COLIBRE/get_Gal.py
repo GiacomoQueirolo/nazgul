@@ -290,8 +290,12 @@ def get_gal_candidates(snap,
                                         scale_factor=scale_factor,
                                         verbose=verbose)
         list_candidates_gal.append(candidates_gal)
-        
-    comb_candidates_gal = np.logical_and(*list_candidates_gal)
+
+    try:
+        comb_candidates_gal = np.logical_and(*list_candidates_gal)
+    except TypeError:
+        comb_candidates_gal = list_candidates_gal[0]
+
     comb_candidates_gal_index = np.argwhere(comb_candidates_gal).squeeze()
     if verbose:
         print(f"Found N={len(comb_candidates_gal_index)} candidates") 
