@@ -1,4 +1,5 @@
 #WIP
+import warnings
 import numpy as np
 import astropy.units as u
 import matplotlib.pyplot as plt
@@ -10,7 +11,7 @@ from nazgul.pathfinder import tmp_dir
 from nazgul.project_gal import project_kw_parts
 from nazgul.AMR2D_PLL import plot_AMR_cells,AMR_density_PLL,get_MDfromAMRcells_PLL
 from nazgul.Translator.particle_galaxy import clip_coord
-from nazgul.Translator.translator import Gal2kwMXYZ_part
+from nazgul.Translator.translator import Gal2kwMXYZ_part,get_sim_func
 
 def plot_gal(gl, save_to_tmp: bool = True):
     gal_dir = gl.gal_dir 
@@ -135,12 +136,16 @@ def plot_AMR_density(gl,
              kw_2Ddens["AMR_cells"][cells,N]
     """
 
-    print("ignoring BH - too few to make a AMR")
-    types = ["stars","dm","gas"] #,"BH"]
-    
+        
     savedir = f"tmp/AMR_{gl.name}/"
     mkdir(savedir)
-    for tp in types:
+    part_types = get_sim_func(Gal.simsuite,"part_type_list")
+    
+    for tp in part_types:
+        if "bh" in tp.lower() or "hole" in tp.lower():
+            warnings.warn("Ignoring BH particles- too few to make a AMR")
+            continue
+
         # for now only considering index 0
         proj_index    = 0
         kw_parts      = Gal2kwMXYZ_part(gal,part_type=tp)
