@@ -10,7 +10,7 @@ from nazgul.pathfinder import tmp_dir
 from nazgul.project_gal import project_kw_parts
 from nazgul.AMR2D_PLL import plot_AMR_cells,AMR_density_PLL,get_MDfromAMRcells_PLL
 from nazgul.Translator.particle_galaxy import clip_coord
-
+from nazgul.Translator.translator import Gal2kwMXYZ_part
 
 def plot_gal(gl, save_to_tmp: bool = True):
     gal_dir = gl.gal_dir 
@@ -121,40 +121,6 @@ def plot_gal(gl, save_to_tmp: bool = True):
     print(f"Saving {nm}")
     plt.savefig(nm)
     plt.close()
-
-
-
-def Gal2MXYZ_part(Gal,part_type="stars"): 
-    """Given the galaxy, return Masses (in Msun) and
-    XY coords. of particles in kpc  centered around center
-    """
-    part = getattr(Gal,part_type) 
-    # Particle masses
-    
-    Ms = part["mass"]*u.Msun #Msun
-    
-    # Particle pos
-    Xs,Ys,Zs =  np.transpose(part["coords"]) *u.Mpc.to("kpc")*u.kpc #kpc
-
-    # clip particle outliers
-    Ms,Xs,Ys,Zs = clip_coord(Ms,Xs,Ys,Zs)
-    
-    # center around the center of the galaxy
-    # center of mass is given in Comiving coord 
-    # see https://arxiv.org/pdf/1510.01320 D.23 
-    # ->  it's given in cMpc (not cMpc/h) fsr
-    Cx,Cy,Cz = Gal.centre*u.Mpc.to("kpc")*u.kpc/(Gal.xy_propr2comov) # (now) kpc 
-    
-    Xs -= Cx
-    Ys -= Cy
-    Zs -= Cz
-    return Ms, Xs,Ys,Zs
-
-# Plot AMR density for different particle species
-
-def Gal2kwMXYZ_part(Gal,part_type): 
-    Ms, Xs,Ys,Zs = Gal2MXYZ_part(Gal,part_type=part_type)
-    return {"Ms":Ms,"Xs":Xs,"Ys":Ys,"Zs":Zs}
     
 def plot_AMR_density(gl,
                   max_particles=100,
