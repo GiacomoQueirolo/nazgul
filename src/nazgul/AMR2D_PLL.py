@@ -1,14 +1,16 @@
 # updated from AMR2D - now parallelised and much faster and lighter for large particle numbers
 # heavily helped by chatgpt
 
+import warnings
 import numpy as np
 import astropy.units as u
+from astropy.stats import sigma_clip
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from matplotlib.collections import PatchCollection
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
+from matplotlib.collections import PatchCollection
 
 import numba
 from time  import time
@@ -130,8 +132,47 @@ def validate_no_duplicates(cells, N,verbose=False):
              print("OK: No duplicates, each particle appears once.")
      else:
          assert("ERROR: Some particles appear multiple times or not at all.")
+
+# inspired from Translator/particle_galaxy.py
+def clip_parts(x,y,m,clip_sigma=6,clip_thresh=.1):
+    xm = np.sum(x*m)/np.sum(m)
+    ym = np.sum(y*m)/np.sum(m)
     
-def AMR_density_PLL(x, y, m, max_particles=300, min_area=None,dens_thresh=None,Sigma_crit=None):
+    x -= xm 
+    y -= ym 
+
+    i=0
+    while i<100:
+        # clip coordinates outliers
+        dists = np.sum(np.array([x,y])**2,axis=0)
+        mask  = np.invert(sigma_clip(dists,sigma=clip_sigma).mask)
+        
+        clip_frac_final = 1-len(m[mask])/len(m)
+        if clip_frac_final>clip_thresh:
+            clip_sigma *= 1.1
+            i+=1
+        else:
+            break
+    if clip_frac_final>clip_thresh:
+        raise RuntimeError(f"Even raising the sigma to {clip_sigma} we end up discarding {np.round(clip_frac_final*100,1)}% of the points")
+        
+    return x[mask],y[mask],m[mask]
+    
+def AMR_density_PLL(x, y, m, max_particles=300, min_area=None,
+                    dens_thresh=None,Sigma_crit=None,dens_thresh_scale=0.1,
+                   clip=False,clip_thresh=0.1,clip_sigma=6,
+                   *args,**kwargs):
+    """
+        x,y,m : arrays w. coordinates and mass of particles
+        max_particles: int, max n* of particle for 1 cell
+        min_area: float, min area for 1 cell
+        dens_thresh: float (optional), density threshold for 1 cell
+        Sigma_crit: float (optional), critical density (if prev. meas.)
+        dens_thresh_scale: float (optional), scaling of Sigma_crit to obtain dens_thresh
+        clip: bool (def:False), if True ignore particles further than clip_sigma*sigma from the centre of mass
+        clip_sigma: float (def:6), scale of sigma from CM from where we ignore the particles
+        clip_thresh: float (def:.1), max. fraction of particle that we can discard with clipping
+    """
     # numba strips units; if present, store them and add them a posteriori
     units = False
     try:
@@ -148,17 +189,19 @@ def AMR_density_PLL(x, y, m, max_particles=300, min_area=None,dens_thresh=None,S
         m = m.value
     except:
         mass_unit = 1 
+    if clip:
+        x,y,m = clip_parts(x,y,m,clip_sigma=clip_sigma,clip_thresh=clip_thresh)
     
     # Domain
     x0, x1 = np.min(x), np.max(x)
     y0, y1 = np.min(y), np.max(y)
     if min_area is None:
         domain = (x1-x0)*(y1-y0)
-        min_area = (domain_size / 300)
+        min_area = (domain / 300)
     if dens_thresh is None:
         if Sigma_crit is None:
             raise RuntimeError("Provide either density threshold dens_thresh or critical density Sigma_crit")
-        dens_thresh = 0.1*Sigma_crit
+        dens_thresh = dens_thresh_scale*Sigma_crit
     cells = build_AMR(x, y, m,
                       x0,x1,y0,y1,
                       max_particles=max_particles,
@@ -198,7 +241,7 @@ def get_MDfromAMRcells_PLL(AMR_cells):
     MD_value  = np.max(density)
     return MD_coords,MD_value
     
-def plot_AMR_cells(kw_2Ddens,kw_extents):
+def plot_AMR_cells(kw_2Ddens,kw_extents=None):
     fig, ax = plt.subplots(figsize=(8,8))
     a,b= [],[]
     
@@ -206,21 +249,27 @@ def plot_AMR_cells(kw_2Ddens,kw_extents):
     cells = kw_2Ddens["AMR_cells"]
     # to speed up the code I need to vectorise it -
     # but then I need to ingore the units
-
-    x0,x1,y0,y1,mass,dns  = np.array([[cc.value for cc in c] for c in cells]).T
-    x0_unit,x1_unit,y0_unit,y1_unit,mass_unit,dns_unit  = [c.unit for c in cells[0]]
-    # verify that the units are consistent
-    assert x0_unit==x1_unit
-    assert x0_unit==y0_unit
-    assert x0_unit==y1_unit
-    assert x0_unit==xc.unit
-    assert x0_unit==yc.unit
-    
-    length_unit = x0_unit
-    x0 *=length_unit
-    x1 *=length_unit
-    y0 *=length_unit
-    y1 *=length_unit
+    try:
+        x0,x1,y0,y1,mass,dns  = np.array([[cc.value for cc in c] for c in cells]).T
+        x0_unit,x1_unit,y0_unit,y1_unit,mass_unit,dns_unit  = [c.unit for c in cells[0]]
+        # verify that the units are consistent
+        assert x0_unit==x1_unit
+        assert x0_unit==y0_unit
+        assert x0_unit==y1_unit
+        assert x0_unit==xc.unit
+        assert x0_unit==yc.unit
+        length_unit = x0_unit
+    except AttributeError:
+        warnings.warn("Units missing, assuming [x]=kpc, [m]=Msun")
+        x0,x1,y0,y1,mass,dns  = np.array([[cc for cc in c] for c in cells]).T
+        length_unit = u.kpc
+        mass_unit   = u.Msun
+        dns_unit    = mass_unit/(length_unit*length_unit)
+        
+    x0   *=length_unit
+    x1   *=length_unit
+    y0   *=length_unit
+    y1   *=length_unit
     mass *=mass_unit
     dns  *=dns_unit
     
