@@ -14,7 +14,8 @@ from python_tools.get_res import LoadClass,load_whatever
 
 from nazgul.pathfinder import get_gal_dir,path_nazgul
 from nazgul.Translator.particle_galaxy import BasicPartGal,store_class
-from nazgul.Translator.COLIBRE import simsuite_name
+from nazgul.Translator.COLIBRE import simsuite_name,part_type_list,check_part_type
+
 from nazgul.Translator.COLIBRE.get_Gal import get_swiftgal,get_snap,get_z_snap
 from nazgul.Translator.COLIBRE.get_Gal import std_sim,std_subsim,colibre_base_path
 from nazgul.Translator.COLIBRE.get_Gal import min_z,max_z,min_mass,get_rnd_kw_gal,get_all_kw_gal
@@ -35,18 +36,6 @@ def gal_path2kwGal(gal_pkl_path):
                              "soap_index": int(Gn)}
     # M,center not necessary
     return kw_gal_full
-
-plural_part_type_list = ["stars","gas","dark_matter","black_holes"]
-singular_part_type_list = ["star","black_hole"]
-part_type_list = plural_part_type_list
-def check_part_type(part_type):
-    assert type(part_type)==str
-    if part_type not in plural_part_type_list:
-        if part_type in singular_part_type_list:
-            return part_type+"s"
-        else:
-            raise RuntimeError(f"Particle type {part_type} not an accepted particle type:\n{plural_part_type_list}")
-    return part_type
 
 
 def get_masses_part(Gal,part_type):
@@ -148,7 +137,7 @@ def Gal2MXYZ_part(Gal,part_type):
     Xs,Ys,Zs = _get_coord_part(part)
     
     # center around the center of the galaxy 
-    Cx,Cy,Cz  = Gal.centre
+    Cx,Cy,Cz  = Gal.centre*u.Mpc
         
     Xs -= Cx
     Ys -= Cy

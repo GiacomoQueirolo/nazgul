@@ -4,15 +4,22 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from nazgul.Translator.translator import PartGal 
+from nazgul.Translator.ANL_TEST.particle_galaxy import e1,e2 
 from nazgul.mount_doom.generate_gal_lens import GalLens
 from nazgul.mount_doom.lens_system import LensSystem
+from nazgul.plot_AMRxpart import plot_AMR_densityXpart
 
 from lenstronomy.LensModel.lens_model import LensModel
 
-pg = PartGal({"n_smpl":1e6},sim="SIS",simsuite="ANL_TEST") 
+
+pji = 0 # project index #
+pg = PartGal({"n_smpl":1e6,"e1":e1,"e2":e2},
+             sim="SIE",simsuite="ANL_TEST") 
 pg.run() 
 pg.store_gal()
-lensgal = GalLens(pg,0)
+plot_AMR_densityXpart(Gal=pg,proj_index=pji,
+                      savedir="tmp/")
+lensgal = GalLens(pg,pji)
 lensgal.run()
 
 
@@ -32,9 +39,9 @@ axis[1].set_title(r"$\alpha_y$")
 axis[1].imshow(lensgal.alpha_map[1],origin="lower")
     
 
-lens_anl  = LensModel(lens_model_list=['SIS'])
-kw_sis    = pg.kwargs_lens
-alpha_map_anl = lens_anl.alpha(*lensgal.get_RADEC(),kwargs=kw_sis)
+lens_anl  = LensModel(lens_model_list=['SIE'])
+kw_sie    = pg.kwargs_lens
+alpha_map_anl = lens_anl.alpha(*lensgal.get_RADEC(),kwargs=kw_sie)
 a_anl_x,a_anl_y = alpha_map_anl 
 axis = axes[1]
 axis[0].set_ylabel("Analytical")
@@ -60,7 +67,7 @@ for axi in axes:
         ax.get_yaxis().set_ticks([])
 plt.tight_layout()
 
-plt.savefig("tmp/alpha_sis.png")
+plt.savefig("tmp/alpha_.png")
 plt.close()
 #####################################################
 
@@ -69,10 +76,10 @@ extents = lensgal.kw_extents["extent_arcsec"]
 shear_map  = lenssystem.shear_map() 
 lensgal.mu = np.ones_like(lensgal.alpha_map[0]) - lensgal.kappa_map**2 - shear_map**2
 
-mu_anl = lens_anl.magnification(*lensgal.get_RADEC(),kwargs=kw_sis)
-g1_anl,g2_anl = lens_anl.gamma(*lensgal.get_RADEC(),kwargs=kw_sis)
+mu_anl = lens_anl.magnification(*lensgal.get_RADEC(),kwargs=kw_sie)
+g1_anl,g2_anl = lens_anl.gamma(*lensgal.get_RADEC(),kwargs=kw_sie)
 shear_anl = np.hypot(g1_anl,g2_anl)
-kappa_anl = lens_anl.kappa(*lensgal.get_RADEC(),kwargs=kw_sis)
+kappa_anl = lens_anl.kappa(*lensgal.get_RADEC(),kwargs=kw_sie)
 mu_anl_2 = np.ones_like(kappa_anl) - kappa_anl**2 - shear_anl**2
 print("<mu anl - mu anl2>: ",np.median(mu_anl - mu_anl_2))
 
@@ -159,7 +166,7 @@ for axis in axes:
 
 plt.tight_layout()
 
-plt.savefig("tmp/mu_sis.png")
+plt.savefig("tmp/mu_sie.png")
 #####################################################
 lensgal._unpack_Gal()
 
@@ -234,5 +241,5 @@ for ax in axes:
     ax.set_xlabel("RA")
 plt.tight_layout()
 
-plt.savefig("tmp/source_sis.png")
+plt.savefig("tmp/source_sie.png")
 plt.close()

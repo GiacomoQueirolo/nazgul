@@ -13,8 +13,10 @@ from python_tools.tools import mkdir,ensure_unit
 from nazgul.project_gal import project_kw_parts,dens_map_AMR,cells2SigRad
 
 from nazgul.AMR2D_PLL import plot_AMR_cells
-from nazgul.Translator.translator import PartGal,Gal2kwMXYZ,Gal2kwMXYZ_part
+from nazgul.Translator.translator import PartGal,Gal2kwMXYZ,Gal2kwMXYZ_part,get_sim_func
 
+base_colors = ["red","green","blue","yellow","dark","magenta","cyan",
+               "darkorange","darkviolet","lawngreen","violet"] 
 # Plot AMR density for different particle species
 def plot_AMR_densityXpart(Gal,
                      proj_index    = 0,
@@ -32,12 +34,6 @@ def plot_AMR_densityXpart(Gal,
         savedir  = f"{Gal.gal_dir}/Plots/"
     mkdir(savedir)
 
-    warnings.warn("Ignoring BH particles- too few to make a AMR")
-    warnings.warn("For now not adapted to COLIBRE")
-    types        = ["stars","dm","gas"] #,"BH"]
-    types_str    = ["Stars","DM","Gas"] #,"BH"]
-    col_type     = ['red','green','blue'] 
-
     z_lens   = Gal.z 
     arcXkpc  = Gal.cosmo.arcsec_per_kpc_proper(z_lens)
     Dd       = Gal.cosmo.angular_diameter_distance(z_lens).to("Mpc")
@@ -51,7 +47,7 @@ def plot_AMR_densityXpart(Gal,
     kw_2Ddens_all     = dens_map_AMR(kw_parts_proj=kw_parts_all_proj,
                                      max_particles=max_particles,
                                      min_area=min_area,
-                                     dens_thresh=dens_thresh)
+                                     dens_thresh=dens_thresh,clip=True)
     r_all,Sigma_encl_all   = cells2SigRad(kw_2Ddens_all)
     r_all = r_all.to("kpc")
 
@@ -78,15 +74,20 @@ def plot_AMR_densityXpart(Gal,
     ax2.plot(r_all,Sigma_encl_all/1e9,color='cyan',label="Total")
 
     ax_tmp = ax2.twiny() 
-    
-    for i_tp,tp in enumerate(types):
+    part_types = get_sim_func(Gal.simsuite,"part_type_list")
+    i = 0
+    for tp in part_types:
+        if "bh" in tp.lower() or "hole" in tp.lower():
+            warnings.warn("Ignoring BH particles- too few to make a AMR")
+            continue
         kw_parts      = Gal2kwMXYZ_part(Gal,part_type=tp)
         kw_parts_proj = project_kw_parts(kw_parts,proj_index)
         
         kw_2Ddens     = dens_map_AMR(kw_parts_proj=kw_parts_proj,
                                      max_particles=max_particles,
                                      min_area=min_area,
-                                     dens_thresh=dens_thresh)
+                                     dens_thresh=dens_thresh,
+                                     clip=True)
         # plot 2d dens distr.
         fig1,ax1 = plot_AMR_cells(kw_2Ddens,kw_extents)
         nm = f"{savedir}/AMR_{tp}_proj{proj_index}.png"
@@ -97,7 +98,8 @@ def plot_AMR_densityXpart(Gal,
         r,Sigma_encl   = cells2SigRad(kw_2Ddens)
         r = r.to("kpc")
         Sigma_encl = Sigma_encl.to("Msun/kpc^2")
-        ax2.plot(r,Sigma_encl/1e9,color=col_type[i_tp],label=types_str[i_tp])
+        ax2.plot(r,Sigma_encl/1e9,color=base_colors[i],label=tp)
+        i+=1
     ax_tmp.plot(r*arcXkpc, np.zeros_like(r),alpha=0.)
     ax_tmp.tick_params(axis='x')
 

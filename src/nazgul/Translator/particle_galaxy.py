@@ -98,7 +98,7 @@ class BasicPartGal(BasicGal):
     def store_gal(self):
         raise NotImplementedError
 
-def clip_coord(m,x,y,z,sigma=10):
+def clip_coord(m,x,y,z,sigma=10,perc_thresh=99):
     # clip coordinates outliers
     dists = np.sum(np.array([x,y,z])**2,axis=0)
     mask = np.invert(sigma_clip(dists,sigma=sigma).mask)
@@ -106,7 +106,7 @@ def clip_coord(m,x,y,z,sigma=10):
     #for coord in x,y,z:
     #    mask *= np.invert(sigma_clip(coord,sigma=sigma).mask)
     perc_final = np.round(len(m[mask])*100/len(m),3)
-    if perc_final<99:
+    if perc_final<perc_thresh:
         print(100-perc_final,"% of particle discarded")
         raise RuntimeError("Too many particles discarded")
         

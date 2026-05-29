@@ -12,7 +12,6 @@ from nazgul.configurations import SimSuiteNames,min_z,max_z,min_mass
 from nazgul.Translator import std_simsuite,std_sim
 from nazgul.pathfinder import get_part_dir,get_gal_dir
 from nazgul.basic_gal import store_class
-from nazgul.Translator.pathfinder import translate_galname
 
 def check_simsuite(simsuite):
     if simsuite not in SimSuiteNames:
