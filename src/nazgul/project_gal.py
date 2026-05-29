@@ -245,7 +245,8 @@ def dens_map_AMR(kw_parts_proj,
                   max_particles=100,
                   min_area=0.1*u.kpc*u.kpc,
                   dens_thresh = 0.*u.Msun/(u.kpc**2),
-                  verbose=True):
+                  verbose=True,
+                  *args,**kwargs):
     """ 
     Compute density Adaptive Mesh Refinement map
     input  :  
@@ -258,7 +259,9 @@ def dens_map_AMR(kw_parts_proj,
     Ys = np.asarray(kw_parts_proj["Ys"].to("kpc"))*u.kpc
 
     # units are stripped by numba - have to "reattach" them "by hand"
-    AMR_cells = AMR_density_PLL(Xs,Ys,Ms, max_particles=max_particles, min_area=min_area,dens_thresh=dens_thresh)
+    AMR_cells = AMR_density_PLL(Xs,Ys,Ms,
+                                max_particles=max_particles, min_area=min_area,
+                                dens_thresh=dens_thresh,*args,**kwargs)
     # use parallelised version - faster 
     MD_coords,MD_value = get_MDfromAMRcells_PLL(AMR_cells) 
     # Note: all inputs are still in kpc
