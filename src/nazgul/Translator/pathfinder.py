@@ -16,7 +16,7 @@ def translate_galname(kw_gal,simsuite,**kwargs):
         galname = get_galname(soap_index)
     elif simsuite=="ANL_TEST":
         from nazgul.Translator.ANL_TEST.pathfinder import get_galname
-        galname = get_galname(kw_gal["theta_E"],kw_gal["n_smpl"])
+        galname = get_galname(kw_gal)
     else:
         raise RuntimeError(f"The simsuite {simsuite} is not yet implemented, allowed only {SimSuiteNames}") 
     return galname
