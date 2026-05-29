@@ -27,7 +27,7 @@ from nazgul.pathfinder import get_gal_dir,get_part_dir,std_sim,std_data_dir,path
 from nazgul.Translator.EAGLE.fnct import _count_part,_mass_part
 from nazgul.Translator.EAGLE.fnct import get_z_snap,read_snap_header,get_nfiles
 
-from nazgul.Translator.EAGLE import simsuite_name
+from nazgul.Translator.EAGLE import simsuite_name,part_type_list,check_part_type
 from nazgul.Translator.translator import min_z,max_z,min_mass
 from nazgul.Translator.particle_galaxy import BasicPartGal,store_class,clip_coord
 
@@ -679,6 +679,7 @@ def Gal2MXYZ_part(Gal,part_type):
     """Given the galaxy, return Masses (in Msun) and
     XY coords. of a specific particle type in kpc  centered around center
     """
+    part_type = check_part_type(part_type)
     part = getattr(Gal,part_type) 
     # Particle masses
     
