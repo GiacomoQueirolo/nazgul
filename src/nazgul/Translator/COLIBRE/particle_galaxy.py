@@ -210,7 +210,26 @@ class SimPartGal(BasicPartGal):
                                      soap_index=self.soap_index)
             self._swift_gal = swift_gal
             return swift_gal
-            
+
+    @property
+    def cosmo(self):
+        if hasattr(self, '_cosmo_cache'):
+            return self._cosmo_cache
+        try:
+            cosmo = self.swift_gal.metadata.cosmology
+            self._cosmo_cache = cosmo
+            return cosmo
+        except Exception:
+            # Fallback when COSMA is unavailable (e.g. loading pickles locally).
+            # COLIBRE uses Planck 2018: H0=67.77, Om0=0.307, Ob0=0.04825.
+            import warnings
+            from astropy.cosmology import FlatLambdaCDM
+            warnings.warn(
+                "COSMA unavailable — using Planck 2018 fallback cosmology for COLIBRE. "
+                "Re-run initialise_parts() on COSMA to cache the exact cosmology."
+            )
+            return FlatLambdaCDM(H0=67.77, Om0=0.307, Ob0=0.04825)
+
     def initialise_parts(self):
         # heavy -> avoid until necessary and do not store
         sg               = self.swift_gal
@@ -232,13 +251,10 @@ class SimPartGal(BasicPartGal):
         self.M = np.sum(get_masses(self.swift_gal).to_astropy().value) #Msun
         # verify that the total mass is ~ to sum of particles' masses
         #self.verbose_assert_almost_equal( self.M_tot,self.M,decimal=0,msg="Total mass vs Sum(part. masses)")
-        
+        # cache cosmology so pickles loaded without COSMA can still return it
+        self._cosmo_cache = sg.metadata.cosmology
         return 0
-        
-    @property
-    def cosmo(self):
-        return self.swift_gal.metadata.cosmology
-    
+
     ### Class Structure ####
     ########################
     def _identity(self):
