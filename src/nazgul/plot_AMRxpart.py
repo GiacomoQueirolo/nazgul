@@ -62,13 +62,13 @@ def plot_AMR_densityXpart(Gal,
     cutout_kpc  = RE*scale_tE_cutout
     kw_extents = {"extent_arcsec":[-cutout_arcs.value,cutout_arcs.value,-cutout_arcs.value,cutout_arcs.value],
                   "extent_kpc":[-cutout_kpc.value,cutout_kpc.value,-cutout_kpc.value,cutout_kpc.value]}
-    print("TESTING kw_extents:",kw_extents)
-
+    
     # Plotting allthe density
     figall,axall = plot_AMR_cells(kw_2Ddens_all,kw_extents=kw_extents)
     nm = f"{savedir}/AMR_full_proj{proj_index}.png"
     figall.savefig(nm)
     print(f"Saved {nm}") 
+    plt.close(figall)
     
     fig2,ax2 = plt.subplots(1)
     ax2.plot(r_all,Sigma_encl_all/1e9,color='cyan',label="Total")
@@ -116,7 +116,7 @@ def plot_AMR_densityXpart(Gal,
     nm = f"{savedir}/Sigma_decomposed_proj{proj_index}.png"
     fig2.tight_layout()
     fig2.savefig(nm)
-
+    plt.close(fig2)
     print(f"Saved {nm}") 
     
     
