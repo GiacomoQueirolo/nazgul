@@ -23,13 +23,13 @@ def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=st
         for snap in snaps:
             snap_dir = get_snap_dir(snap,sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
             print("DEBUG",snap_dir)
-            gallenses = glob(f"{snap_dir}/Gn*/Sub/Sub_*Prj?.pkl")
+            gallenses = glob(f"{snap_dir}/Gn*/Sub/Sub_*Prj?_*.pkl")
             print("DEBUG",gallenses)
             computed_gallenses.extend(gallenses)
     else:
         sim_dir = get_sim_dir(sim=sim,subsim=subsim,
                     simsuite=simsuite,data_dir=data_dir)
-        computed_gallenses = glob(f"{sim_dir}/*/Gn*/Sub/Sub_*Prj?.pkl")
+        computed_gallenses = glob(f"{sim_dir}/*/Gn*/Sub/Sub_*Prj?_*.pkl")
         
     if len(computed_gallenses)==0:
         raise RuntimeError("No computed gallenses found")
