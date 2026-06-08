@@ -74,8 +74,9 @@ def sample_SIE(n_smpl=n_smpl,
     """
     Sample a SIE distribution with particles with the same mass and returns inputs for Translator 
     """
+    phi_ell,q_ell = ellipticity2phi_q(e1,e2)
     if theta_max is None:
-        theta_max = 4*theta_E
+        theta_max = 4*theta_E/q_ell
     phi,theta    = np.random.uniform([0,0],[2*np.pi,to_dimless(theta_max)],size=(n_smpl,2)).T
     RAs_sis       = theta*np.cos(phi) 
     DECs_sis      = theta*np.sin(phi)
@@ -83,7 +84,6 @@ def sample_SIE(n_smpl=n_smpl,
     """
     Change coordinate by coordinate rescaling
     """
-    phi_ell,q_ell = ellipticity2phi_q(e1,e2)
     x_ell = RAs_sis
     y_ell = DECs_sis * q_ell
     rot_m = np.array([[np.cos(phi_ell),-np.sin(phi_ell)],
@@ -102,6 +102,8 @@ def sample_SIE(n_smpl=n_smpl,
 
     # theta_E must be connected to the mass scale, as it only scales up and down the kappa
     kwargs_lens_SIE  = [{'theta_E' : to_dimless(theta_E), 
+                         'e1': e1,
+                         'e2':e2,
                         'center_x': cntx, 
                         'center_y': cnty}] 
 
@@ -176,10 +178,7 @@ class SimPartGal(BasicPartGal):
         if self.profile=="SIE":
             self.e1  = e1
             self.e2  = e2
-        self.gal_dir = get_gal_dir(kw_gal={"theta_E":self.theta_E,
-                                           "n_smpl":self.n_smpl,
-                                           "profile":self.profile
-                                          },
+        self.gal_dir = get_gal_dir(kw_gal=self.kwargs_gal,
                                    snap=self.snap,
                                    sim=self.sim,
                                    simsuite=simsuite_name)
@@ -194,10 +193,17 @@ class SimPartGal(BasicPartGal):
 
     @property
     def name(self):
-        return get_galname({"theta_E":self.theta_E,
+        return get_galname(self.kwargs_gal)
+
+    @property
+    def kwargs_gal(self):
+        kwargs_gal = {"theta_E":self.theta_E,
                             "n_smpl":self.n_smpl,
-                            "profile":self.profile})
-        
+                            "profile":self.profile}
+        if self.profile=="SIE":
+            kwargs_gal["e1"] =self.e1
+            kwargs_gal["e2"] =self.e2
+        return kwargs_gal
     def _identity(self):
         Id = (self._type_id,self.sim,self.profile,self.name)
         return Id
