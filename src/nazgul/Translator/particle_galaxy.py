@@ -113,3 +113,31 @@ def clip_coord(m,x,y,z,sigma=10,perc_thresh=99):
     return m[mask],x[mask],y[mask],z[mask]
     
 
+
+def compute_principal_axis_gen(m,x,y,z):
+    """
+    Compute eigenvalues of the mass-weighted inertia tensor, which can be used to infer the 3D axis of the particles
+    """
+    cnt2 = np.mean(x)**2 + np.mean(y)**2 + np.mean(z)**2
+    sz2  = np.std(x)**2 + np.std(y)**2 + np.std(z)**2
+    if cnt2>sz2:
+        # Approximate idea of how 
+        raise RuntimeError("Particles position must be centered around 0!")
+    pos = np.transpose([x,y,z])
+    m = np.array(m) # ensures no issues with dimensions
+    I = np.zeros((3,3))
+    for i in range(len(pos)):
+        r = pos[i]
+        I += m[i] * np.outer(r, r)
+
+    # eigenvalues
+    eigvals = np.linalg.eigvalsh(I)
+    eigvals = np.sort(eigvals)[::-1]  # λ1 ≥ λ2 ≥ λ3
+
+    a = np.sqrt(eigvals[0])
+    b = np.sqrt(eigvals[1])
+    c = np.sqrt(eigvals[2])
+    
+    principal_axes = {"a":a,"b":b,"c":c,"I3D":I}
+
+    return principal_axes
