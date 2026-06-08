@@ -138,6 +138,7 @@ def plot_corner_lens(lens):
 
     fig.savefig(nm)
     print(f"Saved {nm}")
+    fig.close()
     ###
     # Add a plot where gamma12 and e12 are converted into angles and power
     
