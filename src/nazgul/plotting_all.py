@@ -49,6 +49,7 @@ def plot_grid(images,savename,extents=None,cmap="hot",titles=None,label=None,sup
     plt.tight_layout()
     plt.savefig(savename)
     print(f"Saved {savename}")
+    plt.close()
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot a grid of give precomputed lenses")
