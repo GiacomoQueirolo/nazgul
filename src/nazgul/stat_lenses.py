@@ -1,6 +1,7 @@
 # count effective lenses
-import dill,sys
+import dill,sys,os
 import argparse
+import warnings
 import numpy as np
 from glob import glob
 import matplotlib.pyplot as plt
@@ -22,14 +23,19 @@ def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=st
         computed_gallenses = []
         for snap in snaps:
             snap_dir = get_snap_dir(snap,sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
-            print("DEBUG",snap_dir)
+            print("WARNING - MONKEY PATCH - ")
+            gallenses = glob(f"{snap_dir}/Gn*/Sub/Sub_*Prj?_*.pkl")
+            print("DEBUG",gallenses)
+            computed_gallenses.extend(gallenses)
             gallenses = glob(f"{snap_dir}/Gn*/Sub/Sub_*Prj?.pkl")
             print("DEBUG",gallenses)
             computed_gallenses.extend(gallenses)
     else:
         sim_dir = get_sim_dir(sim=sim,subsim=subsim,
                     simsuite=simsuite,data_dir=data_dir)
+        print("WARNING - MONKEY PATCH - ")
         computed_gallenses = glob(f"{sim_dir}/*/Gn*/Sub/Sub_*Prj?.pkl")
+        computed_gallenses.extend(glob(f"{sim_dir}/*/Gn*/Sub/Sub_*Prj?_*.pkl"))
         
     if len(computed_gallenses)==0:
         raise RuntimeError("No computed gallenses found")
@@ -42,6 +48,7 @@ def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,dat
     for gal_lns in computed_gallenses:
         ln = load_whatever(gal_lns)
         ln.unpack()
+        monkey_patch_naming(ln,gal_lns)
         try:
             ln.run()
             lenses.append(ln)
@@ -49,7 +56,14 @@ def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,dat
             # ignore galaxies which are not lenses
             pass
     return lenses
-
+    
+def monkey_patch_naming(lnsgal,lnsgal_path):
+    if str(lnsgal.pkl_path)!=lnsgal_path:
+        warnings.warn("MONKEY-PATCH:\nUpdating name of stored instance")
+        os.rename(lnsgal_path,lnsgal.pkl_path)
+    return 0
+        
+    
 if __name__ =="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Compute and plot some useful statistic on the computed lenses")
     parser.add_argument('-snap','--snap',nargs="+",type=int,dest="snaps",default=[],help=f"List of snaps to consider - default is all")
