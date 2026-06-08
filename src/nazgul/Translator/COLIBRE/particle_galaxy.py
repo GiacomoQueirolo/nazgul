@@ -8,6 +8,7 @@ import warnings
 import unyt as u  # package used by swiftsimio to provide physical units
 import numpy as np
 from pathlib import Path
+from functools import cached_property
 
 from python_tools.tools import mkdir
 from python_tools.get_res import LoadClass,load_whatever
@@ -42,14 +43,7 @@ def get_masses_part(Gal,part_type):
     "Return masses in [Msun] of given particle type"
     part_type = check_part_type(part_type)
     part  = getattr(Gal,part_type)
-    if part_type!="black_holes":
-        masses = part.masses
-    else:
-        #warnings.warn("Using dynamical mass for BH, verify that it make sense")
-        # the first is done to compute the potential, the other is updated w. the accretion and used for feedback calc.
-        # -> should be correct to use dynamical mass
-        masses = part.dynamical_masses
-    Mpart = masses.to_physical().in_units(u.Msun)  # Msun
+    Mpart = _get_masses_part(part)
     return Mpart
 
 def _get_coord_part(part):
@@ -100,7 +94,7 @@ def get_coords(Gal):
     
 # adapted from wip_select_swiftgal
 def Gal2MXYZ(ColGal):
-    Gal   = ColGal.swift_gal
+    Gal     = ColGal.swift_gal
     # Given a ColibreGal galaxy, which then plot to as swift galaxy, return Masses (in Msun) and
     # XY coords. of particles in kpc  centered around center of mass
     Ms       = get_masses(Gal)
@@ -218,7 +212,7 @@ class SimPartGal(BasicPartGal):
         self.gas         = sg.gas
         self.dark_matter = sg.dark_matter
         self.black_holes = sg.black_holes
-        # The following are very inefficient, they should be optimised
+        # The following are very inefficient
         self.M_stars     = np.sum(self.stars.masses.to_physical().in_units(u.Msun))
         self.M_gas       = np.sum(self.gas.masses.to_physical().in_units(u.Msun))
         self.M_dm        = np.sum(self.dark_matter.masses.to_physical().in_units(u.Msun))
@@ -235,7 +229,7 @@ class SimPartGal(BasicPartGal):
         
         return 0
         
-    @property
+    @cached_property
     def cosmo(self):
         return self.swift_gal.metadata.cosmology
     
