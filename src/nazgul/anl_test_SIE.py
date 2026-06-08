@@ -11,16 +11,27 @@ from nazgul.plot_AMRxpart import plot_AMR_densityXpart
 
 from lenstronomy.LensModel.lens_model import LensModel
 
+from pyinstrument import Profiler
+profiler = Profiler()
+profiler.start()
+
+read_prev=True
 
 pji = 0 # project index #
-pg = PartGal({"n_smpl":1e6,"e1":e1,"e2":e2},
+pg = PartGal({"n_smpl":1e6,"e1":0.25,"e2":0},
              sim="SIE",simsuite="ANL_TEST") 
 pg.run() 
 pg.store_gal()
+
+
+profiler.stop()
+print(profiler.output_text(color=True,show_all=False))
+profiler.start()
+
 plot_AMR_densityXpart(Gal=pg,proj_index=pji,
                       savedir="tmp/")
 lensgal = GalLens(pg,pji)
-lensgal.run()
+lensgal.run(read_prev=read_prev)
 
 
 lensgal.unpack()
@@ -45,9 +56,16 @@ alpha_map_anl = lens_anl.alpha(*lensgal.get_RADEC(),kwargs=kw_sie)
 a_anl_x,a_anl_y = alpha_map_anl 
 axis = axes[1]
 axis[0].set_ylabel("Analytical")
-axis[0].imshow(a_anl_x,origin="lower")
-axis[1].imshow(a_anl_y,origin="lower")
-
+im0= axis[0].imshow(a_anl_x,origin="lower")
+divider = make_axes_locatable(axis[0])
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\alpha_{\rm{x}}$")
+    
+im0=axis[1].imshow(a_anl_y,origin="lower")
+divider = make_axes_locatable(axis[1])
+cax = divider.append_axes('right', size='5%', pad=0.05)
+fig.colorbar(im0, cax=cax, orientation='vertical',label=r"$\alpha_{\rm{y}}$")
+    
 axis = axes[2]
 ax1 = axis[0]
 ax1.set_ylabel("Residual")
@@ -243,3 +261,6 @@ plt.tight_layout()
 
 plt.savefig("tmp/source_sie.png")
 plt.close()
+
+profiler.stop()
+print(profiler.output_text(color=True,show_all=False))
