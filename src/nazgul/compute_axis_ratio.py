@@ -7,7 +7,17 @@ from nazgul.Translator.particle_galaxy import clip_coord
 from nazgul.mount_doom.generate_gal_lens import get_kw_lenspart,get_kw_galpart,get_all_PG
 from nazgul.Translator.translator import Gal2kwMXYZ
 from nazgul.Translator.EAGLE.fnct import get_snap
-def compute_axis_ratio(Gal):
+
+def compute_principal_axes(Gal,store=True,reload=True,verbose=True):
+    raise RuntimeError("use the version implemented directly in translator - to implement it as well for COLIBRE")
+    if verbose:
+        print("\nAxis Ratio\n##########\n")
+    if reload:
+        if hasattr(Gal,"principal_axes"):
+            return Gal.principal_axes
+        else:
+            print("\nTried reloading principal_axes but not present.\nRecomputing...")
+    Gal._init_stars()
 
     Mstar = Gal.stars["mass"]*u.Msun
     # Particle pos
@@ -41,53 +51,61 @@ def compute_axis_ratio(Gal):
     a = np.sqrt(eigvals[0])
     b = np.sqrt(eigvals[1])
     c = np.sqrt(eigvals[2])
+    inertia_tensor_axes = {"a":a,"b":b,"c":c}
 
-    return c / b
+    if store:
+        if verbose:
+            print("\nUpdating galaxy class with axis_ratio attribute")
+            Gal.principal_axes = principal_axes
+            Gal.store_gal()
+    return principal_axes
+
+
+
+if __name__=="__main__":
     
-
-kw_galpart={"min_z":.09,
-           "max_z":0.11,
-           "min_mass":1e11}
-kw_galpart  = get_kw_galpart(kw_galpart)
-all_Gal     = get_all_PG(**kw_galpart)
-all_axis_ratio = []
-gals_names = []
-z_l = []
-for Gal in all_Gal:
-    gals_names.append(Gal.name)
-    z_l.append(Gal.z)
-    try:
-        all_axis_ratio.append(Gal.axis_ratio)
-    except:
-        Gal.run()
-        axis_ratio = compute_axis_ratio(Gal)
-        all_axis_ratio.append(axis_ratio)
-        Gal.axis_ratio = axis_ratio
-        Gal.store_gal()
-z_l = list(set(z_l))
-if len(z_l)==1:
-    snap = get_snap(z=z_l[0])
-else:
-    snap = ""
-    for z in z_l:
-        snap+= get_snap(z=z)+"_"
-    snap = snap[:-1]
+    kw_galpart={"min_z":.09,
+               "max_z":0.11,
+               "min_mass":1e11}
+    kw_galpart  = get_kw_galpart(kw_galpart)
+    all_Gal     = get_all_PG(**kw_galpart)
+    all_axis_ratio = []
+    gals_names = []
+    z_l = []
+    for Gal in all_Gal:
+        gals_names.append(Gal.name)
+        z_l.append(Gal.z)
+        try:
+            all_axis_ratio.append(Gal.axis_ratio)
+        except:
+            Gal.run()
+            inertia_tensor_axes = compute_inertia_tensor_axes(Gal)
+            axis_ratio = inertia_tensor_axes["c"]/inertia_tensor_axes["b"]
+            all_axis_ratio.append(axis_ratio)
+    z_l = list(set(z_l))
+    if len(z_l)==1:
+        snap = get_snap(z=z_l[0])
+    else:
+        snap = ""
+        for z in z_l:
+            snap+= get_snap(z=z)+"_"
+        snap = snap[:-1]
+        
+    all_axis_ratio= np.array(all_axis_ratio)
     
-all_axis_ratio= np.array(all_axis_ratio)
-
-nm2 = f"tmp/axis_ratio_snap{snap}.dll"
-with open(nm2,"wb") as f:
-    dill.dump({"gal_names":gals_names,
-               "z":z_l,
-               "axis_ratio":all_axis_ratio},f)
-print(f"Saved {nm2}")
-
+    nm2 = f"tmp/axis_ratio_snap{snap}.dll"
+    with open(nm2,"wb") as f:
+        dill.dump({"gal_names":gals_names,
+                   "z":z_l,
+                   "axis_ratio":all_axis_ratio},f)
+    print(f"Saved {nm2}")
     
-plt.title(f"axial ratio c/b for snap {snap}/z {z_l}")
-plt.hist(all_axis_ratio)
-plt.xlabel("c/b")
-plt.axvline(0.7,c="k",label="lower limit from Vyvere '22")
-plt.legend()
-nm = f"tmp/axis_ratio_snap{snap}.png"
-plt.savefig(nm)
-print(f"Saving {nm}")
+        
+    plt.title(f"axial ratio c/b for snap {snap}/z {z_l}")
+    plt.hist(all_axis_ratio)
+    plt.xlabel("c/b")
+    plt.axvline(0.7,c="k",label="lower limit from Vyvere '22")
+    plt.legend()
+    nm = f"tmp/axis_ratio_snap{snap}.png"
+    plt.savefig(nm)
+    print(f"Saving {nm}")
