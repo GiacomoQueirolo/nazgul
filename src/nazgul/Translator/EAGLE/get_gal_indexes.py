@@ -79,7 +79,6 @@ def get_gals(sim=std_sim, simsuite=std_simsuite,
         _plot(myData)
     return myData
 
-
 def get_query(sim=std_sim, min_mass=min_mass, min_z=min_z, max_z=max_z,
               min_mass_stars=None, min_vel_disp=None, min_hmr=None,
               AP_size=10
@@ -136,7 +135,7 @@ def get_catpath(sim=std_sim, simsuite=std_simsuite,
     """
     kw_naming = {"min_mass":min_mass,"min_z":min_z,"max_z":max_z} | kwargs_query
     cat_name = f"CatGal_{to_uid_base64(kw_naming)}.pkl"
-    sim_path = get_catdir(sim=sim, simsuite=std_simsuite)
+    sim_path = get_catdir(sim=sim, simsuite=simsuite)
     cat_path = sim_path / cat_name
     return cat_path
 
