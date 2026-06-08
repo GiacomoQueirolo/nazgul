@@ -1,8 +1,11 @@
+from python_tools.tools import short_SciNot
 def get_galname(kw_gal,**kwargs):
     theta_E = kw_gal["theta_E"]
-    n_smpl  = kw_gal["n_smpl"] 
+    n_smpl  = short_SciNot(kw_gal["n_smpl"])
     prof    = kw_gal["profile"]
+    galname =  f"TEST_GAL_{prof}_tE{theta_E}_nS{n_smpl}"
     if prof == "SIS":
-        return f"TEST_GAL_SIS_tE{theta_E}_nS{n_smpl}"
+        return galname
     elif prof == "SIE":
-        return f"TEST_GAL_SIE_tE{theta_E}_nS{n_smpl}"
+        galname += f"_e1{kw_gal['e1']}_e2{kw_gal['e2']}"
+        return galname
