@@ -18,5 +18,5 @@ license = "MIT"
 license-files = ["LICENSE"]
 
 [project.urls]
-Homepage = "https://github.com/GiacomoQueirolo/EAGLE_Lensing" 
-Issues = "https://github.com/GiacomoQueirolo/EAGLE_Lensing/issues"
+Homepage = "https://github.com/GiacomoQueirolo/nazgul" 
+Issues = "https://github.com/GiacomoQueirolo/nazgul/issues"
