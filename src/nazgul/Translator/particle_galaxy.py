@@ -118,14 +118,14 @@ def compute_principal_axis_gen(m,x,y,z):
     """
     Compute eigenvalues of the mass-weighted inertia tensor, which can be used to infer the 3D axis of the particles
     """
-    cnt2 = np.mean(x)**2 + np.mean(y)**2 + np.mean(z)**2
-    sz2  = np.std(x)**2 + np.std(y)**2 + np.std(z)**2
-    if cnt2>sz2:
-        # Approximate idea of how 
-        raise RuntimeError("Particles position must be centered around 0!")
+    # We have interest in the shape, not absolute value
+    x -= np.mean(x)
+    y -= np.mean(y)
+    z -= np.mean(z)
+    
     pos = np.transpose([x,y,z])
-    m = np.array(m) # ensures no issues with dimensions
-    I = np.zeros((3,3))
+    m   = np.array(m) # ensures no issues with dimensions
+    I   = np.zeros((3,3))
     for i in range(len(pos)):
         r = pos[i]
         I += m[i] * np.outer(r, r)
