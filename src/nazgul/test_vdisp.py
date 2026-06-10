@@ -104,6 +104,8 @@ def get_kw_tE(out_dll="tmp/del_theta_sis.dll",
 
             q    = axes["b"]/axes["a"]
             q_list.append(q)
+
+        
             
     theta_sis_list = np.array(theta_sis_list)
     theta_E_list = np.array(theta_E_list)
@@ -193,7 +195,7 @@ def comp_tE_vs_tEsis(reload=True,
         plt.axvline(np.median(tE_ratio),c="b",ls="--",label=r"$\theta_E/\theta_{E,SIS}$="+str(np.round(np.median(tE_ratio),1)))
         plt.hist(tE_ratio_corr,bins=nbins,color="r",alpha=.5,label=r"$\theta_c$ correction")
         plt.axvline(np.median(tE_ratio_corr),c="r",ls="--",label=r"$\theta_E/(\theta_{E,SIS}*Rcc)$="+str(np.round(np.median(tE_ratio_corr),1)))
-        plt.title(r"Ratio of $\theta_E$ from particles and from $\sigma_v$ with/wo  cored profile correction")
+        plt.title(r"$\theta_E$ ratio from mass map and from $\sigma_v$ with/wo cored profile correction")
         plt.legend()
         plt.xlabel(r"$\theta_E/\theta_{E,SIS}$")
         plt.tight_layout()
@@ -202,7 +204,24 @@ def comp_tE_vs_tEsis(reload=True,
         plt.savefig(name_plot2)
         print(f"Saving {name_plot2}")
         plt.close()
-    
+        
+        K_c = 1/(1 -R_cc**2)
+        plt.scatter(K_c,theta_E_list/theta_sis_list,c="g")
+        x_kc = np.linspace(1,9,100)
+        y_kc = np.sqrt(1-1/x_kc)
+        plt.plot(x_kc,y_kc,ls="--",c="k",label=r"f($\kappa_{\rm{max}}$) = $\sqrt{1-\frac{1}{\kappa_{\rm{max}}}}$")
+        plt.xlabel(r"$\kappa_{\rm{max}}$")
+        plt.ylabel(r"$\theta_E$/$\theta_E(v_{disp})$")
+        plt.title(r"$\theta_E$/$\theta_E(v_{disp})$ wrt $\kappa_{\rm{max}}$ and fit for $\kappa_{\rm{c}}=\kappa_{\rm{max}}$")
+        plt.legend()
+        name_plot3 = name_plot2.replace("_2.","_kc_vs_tEratio.")
+        plt.savefig(name_plot3)
+        print(f"Saving {name_plot3}")
+        plt.close()
+        
+        print("Ugly but fast: output lenses for which the correction is not sufficient and plot their kappa map")
+        lenses  = get_all_gallens(**kw_get_gallens)
+        np.where(tE_ratio_corr<thresh_tE_ratio_corr,
         if compute_q:
             fig,ax = plt.subplots(1) 
             x = np.arange(len(theta_sis_list))
@@ -220,15 +239,12 @@ def comp_tE_vs_tEsis(reload=True,
             ax.set_ylabel(r"$\theta_E$/$\theta_E(v_{disp})$")
             ax.legend()
             plt.tight_layout()
-            name_plot3 = name_plot.replace(".png","_3.png")
-            name_plot3 = name_plot2.replace(".pdf","_3.pdf")
-        
-            plt.savefig(name_plot3)
-            print(f"Saving {name_plot3}")
+            name_plot4 = name_plot2.replace("_2.","_q.")
+            plt.savefig(name_plot4)
+            print(f"Saving {name_plot4}")
             plt.close()
-    
-    
 
+            
     
 if __name__ =="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Compare computed theta E with expected one obtained from SIS (vel.disp.)")
