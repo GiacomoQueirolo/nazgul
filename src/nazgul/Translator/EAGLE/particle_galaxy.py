@@ -449,29 +449,23 @@ class SimPartGal(BasicPartGal):
         """
         if not hasattr(self,"M_tot"):
             self._mass_tot_part()
-        # conv. in comov. coordinates
-        xy_dm  = self.dm["coords"]*self.xy_propr2comov
-        xy_gas = self.gas["coords"]*self.xy_propr2comov
-        xy_st  = self.stars["coords"]*self.xy_propr2comov
-        xy_bh  = self.bh["coords"]*self.xy_propr2comov
-
-        # m in comov coord
-        m_dm  = self.m_propr2comov*np.broadcast_to(self.dm["mass"],(3,self.N_dm)).T
-        m_gas = self.m_propr2comov*np.broadcast_to(self.gas["mass"],(3,self.N_gas)).T
-        m_st  = self.m_propr2comov*np.broadcast_to(self.stars["mass"],(3,self.N_stars)).T
-        m_bh  = self.m_propr2comov*np.broadcast_to(self.bh["mass"],(3,self.N_bh)).T
+            
+        star_com = np.average(self.stars["coords"], weights=self.stars["mass"], axis=0)
+        dm_com   = np.average(self.dm["coords"],    weights=self.dm["mass"],    axis=0)
+        gas_com  = np.average(self.gas["coords"],   weights=self.gas["mass"],   axis=0)
+        bh_com   = np.average(self.bh["coords"],    weights=self.bh["mass"],    axis=0)
         
-        cm_dm   = np.sum(xy_dm*m_dm,axis=0)
-        cm_gs   = np.sum(xy_gas*m_gas,axis=0)
-        cm_st   = np.sum(xy_st*m_st,axis=0)
-        cm_bh   = np.sum(xy_bh*m_bh,axis=0)
+        center_actual = (
+            np.sum(self.stars["mass"]) * star_com +
+            np.sum(self.dm["mass"])   * dm_com+
+            np.sum(self.bh["mass"])*bh_com+
+            np.sum(self.gas["mass"])*gas_com
+           ) / self.M_tot
 
-        cnt_m  = (cm_dm+cm_gs+cm_st+cm_bh)/(self.M*self.m_propr2comov)
- 
-        center_actual  = np.array(cnt_m)
-        center_desired = self.centre
+        center_actual  = np.array(center_actual)
+        center_desired = self.centre/self.xy_propr2comov
         #np.testing.assert_almost_equal(center_desired,center_desired,decimal=2)
-        self.verbose_assert_almost_equal(center_actual,center_desired,decimal=2,msg="The expected and measured CM centre differ:") 
+        self.verbose_assert_almost_equal(center_actual,center_desired,decimal=3,msg="The expected and measured CM centre differ:") 
 
 def _load_one_file(args):
     fl, indices, itype,boxsize,centre = args
@@ -499,7 +493,7 @@ def _load_one_file(args):
         coords = coords2scale * cgs_coords * (a ** aexp_coords) * (h ** hexp_coords)*u.cm.to(u.Mpc)
         # Periodic wrap coordinates around centre.
         # -> boxsize is given in cMpc/h, must correct for both scaling factors
-        boxsize           = boxsize* (a ** aexp_coords)*(h**hexp_coords)
+        boxsize           = boxsize*(a**aexp_coords)*(h**hexp_coords)
         centre            = centre*(a**aexp_coords) # given in comoving (but not 1/h)
         results['coords'] = np.mod(coords-centre+0.5*boxsize,boxsize)+centre-0.5*boxsize       
         # Mass
@@ -697,9 +691,6 @@ def Gal2MXYZ(Gal):
     Ys = np.concatenate([Ystar,Ygas,Ydm,Ybh])*u.Mpc.to("kpc")*u.kpc #kpc
     Zs = np.concatenate([Zstar,Zgas,Zdm,Zbh])*u.Mpc.to("kpc")*u.kpc #kpc
 
-    # clip particle outliers
-    Ms,Xs,Ys,Zs = clip_coord(Ms,Xs,Ys,Zs)
-    
     # center around the center of the galaxy
     # center of mass is given in Comoving coord 
     # see https://arxiv.org/pdf/1510.01320 D.23 
@@ -709,6 +700,10 @@ def Gal2MXYZ(Gal):
     Xs -= Cx
     Ys -= Cy
     Zs -= Cz
+    
+    # clip particle outliers AFTER recentering
+    Ms,Xs,Ys,Zs = clip_coord(Ms,Xs,Ys,Zs)
+    
     return Ms, Xs,Ys,Zs
 
 def Gal2MXYZ_part(Gal,part_type): 
@@ -724,9 +719,6 @@ def Gal2MXYZ_part(Gal,part_type):
     # Particle pos
     Xs,Ys,Zs =  np.transpose(part["coords"]) *u.Mpc.to("kpc")*u.kpc #kpc
 
-    # clip particle outliers
-    Ms,Xs,Ys,Zs = clip_coord(Ms,Xs,Ys,Zs)
-    
     # center around the center of the galaxy
     # center of mass is given in Comiving coord 
     # see https://arxiv.org/pdf/1510.01320 D.23 
@@ -736,6 +728,9 @@ def Gal2MXYZ_part(Gal,part_type):
     Xs -= Cx
     Ys -= Cy
     Zs -= Cz
+    # clip particle outliers AFTER recentering
+    Ms,Xs,Ys,Zs = clip_coord(Ms,Xs,Ys,Zs)
+    
     return Ms, Xs,Ys,Zs
     
 def compute_principal_axes(Gal):
@@ -743,22 +738,12 @@ def compute_principal_axes(Gal):
     Compute the principal axes from inertial tensor.
     The ratio c/b is used by Vyvere et al. '22 to discard elliptical or lenticular galaxies
     """
-    Mstar = Gal.stars["mass"]*u.Msun
-    # Particle pos
-    Xstar,Ystar,Zstar =  np.transpose(Gal.stars["coords"])*u.Mpc.to("kpc")*u.kpc #kpc
-    # clip particle outliers
-    Ms,Xs,Ys,Zs = clip_coord(Mstar,Xstar,Ystar,Zstar)
-
-    Cx,Cy,Cz = Gal.centre*u.Mpc.to("kpc")*u.kpc/(Gal.xy_propr2comov) # (now) kpc
-
-    Xs -= Cx
-    Ys -= Cy
-    Zs -= Cz
-
+    
+    Mstar,Xstar,Ystar,Zstar = Gal2MXYZ_part(Gal,part_type = "stars")
     principal_axes = compute_principal_axis_gen(m=Mstar.value,
-                                                x = Xs.value,
-                                                y = Ys.value,
-                                                z = Zs.value)
+                                                x = Xstar.value,
+                                                y = Ystar.value,
+                                                z = Zstar.value)
 
     return principal_axes
 
