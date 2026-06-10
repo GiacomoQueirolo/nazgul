@@ -13,36 +13,44 @@ from nazgul.AMR2D_PLL import plot_AMR_cells,AMR_density_PLL,get_MDfromAMRcells_P
 from nazgul.Translator.particle_galaxy import clip_coord
 from nazgul.Translator.translator import Gal2kwMXYZ_part,get_sim_func
 
-def plot_gal(gl, save_to_tmp: bool = True):
-    gal_dir = gl.gal_dir 
-    xyz_dm  = gl.dm["coords"].T
-    xyz_str = gl.stars["coords"].T
-    xyz_gas = gl.gas["coords"].T
-    xyz_bh  = gl.bh["coords"].T
-    
-    x_dm  = xyz_dm[0]
-    x_str = xyz_str[0]
-    x_gas = xyz_gas[0]
-    x_bh  = xyz_bh[0]
-    
-    
-    m_str = gl.stars["mass"]
-    m_dm  = gl.dm["mass"]
-    m_gas = gl.gas["mass"]
-    m_bh  = gl.bh["mass"]
-    
+projs = ["x","y","z"]
+def plot_gal(Gal,bins = 100, save_to_tmp: bool = True):
+    gal_dir = Gal.gal_dir 
+    CoM     = Gal.centre/(Gal.xy_propr2comov) 
+    xyz_dm  = Gal.dm["coords"].T
+    xyz_str = Gal.stars["coords"].T
+    xyz_gas = Gal.gas["coords"].T
     # bh can be ignored
-    
-    b = 40
+    #xyz_bh  = Gal.bh["coords"].T
+        
     plt.style.use('classic')
-    plt.hist(x_str,bins=b,weights=m_str, color="yellow",label="stars",alpha=.3)
-    plt.hist(x_gas,bins=b,weights=m_gas, color="violet",label="gas",alpha=.3)
-    plt.hist(x_dm,bins=b,weights=m_dm,color="grey",label="dm",alpha=.3)
-    plt.yscale("log")
-    plt.ylabel(r"M [M$_\odot$]")
-    plt.xlabel("X coord [Mpc]")
-    plt.legend()
-    plt.title("Mass Histogram For Different Particles of 1 EAGLE Gal.")
+    fig,axis = plt.subplots(2,2,figsize=(10,10))
+    axis = axis.ravel()  # flatten for easy iteration
+    for i,ax_nm in enumerate(projs):
+        
+        x_dm  = xyz_dm[i]
+        x_str = xyz_str[i]
+        x_gas = xyz_gas[i]
+        x_cm  = CoM[i]
+        #x_bh  = xyz_bh[i]
+            
+        m_str = Gal.stars["mass"]
+        m_dm  = Gal.dm["mass"]
+        m_gas = Gal.gas["mass"]
+        #m_bh  = Gal.bh["mass"]
+        
+        axis[i].hist(x_str,bins=bins,weights=m_str, color="yellow",label="stars",alpha=.3)
+        axis[i].hist(x_gas,bins=bins,weights=m_gas, color="violet",label="gas",alpha=.3)
+        axis[i].hist(x_dm,bins=bins,weights=m_dm,color="grey",label="dm",alpha=.3)
+        axis[i].set_yscale("log")
+        axis[i].set_ylabel(r"M [M$_\odot$]")
+        axis[i].set_xlabel(f"{ax_nm.upper()} coord [Mpc]")
+        axis[i].axvline(x_cm,ls="--",c="r",label="Tot. CoM")
+        if i==0:
+            axis[i].legend()
+        
+    axis[-1].axis("off")
+    plt.suptitle("Mass Histogram For Different Particles of "+str(Gal.name))
     plt.tight_layout()
     if save_to_tmp:
         nm = tmp_dir/"mHistGal1.png"
@@ -52,7 +60,8 @@ def plot_gal(gl, save_to_tmp: bool = True):
     print(f"Saving {nm}")
     plt.savefig(nm)
     plt.close()
-    
+
+    #the following still needs to be heavily improved 
     
     xy_str = xyz_str[:-1]
     xy_dm  = xyz_dm[:-1]
@@ -62,7 +71,7 @@ def plot_gal(gl, save_to_tmp: bool = True):
     xm,ym=np.mean(xy_dm,axis=1)
 
     fg,axes = plt.subplots(2,2)
-    nbins = 60
+    nbins = 120
     ax = axes[0][0]
     ax.set_title("Stars particles")
     #im0 = ax.scatter(*xy_str,c=np.log(m_str),alpha=.2,cmap="coolwarm_r",marker=".")
@@ -122,22 +131,23 @@ def plot_gal(gl, save_to_tmp: bool = True):
     print(f"Saving {nm}")
     plt.savefig(nm)
     plt.close()
-    
-def plot_AMR_density(gl,
+
+"""
+# obsolete, rely on plot_AMRxpart.py
+def plot_AMR_density(Gal,
                   max_particles=100,
                   min_area=0.1*u.kpc*u.kpc,
                   dens_thresh = 0.*u.Msun/(u.kpc**2),
                   verbose=True):
-    """ 
-    Compute and plot density Adaptive Mesh Refinement map split into the various particles
-    input  : gal 
-    returns: kw_2Ddens["MD_value"][u.Msun/(u.kpc**2),1] 
-             kw_2Ddens["MD_coord"][arcsec,2]
-             kw_2Ddens["AMR_cells"][cells,N]
-    """
+    
+    #Compute and plot density Adaptive Mesh Refinement map split into the various particles
+    #input  : Gal 
+    #returns: kw_2Ddens["MD_value"][u.Msun/(u.kpc**2),1] 
+    #         kw_2Ddens["MD_coord"][arcsec,2]
+    #         kw_2Ddens["AMR_cells"][cells,N]
 
         
-    savedir = f"tmp/AMR_{gl.name}/"
+    savedir = f"tmp/AMR_{Gal.name}/"
     mkdir(savedir)
     part_types = get_sim_func(Gal.simsuite,"part_type_list")
     
@@ -148,7 +158,7 @@ def plot_AMR_density(gl,
 
         # for now only considering index 0
         proj_index    = 0
-        kw_parts      = Gal2kwMXYZ_part(gal,part_type=tp)
+        kw_parts      = Gal2kwMXYZ_part(Gal,part_type=tp)
         kw_parts_proj = project_kw_parts(kw_parts,proj_index)
         Ms = np.asarray(kw_parts_proj["Ms"].to("Msun"))*u.Msun
         Xs = np.asarray(kw_parts_proj["Xs"].to("kpc"))*u.kpc
@@ -167,7 +177,7 @@ def plot_AMR_density(gl,
         fig.savefig(nm)
         print(f"Saved {nm}") 
         plt.close()
-
+"""
 
 
 if __name__=="__main__":
