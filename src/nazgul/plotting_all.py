@@ -2,10 +2,11 @@
 import warnings
 import numpy as np
 import argparse,sys
+from pathlib import Path
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from stat_lenses import get_all_gallens
+from stat_lenses import get_all_gallens,get_catdir_stat
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.mount_doom.lens_system import LensSystem
 
@@ -71,6 +72,10 @@ if __name__ == "__main__":
                                subsim=subsim,
                               simsuite=simsuite,
                               snaps=snaps)
+    savedir = get_catdir_stat(sim=sim,
+                              subsim=subsim,
+                              simsuite=simsuite,
+                              snaps=snaps)
     kappas  = []
     images  = []
     extents_arc = []
@@ -101,15 +106,18 @@ if __name__ == "__main__":
         
     if len(snaps)!=1:
         zls = np.sort(list(set(zls)))
-        z_str_range = f"{np.round(zls[0],2)}<z<{np.round(zls[1],2)}"
-        if snaps==[]:
-            # all snaps
-            z_str = z_str_range
-        elif np.diff(np.sort(snaps))==np.ones(len(snaps)-1):
-            # snaps are sequential -> it's a range of z
-            z_str = z_str_range
+        if len(zls)==1:
+            z_str = f"z = {np.round(zls[0],2)}"
         else:
-            z_str = f"z = {[float(np.round(z,2)) for z in zls]}"
+            z_str_range = f"{np.round(zls[0],2)}<z<{np.round(zls[1],2)}"
+            if snaps==[]:
+                # all snaps
+                z_str = z_str_range
+            elif np.diff(np.sort(snaps))==np.ones(len(snaps)-1):
+                # snaps are sequential -> it's a range of z
+                z_str = z_str_range
+            else:
+                z_str = f"z = {[float(np.round(z,2)) for z in zls]}"
     else:
         z_str = f"z = {np.round(np.mean(zls),2)}"
     log_images = np.log10(np.array(images))
@@ -118,6 +126,6 @@ if __name__ == "__main__":
     elif extent_type=="kpc":
         extents = extents_kpc
     
-    plot_grid(log_images,"tmp/grid_gal_images.png",extents=extents,cmap="winter",titles=gal_names,label=r"log$_{10}$ flux [arbitrary]",suptitle=f"Lensed Images {z_str}",extent_type=extent_type)
-    plot_grid(kappas,"tmp/grid_gal_kappas.png",extents=extents,titles=gal_names,label=r"$\kappa$",suptitle=f"Convergence Map {z_str}",extent_type=extent_type)
+    plot_grid(log_images,savedir/"grid_gal_images.png",extents=extents,cmap="winter",titles=gal_names,label=r"log$_{10}$ flux [arbitrary]",suptitle=f"Sim {sim}: Lensed Images {z_str}",extent_type=extent_type)
+    plot_grid(kappas,savedir/"grid_gal_kappas.png",extents=extents,titles=gal_names,label=r"$\kappa$",suptitle=f"Sim {sim}: Convergence Map {z_str}",extent_type=extent_type)
     
