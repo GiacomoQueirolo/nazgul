@@ -31,17 +31,15 @@ def split_indices(x, y, pts, x0, x1, y0, y1):
         xi = x[i]
         yi = y[i]
 
-        if xi < xm:
-            if yi < ym:
-                c0.append(i)    # SW
-            else:
-                c2.append(i)    # NW
+        # particles exactly on xm go to the right half; on ym go to upper half
+        in_left = xi < xm
+        in_lower = yi < ym
+        if in_left:
+            if in_lower: c0.append(i)   # SW
+            else:        c2.append(i)   # NW
         else:
-            if yi < ym:
-                c1.append(i)    # SE
-            else:
-                c3.append(i)    # NE
-
+            if in_lower: c1.append(i)   # SE
+            else:        c3.append(i)   # NE
     return c0, c1, c2, c3
 
 def test_split_indices(x, y, m):
@@ -72,7 +70,7 @@ def compute_mass(pts, m):
 def needs_refinement(npts, area, density, pmax, min_area, dens_thresh):
     if npts > pmax and area > min_area:
         return True
-    #if density > dens_thresh and size > min_area:
+    # if density > dens_thresh:
     #    return True
     return False
 
@@ -95,7 +93,6 @@ def build_AMR(x, y, m,
         area  = sizex * sizey
         mass  = compute_mass(pts, m)
         density = mass / area
-        
         if needs_refinement(len(pts), area, density,
                             max_particles, min_area, dens_thresh):
 
@@ -131,17 +128,20 @@ def validate_no_duplicates(cells, N,verbose=False):
          if verbose:
              print("OK: No duplicates, each particle appears once.")
      else:
-         assert("ERROR: Some particles appear multiple times or not at all.")
+         raise AssertionError("Some particles appear multiple times or not at all.")
 
 # inspired from Translator/particle_galaxy.py
 def clip_parts(x,y,m,clip_sigma=6,clip_thresh=.1):
     xm = np.sum(x*m)/np.sum(m)
     ym = np.sum(y*m)/np.sum(m)
-    
+
+    # this recentering needs to be re-added afterwards
+    # I lost a day of work for this...
     x -= xm 
     y -= ym 
 
     i=0
+    clip_frac_final  = 1
     while i<100:
         # clip coordinates outliers
         dists = np.sum(np.array([x,y])**2,axis=0)
@@ -156,8 +156,10 @@ def clip_parts(x,y,m,clip_sigma=6,clip_thresh=.1):
     if clip_frac_final>clip_thresh:
         raise RuntimeError(f"Even raising the sigma to {clip_sigma} we end up discarding {np.round(clip_frac_final*100,1)}% of the points")
         
-    return x[mask],y[mask],m[mask]
-    
+    return x[mask]+xm,y[mask]+ym,m[mask]
+
+
+
 def AMR_density_PLL(x, y, m, max_particles=300, min_area=None,
                     dens_thresh=None,Sigma_crit=None,dens_thresh_scale=0.1,
                    clip=False,clip_thresh=0.1,clip_sigma=6,
@@ -193,64 +195,97 @@ def AMR_density_PLL(x, y, m, max_particles=300, min_area=None,
         x,y,m = clip_parts(x,y,m,clip_sigma=clip_sigma,clip_thresh=clip_thresh)
     
     # Domain
-    x0, x1 = np.min(x), np.max(x)
-    y0, y1 = np.min(y), np.max(y)
+    eps   = 1e-6
+    x0, x1 = np.min(x)-eps, np.max(x)+eps
+    y0, y1 = np.min(y)-eps, np.max(y)+eps
     if min_area is None:
         domain = (x1-x0)*(y1-y0)
-        min_area = (domain / 300)
+        min_area = float(domain / 300)
+        
     if dens_thresh is None:
         if Sigma_crit is None:
             raise RuntimeError("Provide either density threshold dens_thresh or critical density Sigma_crit")
         dens_thresh = dens_thresh_scale*Sigma_crit
+        dens_thresh = float(np.squeeze(dens_thresh))
+
     cells = build_AMR(x, y, m,
                       x0,x1,y0,y1,
-                      max_particles=max_particles,
+                      max_particles=int(max_particles),
                       min_area=min_area,dens_thresh=dens_thresh)
-    if units:
-        ucells = []
-        for c in cells:
-            uc = c
-            if space_unit!=1:
-                uc[:4]*=space_unit      #coords
-                uc[-1]/=space_unit**2  #density
-            if mass_unit!=1:
-                uc[-2]*=mass_unit
-                uc[-1]*=mass_unit      #mass and density
-            ucells.append(uc)
-        cells = ucells
     validate_no_duplicates(cells,len(m))
     # if all particle are accounted for, we don't need particle ID
     cells = [c[:4] + c[5:] for c in cells]
     # cells: x0,x1,y0,y1,m,density
+    if units:
+        ucells = []
+        for c in cells:
+            x0, x1, y0, y1, mass, dns = c
+            ucells.append([
+                x0 * space_unit, x1 * space_unit,
+                y0 * space_unit, y1 * space_unit,
+                mass * mass_unit,
+                dns * mass_unit / (space_unit**2)
+            ])
+        cells = ucells
     return cells
 
     
-def get_MDfromAMRcells_PLL(AMR_cells):
+def get_MDfromAMRcells_PLL(AMR_cells,top_fraction=0.05):
     # for parallelised version
     try:
         dns_unit = AMR_cells[0][-1].unit
-        density = np.array([c[-1].value for c in AMR_cells])*dns_unit
+        density = np.array([c[-1].value for c in AMR_cells])
     except:
+        dns_unit = 1
         density = np.array([c[-1] for c in AMR_cells])
-    c_MD      = AMR_cells[np.argmax(density)]
+    """c_MD      = AMR_cells[np.argmax(density)]
     MD_coords = (c_MD[0]+c_MD[1])/2.,(c_MD[2]+c_MD[3])/2.
+        
     try:
         MD_coords = np.array([mdc.value for mdc in MD_coords])*MD_coords[0].unit
     except:
         pass
     MD_value  = np.max(density)
-    return MD_coords,MD_value
+    assert MD_value == c_MD[-1]
+    """
     
+    # centroid of top 5% densest cells, weighted by density
+    n_top    = max(1, int(len(density) * top_fraction))
+    top_idx  = np.argpartition(density, -n_top)[-n_top:]
+
+    top_dns  = density[top_idx]
+    w        = top_dns / top_dns.sum()
+
+    x_md = sum(w[k] * (AMR_cells[i][0] + AMR_cells[i][1]) / 2 
+               for k, i in enumerate(top_idx))
+    y_md = sum(w[k] * (AMR_cells[i][2] + AMR_cells[i][3]) / 2 
+               for k, i in enumerate(top_idx))
+    MD_value = sum(w[k] * density[i] for k, i in enumerate(top_idx))
+
+    try:
+        coord_unit = AMR_cells[0][0].unit
+        MD_coords  = np.array([x_md.value, y_md.value])
+    except:
+        coord_unit = 1
+        MD_coords  = np.array([x_md, y_md])
+    return MD_coords*coord_unit, MD_value*dns_unit
+    
+def cell_in_extents(c,ext):
+     x0,x1,y0,y1,mass,dns = c
+     x = (x0+x1)/2
+     y = (y0+y1)/2
+     
+     if ext[0]<x<ext[1] and ext[2]<y<ext[3]:
+        return True
+     return False
+        
 def plot_AMR_cells(kw_2Ddens,kw_extents=None):
-    fig, ax = plt.subplots(figsize=(8,8))
-    a,b= [],[]
-    
+    fig, ax = plt.subplots(figsize=(8,8))    
     xc,yc = kw_2Ddens["MD_coords"] #kpc
     cells = kw_2Ddens["AMR_cells"]
     # to speed up the code I need to vectorise it -
     # but then I need to ingore the units
     try:
-        x0,x1,y0,y1,mass,dns  = np.array([[cc.value for cc in c] for c in cells]).T
         x0_unit,x1_unit,y0_unit,y1_unit,mass_unit,dns_unit  = [c.unit for c in cells[0]]
         # verify that the units are consistent
         assert x0_unit==x1_unit
@@ -259,13 +294,35 @@ def plot_AMR_cells(kw_2Ddens,kw_extents=None):
         assert x0_unit==xc.unit
         assert x0_unit==yc.unit
         length_unit = x0_unit
+        # def. not the best implementation, but should work anyway
+        cells = [[cc.value for cc in c] for c in cells]
     except AttributeError:
         warnings.warn("Units missing, assuming [x]=kpc, [m]=Msun")
-        x0,x1,y0,y1,mass,dns  = np.array([[cc for cc in c] for c in cells]).T
         length_unit = u.kpc
         mass_unit   = u.Msun
         dns_unit    = mass_unit/(length_unit*length_unit)
-        
+        cells = cells
+    
+    
+
+    if kw_extents:    
+        if "arc" in str(length_unit):
+            ext = kw_extents["extent_arcsec"]
+        elif "kpc" in str(length_unit):
+            ext = kw_extents["extent_kpc"]
+        # Correct for the MD center
+        try:
+            xckpc = xc.to("kpc").value
+            yckpc = yc.to("kpc").value
+        except:
+            xckpc = xc
+            yckpc = yc
+        ext   = np.array(ext) + np.array([xckpc,xckpc,yckpc,yckpc])
+            
+        cells = [c for c in cells if cell_in_extents(c,ext)]
+
+    x0,x1,y0,y1,mass,dns  = np.array([[cc for cc in c] for c in cells]).T
+    
     x0   *=length_unit
     x1   *=length_unit
     y0   *=length_unit
@@ -290,22 +347,16 @@ def plot_AMR_cells(kw_2Ddens,kw_extents=None):
     pc = PatchCollection(
         patches_list,
         facecolor=colors,
+        edgecolor="none", 
         linewidth=0.5)
 
     ax.add_collection(pc)
-    if not kw_extents:
-        ax.set_xlim(np.min(x0.value),np.max(x0.value))
-        ax.set_ylim(np.min(y0.value),np.max(y0.value))
-    else:
-        if "arc" in str(x0.unit):
-            ext = kw_extents["extent_arcsec"]
-        elif "kpc" in str(x0.unit):
-            ext = kw_extents["extent_kpc"]
-        ax.set_xlim(ext[0],ext[1])
-        ax.set_ylim(ext[2],ext[3])
+    ax.set_xlim(np.min(x0.value),np.max(x1.value))
+    ax.set_ylim(np.min(y0.value),np.max(y1.value))
+
     ax.set_aspect("equal")
-    ax.set_xlabel("x ["+str(x0.unit)+"]")
-    ax.set_ylabel("y ["+str(y0.unit)+"]")
+    ax.set_xlabel("x ["+str(length_unit)+"]")
+    ax.set_ylabel("y ["+str(length_unit)+"]")
     
     sm = ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])  # required for colorbar
@@ -329,7 +380,7 @@ def _test_AMR():
     x0,x1 = np.min(x),np.max(x)
     y0,y1 = np.min(y),np.max(y)
     
-    cells = AMR_density_pll(x, y, m,dens_thresh=0) #, x0, x1, y0, y1)
+    cells = AMR_density_PLL(x, y, m,dens_thresh=0) #, x0, x1, y0, y1)
     print(len(cells))
     t1 = time()
     print(t1-t0)
