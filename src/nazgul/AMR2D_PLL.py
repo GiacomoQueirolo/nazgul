@@ -283,6 +283,7 @@ def plot_AMR_cells(kw_2Ddens,kw_extents=None):
     fig, ax = plt.subplots(figsize=(8,8))    
     xc,yc = kw_2Ddens["MD_coords"] #kpc
     cells = kw_2Ddens["AMR_cells"]
+
     # to speed up the code I need to vectorise it -
     # but then I need to ingore the units
     try:
@@ -321,8 +322,19 @@ def plot_AMR_cells(kw_2Ddens,kw_extents=None):
             
         cells = [c for c in cells if cell_in_extents(c,ext)]
 
-    x0,x1,y0,y1,mass,dns  = np.array([[cc for cc in c] for c in cells]).T
-    
+    if len(cells)==0:
+        warnings.warn(f"Cells are empty - skipping")
+        return fig,ax
+    elif len(cells)<10:
+        warnings.warn(f"Very few cells: {len(cells)} - continuing but carefully")
+
+    try:
+        x0,x1,y0,y1,mass,dns  = np.array([[cc for cc in c] for c in cells]).T
+    except ValueError as e:
+        print("DEBUG")
+        print(cells)
+        print("DEBUG")
+        raise e
     x0   *=length_unit
     x1   *=length_unit
     y0   *=length_unit
