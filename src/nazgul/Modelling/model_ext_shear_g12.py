@@ -26,11 +26,11 @@ from nazgul.plot_PL import plot_kappamap
 from nazgul.stat_lenses import get_all_gallens
 
 from nazgul.lens_part_LOS import get_kw_los
-from nazgul.pathfinder import get_sim_dir
+from nazgul.pathfinder import get_sim_dir,tmp_dir
 
 lens_model_list   = ['EPL','SHEAR']
 source_model_list = ["SERSIC"]
-res_dir_base      = Path("./tmp/models/ext_shear_g12/")
+res_dir_base      = tmp_dir/"models/ext_shear_g12/"
 
 def _get_model_res_dir(lens,res_dir=res_dir_base):
     res_dir = Path(f"{res_dir}/snap_{lens.gallens.Gal.snap}_{lens.name}")

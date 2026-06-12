@@ -25,7 +25,7 @@ from nazgul.mount_doom.lens_system import LensSystem
 from nazgul.plot_PL import plot_kappamap
 
 from nazgul.lens_part_LOS import get_kw_los
-from nazgul.pathfinder import get_sim_dir
+from nazgul.pathfinder import get_sim_dir,tmp_dir
 #default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_023/Gn7SGn0/Sub/Sub_Gn7SGn0_Npix200_PartAS_Prj0.pkl"
 #default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_027/Gn3SGn0/Sub/Sub_Gn3SGn0_Npix200_PartAS_Prj1.pkl"
 
@@ -33,7 +33,7 @@ default_lens_path = f"{get_sim_dir()}/snap_027/Gn22SGn0/Sub/Sub_Gn22SGn0_Npix200
 
 lens_model_list   = ['SIS','SIS','SHEAR_GAMMA_PSI']
 source_model_list = ["SERSIC"]
-res_dir_base      = Path("./tmp/modelling_sim_lenses_2SIS/")
+res_dir_base      = tmp_dir/"modelling_sim_lenses_2SIS/"
 mkdir(res_dir_base)
 
 def _get_model_res_dir(lens,res_dir=res_dir_base):

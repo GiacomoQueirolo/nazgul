@@ -18,6 +18,7 @@ from python_tools.read_fits import load_fits
 from python_tools.tools import mkdir,to_dimless
 from python_tools.get_res import load_whatever
 
+from nazgul.pathfinder import tmp_dir
 from nazgul.plot_PL import plot_all
 from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
 from nazgul.mount_doom.cracks_of_doom import LoadLens,get_extents
@@ -30,7 +31,7 @@ default_lens_path = "RingBearer/EAGLE/RefL0025N0752/snap_027/Gn3SGn0/Sub/Sub_Gn3
 
 lens_model_list   = ['SIE','SIS','SHEAR_GAMMA_PSI']
 source_model_list = ["SERSIC"]
-res_dir_base      = Path("./tmp/modelling_sim_lenses_SIS_SIE/")
+res_dir_base      = tmp_dir/"modelling_sim_lenses_SIS_SIE/"
 mkdir(res_dir_base)
 
 def _get_model_res_dir(lens,res_dir=res_dir_base):

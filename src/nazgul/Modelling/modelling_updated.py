@@ -18,6 +18,7 @@ from python_tools.read_fits import load_fits
 from python_tools.tools import mkdir,to_dimless
 from python_tools.get_res import load_whatever
 
+from nazgul.pathfinder import tmp_dir
 from nazgul.plot_PL import plot_all
 from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
 from nazgul.mount_doom.cracks_of_doom import LoadLens
@@ -25,7 +26,7 @@ from nazgul.mount_doom.lens_system import LensSystem
 
 lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
 source_model_list = ["SERSIC"]
-res_dir_base      = Path("./tmp/modelling_sim_lenses/")
+res_dir_base      = tmp_dir/"modelling_sim_lenses/"
 
 def _get_model_res_dir(lens,res_dir=res_dir_base):
     res_dir = Path(f"{res_dir}/snap_{lens.gallens.Gal.snap}_{lens.name}")

@@ -13,13 +13,15 @@ from lenstronomy.SimulationAPI.ObservationConfig.HST import HST
 from python_tools.read_fits import load_fits
 from python_tools.tools import mkdir,to_dimless
 
+
 from nazgul.plot_PL import plot_all
+from nazgul.pathfinder import tmp_dir
 from nazgul.masking import mask_SEAGLE,mask_center
 from nazgul.mount_doom.cracks_of_doom import wrapper_get_rnd_lens
 
 lens_model_list   = ['EPL','SHEAR_GAMMA_PSI']
 source_model_list = ["SERSIC"]
-res_dir_base      = Path("./tmp/modelling_sim_lenses/")
+res_dir_base      = tmp_dir/"modelling_sim_lenses/"
 
 if __name__=="__main__":
     lens = wrapper_get_rnd_lens(kw_lenspart={"min_thetaE":.9},
