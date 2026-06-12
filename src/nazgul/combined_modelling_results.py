@@ -1,10 +1,12 @@
 # Try to generalise it
-import sys
+import os,sys
 import argparse
+import warnings
 import numpy as np
 import pandas as pd
 from glob import glob
 from pathlib import Path
+from textwrap import wrap
 from copy import copy,deepcopy
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -13,6 +15,7 @@ from chainconsumer import Chain, ChainConsumer
 from chainconsumer.plotting import plot_contour,plot_truths,plot_dist
 
 from lenstronomy.Plots.model_plot import ModelPlot
+from lenstronomy.Util.param_util import shear_polar2cartesian,ellipticity2phi_q
 
 from python_tools.tools import short_SciNot
 from python_tools.get_res import load_whatever
@@ -30,7 +33,7 @@ warm         = ['#fdcc8a', '#fc8d59', '#d7301f']
 cool         = ['#41b6c4', '#2c7fb8', '#253494']
 
 #plt.style.use('sanglier')
-plt.rcParams.update({'font.size': 20})
+plt.rcParams.update({'font.size': 10})
 
 def shear_stdev(gamma, gamma1, gamma2, covmat):
     '''
@@ -86,6 +89,23 @@ def get_all_lens_models(res_dir):
             # then we consider the lens
             model_res_dir = Path(pth_res).parent
             lens_link = model_res_dir/"link_gallens.pkl"
+            if not os.path.exists(lens_link):
+                warnings.warn("MONKEY-PATCH- update name of the lens on the fly")
+                _lens_dir = Path(os.readlink(lens_link)).parent
+                _nm_lns = str(model_res_dir.name)
+                prj_index = int(_nm_lns.split("Prj")[1][0])
+                nmlns = _nm_lns.split("_")[2]
+                candidate_lens_name = "Sub_Lens_"+nmlns+"_Prj"+str(prj_index)+"*"
+                cnd_name =  str(_lens_dir)+"/"+candidate_lens_name
+                candidate = glob(cnd_name)
+                if len(candidate)!=1:
+                    print("lens dir =",_lens_dir)
+                    if len(candidate)==0:
+                        raise RuntimeError("No compatible lens found")
+                    else:
+                        raise RuntimeError("Too many candidates lenses found")
+                else:
+                    lens_link = candidate[0]
             lens      = LoadLens(lens_link)
             lens.unpack() 
             lens.model_res_dir = model_res_dir
@@ -100,7 +120,6 @@ def _convert_shear2LOS(mc_sample,param_mcmc):
     Only for convenience - rewrite gamma_ext, psi_ext as gamma_LOS_1,gamma_LOS_2
     """
     # needed to convert gamma_shear, psi_shear into gamma_shear1,gamma_shear2
-    from lenstronomy.Util.param_util import shear_polar2cartesian,ellipticity2phi_q
 
     mc_sampleT =  np.array(mc_sample).T
     param_mcmc = list(param_mcmc)
@@ -166,6 +185,13 @@ def plot_los_outVsin(lenses,_rnd=3):
     g_los_out_med = []
     g_los_out_std = []
     g_los_in      = []
+    
+    phi_los_med  = []
+    phi_los_std  = []
+    phi_lens_med = []
+    phi_lens_std = []
+    q_lens_med   = []
+
     for i,lens in enumerate(lenses):
         lens_name = lens.name.replace("Sub_","")
         nm_input = f"{lens.model_res_dir}/kw_input.dll"            
@@ -180,6 +206,20 @@ def plot_los_outVsin(lenses,_rnd=3):
         gamma_los1 = mc_sample.T[i_gamma_los1][0]
         i_gamma_los2 = np.where(param_mcmc=="gamma2_los_lens1")
         gamma_los2 = mc_sample.T[i_gamma_los2][0]
+        
+        phi_los,q_los = ellipticity2phi_q(gamma_los1,gamma_los2)
+        i_e1_lens = np.where(param_mcmc=="e1_lens0")
+        e1_lens   = mc_sample.T[i_e1_lens][0]
+        i_e2_lens = np.where(param_mcmc=="e2_lens0")
+        e2_lens   = mc_sample.T[i_e2_lens][0]
+        phi_lens,q_lens = ellipticity2phi_q(e1_lens,e2_lens)
+        
+        phi_los_med.append(np.median(phi_los))
+        phi_los_std.append(np.std(phi_los))
+        
+        phi_lens_med.append(np.median(phi_lens))
+        phi_lens_std.append(np.std(phi_lens))
+        q_lens_med.append(np.median(q_lens))
         
         gamma_los  = np.sqrt(gamma_los1**2 + gamma_los2**2)
         gamma_los_meas = np.median(gamma_los)
@@ -196,19 +236,6 @@ def plot_los_outVsin(lenses,_rnd=3):
         g_los_out_std.append(gamma_los_std)
         g_los_in.append(gamma_los_true)
         
-        """
-        gLOS_chain = pd.DataFrame( gamma_los , columns=gamma_los_name)
-        plot_dist(ax, Chain(samples=gLOS_chain, name=gamma_los_name, shade=True, color='#2c7fb8', smooth=20, bins=10,
-                                       shade_gradient = 0.4, linewidth=3.0), px=gamma_los_name,)
-        lbl_glos_meas = r"$\gamma_{\rm{LOS}\;\rm{meas.}}=$"+str(np.round(np.median(gamma_los),_rnd))+"+-"+str(np.round(np.std(gamma_los),_rnd))
-        ax.axvline(np.median(gamma_los),ls="-.",color="r",label=lbl_glos_meas)
-        
-        lbl_glos_true = r"$\gamma_{\rm{LOS}\;\rm{true}}=$"+str(np.round(gamma_los_true,_rnd))
-        ax.axvline(gamma_los_true,ls="--",color="k",label=lbl_glos_true)
-        ax.legend(loc="upper right")
-        ax.scatter(i,gamma_los_true,marker="o",c="r",label=lbl_glos_true)
-        ax.set_title(str_glos_meas+" vs "+str_glos_true)
-        """
         g_los1_out_med.append(np.median(gamma_los1))
         g_los1_out_std.append(np.std(gamma_los1))
         g_los2_out_med.append(np.median(gamma_los2))
@@ -237,8 +264,7 @@ def plot_los_outVsin(lenses,_rnd=3):
     
     #ax.plot([0, 1], [0, 1], transform=ax.transAxes,ls="--",c="grey")
     plt.suptitle(r"$\gamma_{\rm{in}}^{\rm{LOS}}$ vs $\gamma_{\rm{out}}^{\rm{LOS}}$")
-    plt.tight_layout()
-    plt.close()
+    plt.tight_layout()   
 
     fig2,axes2 = plt.subplots(1,figsize=(9,6))
     if np.std(g_los_in)>1e-10:
@@ -256,12 +282,50 @@ def plot_los_outVsin(lenses,_rnd=3):
         ax.scatter(x,g_los_out_med,marker="o",c="r",label=str_glos_out)
         ax.errorbar(x,g_los_out_med,yerr=g_los_out_std,c="r",fmt="ko",ecolor="k",elinewidth=.8)
         ax.legend()
-    plt.suptitle(r"$\gamma_{\rm{in}}^{\rm{LOS}}$ vs $\gamma_{\rm{out}}^{\rm{LOS}}$")
-    plt.tight_layout()
-    plt.close()
+    fig2.suptitle(r"$\gamma_{\rm{in}}^{\rm{LOS}}$ vs $\gamma_{\rm{out}}^{\rm{LOS}}$")
     
-    plt.tight_layout()
+    
+    # study of Etherington et al. '24
+    phi_lens = np.array(phi_lens_med)*180/np.pi
+    phi_los  = np.array(phi_los_med)*180/np.pi
+    phi_lens_std = np.array(phi_lens_std)*180/np.pi
+    phi_los_std = np.array(phi_los_std)*180/np.pi
+    fig3,axis3 = plt.subplots()
+    axis3.errorbar(phi_lens,phi_los,
+                 xerr=phi_lens_std,yerr=phi_los_std,
+                 ecolor="k",fmt="None",elinewidth=.8,markersize=4)
+    axis3.scatter(phi_lens,phi_los,color="r",marker="o")
+    axis3.set_xlabel(r"$\phi_{\rm{Lens}}$ [$^{\rm{o}}$]")
+    axis3.set_ylabel(r"$\phi_{\rm{LOS}}$ [$^{\rm{o}}$]")
+    fig3.suptitle("\n".join(wrap(r"Pointing angles ($\phi$) of mass model (lens) and LOS shear",50)))
+    nm3 = "tmp/phi_los_vs_lens.png"
+    fig3.tight_layout()
+    fig3.savefig(nm3)
+    print(f"Saved {nm3}")
+    plt.close(fig3)
+    
+    ## comp fig 3 Etherington et al. '24
+    Dphi = np.abs(phi_lens-phi_los)
+    Dphi_err = np.sqrt(phi_lens_std**2 + phi_los_std**2)
+    fig4,axis4 = plt.subplots()
+    axis4.errorbar(g_los_out_med,Dphi,
+                   xerr=g_los_out_std,yerr=Dphi_err,
+                 ecolor="k",fmt="ko",elinewidth=.8,markersize=4)
+    im0 = axis4.scatter(g_los_out_med,Dphi,c=np.array(q_lens_med),cmap="viridis")
+    divider = make_axes_locatable(axis4)
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    fig4.colorbar(im0, cax=cax, orientation='vertical',label=r"q$_{\rm{lens}}$")
+    fig4.suptitle("\n".join(wrap(r"$\Delta$ P.A. ($\phi$) of mass model (lens) and LOS shear vs LOS shear strenght ($\gamma$) and axis ratio (q)",50)))
+    axis4.set_ylabel(r"|$\phi_{\rm{lens}}$ - $\phi_{\rm{LOS}}$| [$^{\rm{o}}$]")
+    axis4.set_xlabel(r"$\gamma_{\rm{LOS}}$")
+    nm4 = "tmp/Dphi_vs_gamma.png"
+    fig4.tight_layout()
+    fig4.savefig(nm4)
+    print(f"Saved {nm4} - compare w. Etherington et al. '24, fig 3")
+    plt.close(fig4)
+
     return fig, fig2
+
 
 def plot_los_outVsin_var(axes,g_los1_in,g_los2_in,
                              g_los1_out_med,g_los1_out_std,
@@ -510,7 +574,7 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
     ax.legend(loc="upper left")
     #ax.legend()
     return axes
-import warnings
+    
 warnings.filterwarnings("ignore")
 
 name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmgaLos"]
@@ -550,7 +614,7 @@ if __name__=="__main__":
     _rnd = 3
     res_dir = get_res_dir(model)
     nm_combined = f"{res_dir}/combined_result.pdf"    
-        
+    
     lenses_modelled = get_all_lens_models(res_dir)
     columns_ttl = ["Sim Image","Model","Norm. Resid.",r"P($\theta_E$|S.I.)"]
     if overlay_ellipticity:
@@ -564,8 +628,8 @@ if __name__=="__main__":
     ncols  = len(columns_ttl) # n* of wanted columns
 
     scl = 8
-    print("DEBUG - skipping result line")
     """
+    print("DEBUG - skipping result line")
     fig, axes = plt.subplots(nrows, ncols, figsize=(scl*ncols,scl*nrows))
     for i_row,lens in enumerate(lenses_modelled):
         plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,\
@@ -576,6 +640,7 @@ if __name__=="__main__":
     print(f"Saved {nm_combined}")
     plt.close()
     """
+    
     for i_row,lens in enumerate(lenses_modelled):
         nm_single = f"{lens.model_res_dir}/single_result.pdf"    
 
@@ -586,19 +651,19 @@ if __name__=="__main__":
         plt.tight_layout()
         plt.savefig(nm_single)
         print(f"Saved {nm_single}")
-        plt.close()
-
+        plt.close(fig) 
     if model=="allLOS":
         fig,fig2 = plot_los_outVsin(lenses_modelled,_rnd=_rnd)
         _nm = "comp_glos_12_in_vs_out.pdf"
         nm = f"{res_dir}/{_nm}"
         fig.savefig(nm)
+        plt.close(fig)
         print(f"Saved {nm}")
         _nm = "comp_glos_in_vs_out.pdf"
         nm = f"{res_dir}/{_nm}"
         fig2.savefig(nm)
         print(f"Saved {nm}")
-        plt.close()
+        plt.close(fig2)
 """
 if model!="noLOS":
     gamma1_full = c.analysis.get_parameter_summary(chain=Chain(samples=full_chain, name='lenstronomy_mcmc_emcee'),column=r"gamma1_los_lens1")
