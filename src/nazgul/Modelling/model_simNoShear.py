@@ -1,0 +1,245 @@
+# Model all lenses where LOS is not simulated but w. LOS in the model
+# to study the internal shear (á la Etherington)
+import os,gc
+import argparse
+import numpy as np
+import sys,json,dill
+from corner import corner
+import matplotlib.pyplot as plt
+
+from lenstronomy.Plots import chain_plot
+
+from nazgul.plot_PL import plot_kappamap
+from nazgul.lens_part_LOS import get_kw_los
+from nazgul.mount_doom.lens_system import LensSystem
+
+from nazgul.Translator import std_sim,std_simsuite,std_subsim
+from nazgul.Modelling.lib_models import setup_lens,setup_sim_obs,get_kwargs_likelihood,get_lenses2model
+from nazgul.Modelling.lib_models import save_kw,plot_model_plot
+from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std # default values
+
+lens_model_list   = ['EPL','LOS_MINIMAL']
+source_model_list = ["SERSIC"]
+res_dir_base      = model_res_base/"simNoShear/"
+
+def get_kwargs_params(lens):
+    # Params:
+    # initial guess of non-linear parameters, we chose different starting parameters than the truth #
+    tE = lens.gallens.thetaE.value
+
+    # LOS added separately    
+    kwargs_lens_init = [{'theta_E': tE + np.random.normal(0,.1,1)[0]*tE, 
+                    'e1': 0, 'e2': 0, 
+                    'gamma': 2., 
+                    'center_x': 0., 'center_y': 0}]
+    kwargs_source_init = [{'R_sersic': 0.03, 'n_sersic': 1., 'center_x': 0, 'center_y': 0}]
+    
+    # initial spread in parameter estimation #
+    kwargs_lens_sigma = [{'theta_E': 0.3, 
+                          'e1': 0.2, 'e2': 0.2, 'gamma': .2, 
+                          'center_x': 0.1, 'center_y': 0.1}]
+    kwargs_source_sigma = [{'R_sersic': 0.1, 'n_sersic': .5, 'center_x': .1, 'center_y': 0.1}]
+    
+    # hard bound lower limit in parameter space #
+    kwargs_lower_lens = [{'theta_E': 0, 'e1': -0.5, 'e2': -0.5, 'gamma': 1.5, 'center_x': -10., 'center_y': -10}]
+    kwargs_lower_source = [{'R_sersic': 0.001, 'n_sersic': .5, 'center_x': -10, 'center_y': -10}]
+    # hard bound upper limit in parameter space #
+    kwargs_upper_lens = [{'theta_E': 10, 'e1': 0.5, 'e2': 0.5, 'gamma': 2.5, 'center_x': 10., 'center_y': 10}]
+    kwargs_upper_source = [{'R_sersic': 10, 'n_sersic': 5., 'center_x': 10, 'center_y': 10}]
+
+    # add LOS params
+    # First we fix to 0 kappa and omega (not gamma_od for now)
+    # omega_LOS should not be fixed! the LOS shears in combination induce a small rotation
+    # allowing for freedom in omega_LOS accounts for this and prevents bias in the shears
+    
+    gamma_prior = 0.5
+    omega_prior = 0.5
+    gamma_sigma = 0.1
+    omega_sigma = 0.1
+
+    # this is for the minimal model
+    kwargs_fixed_los = {'kappa_od': 0.0, 'kappa_los': 0.0, 'omega_od': 0.0}
+
+    kwargs_lens_init.append({'gamma1_od':0, 'gamma2_od': 0,
+                             'gamma1_los':0, 'gamma2_los':0,
+                             'omega_los': 0 })
+
+    kwargs_lens_sigma.append({'gamma1_od': gamma_sigma, 'gamma2_od': gamma_sigma,
+                              'gamma1_los': gamma_sigma, 'gamma2_los': gamma_sigma,
+                              'omega_los': omega_sigma})
+
+    kwargs_lower_lens.append({'gamma1_od': -gamma_prior, 'gamma2_od': -gamma_prior,
+                              'gamma1_los': -gamma_prior, 'gamma2_los': -gamma_prior,
+                              'omega_los': -omega_prior})
+
+    kwargs_upper_lens.append({'gamma1_od': gamma_prior, 'gamma2_od': gamma_prior,
+                              'gamma1_los': gamma_prior, 'gamma2_los': gamma_prior,
+                              'omega_los': omega_prior})
+
+    """
+    # this is for the full LOS
+    kwargs_fixed_los = {'kappa_od': 0, 'kappa_os': 0,'kappa_ds':0,
+                        'omega_od': 0.0, 'omega_os': 0.0, 'omega_ds': 0.0}
+    kwargs_lens_init.append({'gamma1_od': 0, 'gamma2_od': 0,
+                             'gamma1_os': 0, 'gamma2_os': 0,
+                             'gamma1_ds': 0, 'gamma2_ds': 0})
+    kwargs_lens_sigma.append({'gamma1_od': gamma_sigma, 'gamma2_od': gamma_sigma,
+                              'gamma1_os': gamma_sigma, 'gamma2_os': gamma_sigma,
+                              'gamma1_ds': gamma_sigma, 'gamma2_ds': gamma_sigma})
+    kwargs_lower_lens.append({'gamma1_od': -gamma_prior, 'gamma2_od': -gamma_prior,
+                              'gamma1_os': -gamma_prior, 'gamma2_os': -gamma_prior,
+                              'gamma1_ds': -gamma_prior, 'gamma2_ds': -gamma_prior})
+
+    kwargs_upper_lens.append({'gamma1_od': gamma_prior, 'gamma2_od': gamma_prior,
+                              'gamma1_os': gamma_prior, 'gamma2_os': gamma_prior,
+                              'gamma1_ds': gamma_prior, 'gamma2_ds': gamma_prior})
+    """
+    
+    lens_params = [kwargs_lens_init, kwargs_lens_sigma, [{}, kwargs_fixed_los], kwargs_lower_lens, kwargs_upper_lens]
+    source_params = [kwargs_source_init, kwargs_source_sigma, [{}], kwargs_lower_source, kwargs_upper_source]
+    
+    kwargs_params = {'lens_model': lens_params,
+                    'source_model': source_params}
+    return kwargs_params
+
+
+if __name__=="__main__":
+    parser = argparse.ArgumentParser(prog=sys.argv[0],description="Simulate (without shear) and model the lens (with shear) - Study the Internal Shear")
+    parser.add_argument('-rt','--run_type',type=int,dest="run_type",default=0,help= f"""Type of run: 
+        0 = standard, PSO_it = {n_it_std} PSO_prt = {n_part_std} MCMCb = {n_burn_std} MCMCr = {n_run_std}  
+        1 = test run  PSO_it = 3      PSO_prt = 3      MCMCb = 1     MCMCr = 2 
+       (PSO_it: PSO iterations, PSO_prt: PSO particles, MCMCr: MCMC run steps, MCMCb: MCMC burn in steps)\n""")
+    parser.add_argument('-nl','--n_lenses',type=int,dest="n_lenses",default=5,help=f"Number of lenses to model")
+    parser.add_argument('-mtE','--min_thetaE',type=float,dest="min_thetaE",default=None,help=f"Min theta_E for the gal to be considered a lens")
+    parser.add_argument('-snap','--snap',nargs="+",type=int,dest="snaps",default=[],help=f"List of snaps to consider - default is all")
+    parser.add_argument('-sim','--sim',type=str,dest="sim",default=std_sim,help=f"Simulation name")
+    parser.add_argument('-ss','--simsuite',type=str,dest="simsuite",default=std_simsuite,help=f"Simulation suite name")
+    parser.add_argument('-ssim','--subsim',type=str,dest="subsim",default=std_subsim,help=f"Sub-Simulation name")
+
+    args       = parser.parse_args()
+    run_type   = args.run_type
+    n_lenses   = args.n_lenses
+    min_thetaE = args.min_thetaE 
+    snaps      = args.snaps #[25,26,27]
+    sim        = args.sim
+    subsim     = args.subsim
+    simsuite   = args.simsuite
+
+    if run_type==0:
+        n_iterations = int(n_it_std) #number of iteration of the PSO run
+        n_particles  = int(n_part_std) #number of particles in PSO run
+        n_burn = int(n_burn_std) #MCMC burn in steps
+        n_run  = int(n_run_std) #MCMC total steps 
+    elif run_type ==1:
+        print("Test Run")
+        n_iterations = int(3) #number of iteration of the PSO run
+        n_particles  = int(3) #number of particles in PSO run
+        n_run  = int(2) #MCMC total steps 
+        n_burn = int(1) #MCMC burn in steps
+        if n_lenses>3:
+            print("Resetting n_lenses to 3 because test")
+            n_lenses = 3
+    else:
+        raise RuntimeError("Give a valid run_type or implement it your own")
+
+    lenses2skip = []
+    
+    kw_get_all_gallens = {"sim":sim,
+                          "subsim":subsim,
+                           "simsuite":simsuite,
+                            "snaps":snaps}
+    gal_lenses  = get_lenses2model(kw_get_all_gallens=kw_get_all_gallens,
+                                   n_lenses=n_lenses,
+                                   min_thetaE=min_thetaE,
+                                   skip_lenses=lenses2skip)
+    for gal_lens in gal_lenses: 
+        print("Loading lens "+gal_lens.name+"\n")
+        lens = LensSystem.from_GalLens(gal_lens)
+        res_dir = res_dir_base
+        if run_type==1:
+            res_dir = res_dir_base/"test"
+        lens = setup_lens(lens,res_dir=res_dir)
+        plot_kappamap(lens.gallens.kappa_map, 
+                      extent_kpc=lens.gallens.kw_extents["extent_kpc"],
+                      savename=f"{lens.model_res_dir}/kappa_gal.png")
+        multi_band_list = setup_sim_obs(lens)
+        image_obs = multi_band_list[0][0]["image_data"]
+        
+        # models
+        kwargs_model = {'lens_model_list': lens_model_list,
+                        'source_light_model_list': source_model_list}
+        
+        
+        kwargs_likelihood = get_kwargs_likelihood(lens,image_obs=image_obs)
+    
+        kwargs_data_joint = {'multi_band_list': multi_band_list, 'multi_band_type': 'multi-linear'}
+    
+        # Params:
+        
+        kwargs_params = get_kwargs_params(lens)
+    
+        kwargs_constraints = {#'joint_source_with_point_source': [[0, 0]], 
+        #    'joint_source_with_point_source': list [[i_point_source, k_source], [...], ...],
+        #     joint position parameter between lens model and source light model
+                               #   'num_point_source_list': [4],
+                                  'solver_type':'NONE'# 'PROFILE_SHEAR',  # 'PROFILE', \
+                              #'PROFILE_SHEAR', 'ELLIPSE', 'CENTER', 'NONE'
+                                  }
+    
+        
+        # actual fit:
+        from lenstronomy.Workflow.fitting_sequence import FittingSequence
+        fitting_seq = FittingSequence(kwargs_data_joint, kwargs_model, kwargs_constraints, kwargs_likelihood, kwargs_params)
+        fitting_kwargs_list = [['PSO', {'sigma_scale': 1., 'n_particles': n_particles, 'n_iterations':n_iterations}]
+                          ,
+                           ['MCMC', {'n_burn': n_burn, 'n_run': n_run, 'walkerRatio': 5, 'sigma_scale': .1}]
+            ]
+        kw_input = {"kwargs_data_joint":   kwargs_data_joint,
+                    "kwargs_model":        kwargs_model, 
+                    "kwargs_constraints":  kwargs_constraints, 
+                    "kwargs_likelihood":   kwargs_likelihood, 
+                    "kwargs_params":       kwargs_params,
+                    "fitting_kwargs_list": fitting_kwargs_list,
+                    #"kw_add_lenses":       kw_add_lenses
+                   }
+        nm_input = f"{lens.model_res_dir}/kw_input.dll"
+        save_kw(kw_input,nm_input,"input")
+        
+        chain_list = fitting_seq.fit_sequence(fitting_kwargs_list)
+        kwargs_result = fitting_seq.best_fit()
+        print("kwargs_result",kwargs_result)
+        nm_res = f"{lens.model_res_dir}/kw_res.dll"
+        save_kw(kwargs_result,nm_res,"result output")
+        
+        
+        # we need to extract the updated multi_band_list object since the coordinate shifts were updated in the kwargs_data portions of it
+        multi_band_list_out = fitting_seq.multi_band_list
+        nm_mblo = f"{lens.model_res_dir}/multi_band_list_out.dll"
+        save_kw(multi_band_list_out,nm_mblo,"output multiband list")
+        
+        plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likelihood,res_dir=lens.model_res_dir)
+        
+        sampler_type, mc_sample, param_mcmc, mc_logL  = chain_list[-1]
+        chnl_path = f'{lens.model_res_dir}/chain_list.dll'
+        save_kw(chain_list,chnl_path,"chain list")
+
+        corner(mc_sample,labels=param_mcmc,show_titles=True,plot_datapoints=False,hist_kwargs= {"density":True})
+        nm = f'{lens.model_res_dir}/mcmc_post.pdf'
+        plt.savefig(nm)
+        print(f"Saving {nm}")
+        plt.close()
+            
+        # test
+        for i in range(len(chain_list)):
+            chain_plot.plot_chain_list(chain_list, i)
+        nm = f'{lens.model_res_dir}/chain_plot.pdf'
+        plt.savefig(nm)
+        print(f"Saving {nm}")
+
+        # Cleanup to save memory
+        plt.close("all")
+        del lens
+        del chain_list
+        del kw_input
+        del multi_band_list
+        gc.collect()
