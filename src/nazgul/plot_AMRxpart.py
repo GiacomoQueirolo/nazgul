@@ -23,7 +23,7 @@ base_colors = ["red","green","blue","yellow","dark","magenta","cyan",
 # Plot AMR density for different particle species
 def plot_AMR_densityXpart(Gal,
                      proj_index    = 0,
-                     z_source      = 2, # for now fixed
+                     z_source      = 2, 
                      max_particles = 100,
                      min_area      = 0.1*u.kpc*u.kpc,
                      dens_thresh   = 0.*u.Msun/(u.kpc**2),
