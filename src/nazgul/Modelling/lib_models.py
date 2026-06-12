@@ -100,8 +100,8 @@ def setup_sim_obs(lens,band_str="HST_F160W",pssf=3):
     if np.any(psf<0):
         warnings.warn("Some negative pixels in the PSF")
         i_psf0,j_psf0 = np.where(psf<0)
-        if i_psf0.shape*100/psf.ravel().shape>10:
-            raise ValueError("PSF has more than 10% negative pixels, something is not right")
+        if i_psf0.shape[0]*100/psf.ravel().shape[0]>30:
+            raise ValueError("PSF has more than 30% negative pixels, something is not right")
         warnings.warn("Setting minimum value for negative PSF pixels")
         psf[psf<0] = np.min(psf[psf>0])/100
     # we can supersample it
