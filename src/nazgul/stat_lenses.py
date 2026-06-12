@@ -23,8 +23,9 @@ def get_all_gallens_gen_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsi
     if len(snaps)!=0:
         gen_paths = []
         for snap in snaps:
+            
             snap_dir = get_snap_dir(snap,sim=sim,subsim=subsim,simsuite=simsuite,data_dir=data_dir)
-            gen_paths.extend(snap_dir)
+            gen_paths.append(snap_dir)
     else:
         sim_dir = get_sim_dir(sim=sim,subsim=subsim,
                     simsuite=simsuite,data_dir=data_dir)
@@ -47,10 +48,8 @@ def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=st
         for snap_dir in gen_paths:
             print("WARNING - MONKEY PATCH - ")
             gallenses = glob(f"{snap_dir}/Gn*/Sub/Sub_*Prj?_*.pkl")
-            print("DEBUG",gallenses)
             computed_gallenses.extend(gallenses)
             gallenses = glob(f"{snap_dir}/Gn*/Sub/Sub_*Prj?.pkl")
-            print("DEBUG",gallenses)
             computed_gallenses.extend(gallenses)
     else:
         sim_dir = gen_paths[0]
