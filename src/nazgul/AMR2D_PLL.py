@@ -331,9 +331,6 @@ def plot_AMR_cells(kw_2Ddens,kw_extents=None):
     try:
         x0,x1,y0,y1,mass,dns  = np.array([[cc for cc in c] for c in cells]).T
     except ValueError as e:
-        print("DEBUG")
-        print(cells)
-        print("DEBUG")
         raise e
     x0   *=length_unit
     x1   *=length_unit
