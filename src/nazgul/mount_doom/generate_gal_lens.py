@@ -7,8 +7,9 @@ Revolves around the GalLens class, plus several helper functions
      -> still compute lensing effects given z_lens and z_source, but those will be corrected for in the Lenstronomy profile
 
 """
-
+import os,gc
 import dill
+import psutil
 import warnings
 import numpy as np
 from glob import glob
@@ -17,6 +18,7 @@ from time import gmtime, strftime
 from functools import cached_property 
 
 import astropy.units as u
+import matplotlib.pyplot as plt
 from lenstronomy.Util.util import array2image,make_grid
 #from lenstronomy.ImSim.Numerics.grid import RegularGrid
 
@@ -294,6 +296,12 @@ def gal_already_computed(Gal):
                 gal_computed = False
                 return gal_computed
     return gal_computed
+
+def log_memory(label=""):
+    # This probably should be somewhere else
+    proc = psutil.Process(os.getpid())
+    mb = proc.memory_info().rss / 1024**2
+    print(f"[MEM] {label}: {mb:.0f} MB", flush=True)
     
 def wrapper_get_all_lens(reload=True,
                         kw_lenspart={},
@@ -330,9 +338,9 @@ def wrapper_get_all_lens(reload=True,
             strikes = 0
             while kw_lenspart["projection_index"]<3:
                 try:
-                    mod_LP = GalLens(Galaxy=Gal,
-                                  **kw_lenspart)
+                    mod_LP = GalLens(Galaxy=Gal,**kw_lenspart)
                     mod_LP.run(read_prev=reload)
+                    mod_LP.Gal.slim_down()
                     all_lenses.append(mod_LP)
                     pji = kw_lenspart["projection_index"]
                     print(f"Projection {pji} of {Gal.name} is supercritical!\n")
@@ -340,6 +348,7 @@ def wrapper_get_all_lens(reload=True,
                     plot_AMR_densityXpart(Gal=mod_LP.Gal,
                                           proj_index=pji,
                                           savedir=mod_LP.savedir)
+                    plt.close("all")
                     if not consider_all_proj:
                         print(f"Considering only the first supercritical solution.\n")
                         break
@@ -357,13 +366,17 @@ def wrapper_get_all_lens(reload=True,
             if _test:
                 print("TEST - Stopping after only one")
                 return all_lenses
-        except RuntimeError:
-            print('RUNTIME ERROR FOR THIS GALAXY, MOVING TO NEXT')
+        except RuntimeError as RE:
+            print(f'RUNTIME ERROR FOR THIS GALAXY:\n{RE}\nMOVING TO NEXT')
+            kw_lenspart["projection_index"] = 0
             continue
-    if _test:
-        print("TEST - Stopping after only one")
-        return all_lenses
-    if verbose:
+        finally:
+            Gal_name = Gal.name
+            del Gal        
+            gc.collect()
+            log_memory(f"after {Gal_name}") 
+            
+    if verbose and not _test:
         print(f"Found n={len(all_lenses)} Lenses")
         print(f"i.e. {np.round(len(all_lenses)/len(all_Gal*3)*100,1)}% of Galaxies (considering their rotations)")
 
@@ -386,8 +399,7 @@ def wrapper_get_rnd_lens(reload=True,
         Gal.run()
         while kw_lenspart["projection_index"]<3:
             try:
-                mod_LP = GalLens(Galaxy=Gal,
-                              **kw_lenspart)
+                mod_LP = GalLens(Galaxy=Gal,**kw_lenspart)
                 mod_LP.run(read_prev=reload)
                 return mod_LP
             except ProjectionError as PE:
