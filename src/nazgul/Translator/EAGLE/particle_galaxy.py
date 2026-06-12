@@ -449,24 +449,34 @@ class SimPartGal(BasicPartGal):
         """
         if not hasattr(self,"M_tot"):
             self._mass_tot_part()
-            
-        star_com = np.average(self.stars["coords"], weights=self.stars["mass"], axis=0)
-        dm_com   = np.average(self.dm["coords"],    weights=self.dm["mass"],    axis=0)
-        gas_com  = np.average(self.gas["coords"],   weights=self.gas["mass"],   axis=0)
-        bh_com   = np.average(self.bh["coords"],    weights=self.bh["mass"],    axis=0)
+
+        star_wcnt = _weighted_center(self.stars)
+        dm_wcnt   = _weighted_center(self.dm)
+        gas_wcnt  = _weighted_center(self.gas)
+        bh_wcnt   = _weighted_center(self.bh)
         
         center_actual = (
-            np.sum(self.stars["mass"]) * star_com +
-            np.sum(self.dm["mass"])   * dm_com+
-            np.sum(self.bh["mass"])*bh_com+
-            np.sum(self.gas["mass"])*gas_com
-           ) / self.M_tot
+            star_wcnt +
+            gas_wcnt  +
+            dm_wcnt   +
+            bh_wcnt ) / self.M_tot
 
         center_actual  = np.array(center_actual)
         center_desired = self.centre/self.xy_propr2comov
-        #np.testing.assert_almost_equal(center_desired,center_desired,decimal=2)
         self.verbose_assert_almost_equal(center_actual,center_desired,decimal=3,msg="The expected and measured CM centre differ:") 
 
+def _weighted_center(part_type):
+    # note: not CoM!
+    if part_type["mass"].sum()!=0:
+        w_cnt = np.average(part_type["coords"], weights=part_type["mass"], axis=0)*np.sum(part_type["mass"]) 
+    else:
+        if len(part_type["coords"])!=0:
+            raise ValueError("Particle has 0 total mass but !=0 number of particles")
+        # there are no particle of this species in this gal
+        w_cnt = np.zeros(3)
+    return w_cnt
+
+        
 def _load_one_file(args):
     fl, indices, itype,boxsize,centre = args
     results = {}
@@ -747,6 +757,7 @@ def compute_principal_axes(Gal):
 
     return principal_axes
 
+        
 # The following should be done in the test_particle_galaxy
 """    
 # for debug:
