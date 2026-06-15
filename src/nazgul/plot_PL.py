@@ -4,18 +4,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+
+from nazgul.pathfinder import tmp_dir
 from python_tools.fwhm import get_fwhm
 
 
 def _plot_caustics(LPClass,
-                   kwargs_lens,
                    kw_extents=None,
                    fast_caustic = True,
-                   savename="test_caustics.png"):
+                   savename=tmp/"test_caustics.png"):
     if kw_extents is None:
-        kw_extents = LPClass.kw_extents 
+        kw_extents = LPClass.gallens.kw_extents 
     xmin,xmax,ymin,ymax = kw_extents["extent_arcsec"]
-    kw_crit             = LPClass.critical_curve_caustics
+    kw_crit             = LPClass.get_kw_critical_curve_caustics()
     cl_rad_x,cl_rad_y   = kw_crit["critical_lines"]["radial"]
     cc_rad_x,cc_rad_y   = kw_crit["caustics"]["radial"]
     cl_tan_x,cl_tan_y   = kw_crit["critical_lines"]["tangential"]
@@ -42,8 +43,7 @@ def _plot_caustics(LPClass,
     plt.close()
     
 def plot_caustics(Model,fast_caustic = True,savename="test_caustics.png",kw_extents=None):
-    return _plot_caustics(Model,Model.kwargs_lens,
-                          fast_caustic=fast_caustic,savename=savename,kw_extents=kw_extents)
+    return _plot_caustics(Model,fast_caustic=fast_caustic,savename=savename,kw_extents=kw_extents)
 
 
 def plot_kappamap(kappa1,extent_kpc,title1="",savename="kappa.png",cmap="hot",label_clb=r'$\kappa$'):
