@@ -22,7 +22,7 @@ from python_tools.tools import mkdir,to_dimless,ensure_unit,convert_error_to_war
 # general path
 from nazgul.pathfinder import path_nazgul, std_data_dir
 
-def _resolve_gal_path(stored_path):
+def _resolve_gal_path(stored_path,data_dir=std_data_dir):
     """Translate a stored Gal_path to an absolute path on this machine.
 
     Handles three cases:
@@ -38,7 +38,7 @@ def _resolve_gal_path(stored_path):
         return path_nazgul / p.relative_to(path_nazgul)
     except ValueError:
         parts = p.parts
-        data_root = std_data_dir.name
+        data_root = data_dir.name
         for i, part in enumerate(parts):
             if part == data_root:
                 return path_nazgul / Path(*parts[i:])
@@ -242,7 +242,10 @@ def LoadLens(LnsCl,verbose=True):
         # recompute deleted components
         LnsCl.unpack()
     return LnsCl
-    
+
+def store_lens(lens_class):
+    store_class(lens_class,path=lens_class.pkl_path,LoadClass=LoadLens)
+
 def ReadLens(aClass,verbose=True):
     return LoadLens(aClass.pkl_path,verbose=verbose)
 
@@ -335,8 +338,8 @@ class BasicLensPart(BasicGal):
 
         Lazily initializes the name if it has not been generated yet.
         """
+        #return f'Name:{self.name}\nHash{self._hash_b64}'
         return self.name
-    
     @property
     def name(self):
         # define name and path of savefile
@@ -398,7 +401,7 @@ class BasicLensPart(BasicGal):
         self.PartLens = PartLens(self.kwlens_part)
         
     def store(self):
-        store_class(self,path=self.pkl_path,LoadClass=LoadLens)
+        store_lens(self)
         
     @property
     def pkl_path(self):
