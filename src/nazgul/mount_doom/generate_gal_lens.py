@@ -75,19 +75,20 @@ class GalLens(BasicLensPart):
         self.ignore_OoBErr = ignore_OoBErr
         self.savedir  = get_lens_lowdir_from_galdir(galdir=self.Gal.gal_dir)
         mkdir(self.savedir)
-
+        self._compute_identity()
     ### Class Structure ####
     ########################
-    def _identity(self):
-        """Return an immutable tuple uniquely identifying this galaxy.
-
-        The identity is used for hashing, equality, and cache keys.
-        """
+    
+    def _compute_identity(self):
+        """Compute identity from arguments available at instantiation."""
         #MONKEY_PATCH
         if not hasattr(self,"scale_tE"):
-            print("Recovering scale_tE from radius and thetaE") 
+            print("MONKEY_PATCH: Recovering scale_tE from radius and thetaE") 
             self.scale_tE = (self.radius/self.thetaE).value
-        return (
+        if not hasattr(self,"Gal"):
+            print("MONKEY_PATCH: unpacking to get Gal id") 
+            self.unpack()
+        _id = (
             self.Gal._identity(),
             self.PartLens._identity(),
             self.pixel_num,
@@ -95,6 +96,21 @@ class GalLens(BasicLensPart):
             self.kwlens_part,
             self.scale_tE
             )
+        if hasattr(self,"_id_cached"):
+            if _id!=self._id_cached:
+                raise RuntimeError("This should be impossible")
+        self._id_cached = _id
+        
+    def _identity(self):
+        """Return an immutable tuple uniquely identifying this galaxy.
+
+        The identity is used for hashing, equality, and cache keys.
+        """
+        if not hasattr(self,"_id_cached"):
+            print("MONKEY_PATCH: Recomputing id")
+            self._compute_identity()
+        return self._id_cached
+
     ########################
     @property
     def name(self):
