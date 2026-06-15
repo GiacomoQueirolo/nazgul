@@ -3,6 +3,7 @@ Restructured from generate_particle_lens_dom with a different philosofy in mind:
 This class should be as simple as possible, basically only a conveniency wrapper for LensModel, 
 but geared toward the galaxy lens
 """
+import warnings
 import numpy as np
 from pathlib import Path
 # for debug plots
@@ -21,7 +22,10 @@ from lenstronomy.ImSim.Numerics.numerics_subframe import NumericsSubFrame
 from python_tools.tools import to_dimless,mkdir
 import nazgul.mount_doom.cracks_of_doom as cod
 from nazgul.project_gal import get_2Dkappa_map
+# Class structure
+from nazgul.basic_gal import BasicGal
 from nazgul.mount_doom.generate_gal_lens import GalLens
+from nazgul.mount_doom.cracks_of_doom import store_lens,_resolve_gal_path,LoadLens
 
 # Default values
 # particle lens class and params.
@@ -34,7 +38,12 @@ verbose = True
 empty_kwargs_add_lenses = {"lens_model_list":[],"kwargs_lens":[]}
 
 
-class LensSystem():
+class LensSystem(BasicGal):
+    # Large attributes to not store and to recompute/reload BEFORE computation
+    _large_attributes_setup  = []
+    # Large attributes to not store and to recompute/reload AFTER computation
+    _large_attributes_unpack = ["cosmo","lens_model"]
+    
     def __init__(self,
                  kwargs_gallens,  #                 
                     #Galaxy,
@@ -71,29 +80,68 @@ class LensSystem():
         # We assume that the cosmology has to be the same as the galaxy:
         self.cosmo               = self.gallens.cosmo
         mkdir(self.savedir)
-
+        
+    def _identity(self):
+        return (
+            self.gallens._identity(),
+            self.kwargs_lensmodel,
+            self.kwargs_add_lenses,
+            self.kwargs_band_sim)
+        
     def setup(self,
                 Sim=None,
                 update_source_pos=False,
+                reload=True,
                 verbose=verbose):
-           
-        self.gallens.unpack()
-        self.gallens.run()
-        self.create_lens(kwargs_add_lenses=self.kwargs_add_lenses, # these are given here as the self, but in principle with the freedom to re-define them
-                         Sim=Sim,verbose=verbose)
-        if update_source_pos:
-            self.sample_source_pos(update=update_source_pos)
+        upload_successful = False
+        if reload:
+            upload_successful = self.upload_prev()
+        if not upload_successful:
+            self.gallens.unpack()
+            self.gallens.run()
+            self.create_lens(kwargs_add_lenses=self.kwargs_add_lenses, # these are given here as the self, but in principle with the freedom to re-define them
+                             Sim=Sim,verbose=verbose)
+            if update_source_pos:
+                self.sample_source_pos(update=update_source_pos)
+            elif self.kwargs_source["center_x"]==0 and self.kwargs_source["center_y"]==0:
+                warnings.warn("Source is still positioned at 0,0 but I was instructed not to resample its position.")
+            # store the results
+            self.store()
     #############################
     @property
     def savedir(self):
         return Path(self.gallens.Gal.gal_dir).parent/"LensSystem"
     @property
+    def pkl_path(self):
+        return _resolve_gal_path(self.savedir)/f"{self.name}_{self._hash_b64}.pkl"
+    
+    def ReadClass(self,cl,verbose=True):
+        LS = LoadLens(cl.pkl_path,verbose=verbose)
+        return LS
+        
+    def _unpack(self):
+        """Reconstruct all attributes that were intentionally removed
+        before serialization.
+        """
+        print("Unpacking system lens...")
+        self.gallens.unpack()
+        self.cosmo = self.gallens.cosmo
+
+    def __str__(self):
+        """Human-readable identifier.
+
+        Lazily initializes the name if it has not been generated yet.
+        """
+        return f'Name:{self.name}\nHash:{self._hash_b64}'
+
+    @property
     def name(self):
         # define name and path of savefile
         name_lnsp = self.gallens.name
         # to correct asap
-        name= name_lnsp.replace("Sub_","")
+        name= name_lnsp.replace("Sub_","LS_")
         return name
+        
     @classmethod
     def from_GalLens(cls, GalLens,**kwargs_lenssystem):
         """Construct from an existing GalLens instance."""
@@ -126,8 +174,10 @@ class LensSystem():
         self.setup_dataclasses(Sim=Sim,verbose=verbose)
         # setup lenses 
         self.setup_lenses(kwargs_add_lenses=kwargs_add_lenses,
-                        verbose=verbose)
-
+                        verbose=verbose)        
+    def store(self):
+        store_lens(self)
+        
     def setup_dataclasses(self,Sim=None,verbose=True):
         """
         Define all classes not dependent on lensing
@@ -318,20 +368,22 @@ class LensSystem():
             else:
                 iety,ietx = np.where(cod.MAD_mask(np.abs(eigen_tan),0,tv))
         if len(iery)==0:
-            plt.close()
+            plt.close("all")
             dbg_plot = "tmp/eigen_rad.png"
             plt.imshow(np.abs(eigen_rad))
-            plt.savefig(dbg_plot)
             plt.colorbar()
-            plt.close()
+            plt.savefig(dbg_plot)
+            print(f"Saving {dbg_plot}")
+            plt.close("all")
             raise RuntimeError(f"Radial critical curve not found.\nCheck {dbg_plot}")
         if len(iety)==0:
-            plt.close()
+            plt.close("all")
             dbg_plot = "tmp/eigen_tan.png"
             plt.imshow(np.abs(eigen_tan))
-            plt.savefig(dbg_plot)
             plt.colorbar()
-            plt.close()
+            plt.savefig(dbg_plot)
+            print(f"Saving {dbg_plot}")
+            plt.close("all")
             raise RuntimeError(f"Tangential critical curve not found.\nCheck {dbg_plot}")
         # coords
         if _radec is None:
