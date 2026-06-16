@@ -56,7 +56,7 @@ workin_on_it = "WOI.dll"
 def set_workin_on_it(dir,wrk=True):
     woi_file = Path(dir)/workin_on_it
     with open(woi_file,"wb") as f:
-        dill.dump({"workin_on_it":wrk})
+        dill.dump({"workin_on_it":wrk},f)
     
 def is_someone_workin_on_it(dir):
     woi_file = Path(dir)/workin_on_it

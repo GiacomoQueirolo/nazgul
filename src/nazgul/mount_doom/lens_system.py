@@ -352,7 +352,8 @@ class LensSystem(BasicGal):
         # note: alpha is computed from the particle (and shear from alpha)
         # thus depends on the particle lens model chosen, while kappa
         # is obtained directly as a density map + cosmological scaling
-        print("Computing critical lines...")        alpha_x,alpha_y = self.alpha_map(_radec=_radec)
+        print("Computing critical lines...")        
+        alpha_x,alpha_y = self.alpha_map(_radec=_radec)
         kappa           = self.kappa_map(_radec=_radec)
         shear           = self.shear_map(_radec=_radec)
 
