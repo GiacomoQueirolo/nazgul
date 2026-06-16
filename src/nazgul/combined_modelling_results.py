@@ -78,9 +78,21 @@ def lims_getter(g1, g2):
         x_lower_new = g1.array[1] - g2_nsig
         x_upper_new = g1.array[1] + g2_nsig
         return x_lower_new, x_upper_new, y_lower, y_upper
+        
+def _glob_exactly_1(cnd_name,_str_info=""):
+    candidate = glob(cnd_name)
+    if len(candidate)!=1:
+        if _str_info!="":
+            print(_str_info)#"lens dir =",_lens_dir)
+        if len(candidate)==0:
+            raise RuntimeError(f"No compatible data found matching name {cnd_name}")
+        else:
+            raise RuntimeError("Too many candidate files found")
+    else:
+        return candidate[0]
 
 def get_all_lens_models(res_dir):
-    pth_modlenses_res = glob(f"{res_dir}/snap*/kw_res.json")
+    pth_modlenses_res = glob(f"{res_dir}/snap*/kw_res.*")
     lenses = []
     for pth_res in pth_modlenses_res:
         try:
@@ -97,15 +109,7 @@ def get_all_lens_models(res_dir):
                 nmlns = _nm_lns.split("_")[2]
                 candidate_lens_name = "Sub_Lens_"+nmlns+"_Prj"+str(prj_index)+"*"
                 cnd_name =  str(_lens_dir)+"/"+candidate_lens_name
-                candidate = glob(cnd_name)
-                if len(candidate)!=1:
-                    print("lens dir =",_lens_dir)
-                    if len(candidate)==0:
-                        raise RuntimeError("No compatible lens found")
-                    else:
-                        raise RuntimeError("Too many candidates lenses found")
-                else:
-                    lens_link = candidate[0]
+                lens_link = _glob_exactly_1(cnd_name,_str_info="lens dir ="+str(_lens_dir)) 
             lens      = LoadLens(lens_link)
             lens.unpack() 
             lens.model_res_dir = model_res_dir
@@ -148,6 +152,7 @@ def _convert_polarshear2LOS(mc_sample,param_mcmc):
     return mc_sample, np.array(param_mcmc)
 
 def get_model_title(model):
+    # TODO: implement better
     if model=="fitLOS":    
         ttl = "LOS not simulated, but modelled"
     elif model=="allLOS":    
@@ -160,6 +165,10 @@ def get_model_title(model):
         ttl = r"LOS not simulated and external shear modelled"
     elif model=="noLOS_g12":
         ttl = r"LOS not simulated and external shear modelled (polar shear)"
+    elif model=="simNoShear":
+        ttl = r"LOS not simulated, but modelled - nothing fixed!"
+    else:
+        raise RuntimeError("Define title of model")
     return ttl
 
 def plot_los_outVsin(lenses,_rnd=3):
@@ -224,7 +233,6 @@ def plot_los_outVsin(lenses,_rnd=3):
         gamma_los  = np.sqrt(gamma_los1**2 + gamma_los2**2)
         gamma_los_meas = np.median(gamma_los)
         gamma_los_std  = np.std(gamma_los)
-        
         
         kw_add_lns = kw_input['kw_add_lenses']
         kw_los     = kw_add_lns["kwargs_lens"][kw_add_lns["lens_model_list"].index("LOS")]
@@ -407,7 +415,7 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
 
     full_chain = pd.DataFrame( np.array(mc_sample) , columns=param_mcmc)
 
-    nm_mblo = f"{lens.model_res_dir}/multi_band_list_out.json"
+    nm_mblo = _glob_exactly_1(f"{lens.model_res_dir}/multi_band_list_out.*")
     multi_band_list_out = load_whatever(nm_mblo)
     nm_input = f"{lens.model_res_dir}/kw_input.dll"            
     kw_input = load_whatever(nm_input)
@@ -418,11 +426,16 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
     kwargs_params  = kw_input["kwargs_params"]
     fitting_kwargs_list  = kw_input["fitting_kwargs_list"]
 
-    nm_res = f"{lens.model_res_dir}/kw_res.json"
+    nm_res = _glob_exactly_1(f"{lens.model_res_dir}/kw_res.*")
     kwargs_result = load_whatever(nm_res)
-    modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
+    try:
+        modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
                           arrow_size=0.02, cmap_string="gist_heat",
                           image_likelihood_mask_list=kwargs_likelihood["image_likelihood_mask_list"])
+    except:
+        print(nm_res,nm_input,nm_mblo)
+        print(np.shape(kwargs_likelihood["image_likelihood_mask_list"]),multi_band_list_out)
+        exit()
 
     model_band = modelPlot._band_plot_list[0]
     kw_modelplot = {"vmin":model_band._v_min_default,
@@ -566,8 +579,10 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
         kw_los     = kw_add_lns["kwargs_lens"][kw_add_lns["lens_model_list"].index("LOS")]
         gamma_los1_true = kw_los["gamma1_od"] + kw_los["gamma1_os"] - kw_los["gamma1_ds"]
         gamma_los2_true = kw_los["gamma2_od"] + kw_los["gamma2_os"] - kw_los["gamma2_ds"]
-    elif "fitLOS" in model or "noLOS" in model:
+    elif "fitLOS" in model or "noLOS" in model or "simNoShear" in model:
+        #TODO : better implementation of this
         gamma_los1_true,gamma_los2_true = 0,0
+        
     ax.axvline(gamma_los1_true,ls="-",label="Truth "+clmns[0]+f"= {np.round(gamma_los1_true,_rnd)}",c="r")
     ax.axhline(gamma_los2_true,ls="-",label="Truth "+clmns[1]+f"= {np.round(gamma_los2_true,_rnd)}",c="r")
         
@@ -580,17 +595,19 @@ warnings.filterwarnings("ignore")
 name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmgaLos"]
 def get_res_dir(model):
     if model=="noLOS":
-        from nazgul.model_ext_shear import res_dir_base as res_dir
+        from nazgul.Modelling.model_ext_shear import res_dir_base as res_dir
     elif model=="noLOS_g12":
-        from nazgul.model_ext_shear_g12 import res_dir_base as res_dir
+        from nazgul.Modelling.model_ext_shear_g12 import res_dir_base as res_dir
     elif model=="fitLOS":
-        from nazgul.model_fitLOS import res_dir_base as res_dir
+        from nazgul.Modelling.model_fitLOS import res_dir_base as res_dir
     elif model=="allLOS":
-        from nazgul.model_allLOS import res_dir_base as res_dir
+        from nazgul.Modelling.model_allLOS import res_dir_base as res_dir
     elif model=="fitLOS_fixedOD":
-        from nazgul.model_fitLOS_fixedOD import res_dir_base as res_dir
+        from nazgul.Modelling.model_fitLOS_fixedOD import res_dir_base as res_dir
     elif model=="fitLOS_fixedOD_fixedOmgaLos":
-        from nazgul.model_fitLOS_fixedOD_fixedOmegaLos import res_dir_base as res_dir
+        from nazgul.Modelling.model_fitLOS_fixedOD_fixedOmegaLos import res_dir_base as res_dir
+    elif model=="simNoShear":
+        from nazgul.Modelling.model_simNoShear import res_dir_base as res_dir
     else:
         if model in name_models:
             print("To implement") 
@@ -614,7 +631,6 @@ if __name__=="__main__":
     _rnd = 3
     res_dir = get_res_dir(model)
     nm_combined = f"{res_dir}/combined_result.pdf"    
-    
     lenses_modelled = get_all_lens_models(res_dir)
     columns_ttl = ["Sim Image","Model","Norm. Resid.",r"P($\theta_E$|S.I.)"]
     if overlay_ellipticity:
@@ -626,7 +642,6 @@ if __name__=="__main__":
         columns_ttl[-1] = columns_ttl[-1].replace("LOS","Shear")
     nrows  = len(lenses_modelled)
     ncols  = len(columns_ttl) # n* of wanted columns
-
     scl = 8
     """
     print("DEBUG - skipping result line")
