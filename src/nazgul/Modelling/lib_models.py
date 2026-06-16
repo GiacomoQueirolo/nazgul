@@ -55,8 +55,7 @@ def get_link_lens_path(lens,res_dir):
 
 def setup_lens(lens,res_dir,_plot=True,verbose=True):
     lens.model_res_dir = _get_model_res_dir(lens,res_dir=res_dir)
-    lens.setup_lenses(kwargs_add_lenses=lens.kwargs_add_lenses)
-    lens.gallens
+    lens.setup()
     lens.image_sim = lens.get_lensed_image(unconvolved=False)
     mkdir(lens.model_res_dir)
     if verbose:
