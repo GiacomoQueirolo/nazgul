@@ -5,6 +5,7 @@ from pathlib import Path
 
 from python_tools.get_res import LoadClass
 from python_tools.tools import to_uid,to_uid_base64
+
 def store_class(ist_class,path=None,overwrite=True,update=True,LoadClass=LoadClass):
     """If overwrite=True or not present
     serialize the current object to disk using dill.

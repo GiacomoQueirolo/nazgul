@@ -8,8 +8,10 @@ import numpy as np
 from pathlib import Path
 # for debug plots
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from scipy.ndimage import zoom
+from scipy.spatial import Delaunay
 from scipy.interpolate import RectBivariateSpline
 
 from lenstronomy.Util import util
@@ -19,7 +21,7 @@ from lenstronomy.LensModel.lens_model import LensModel
 from lenstronomy.ImSim.Numerics.numerics_subframe import NumericsSubFrame
 
 # My libs
-from python_tools.tools import to_dimless,mkdir
+from python_tools.tools import to_dimless,mkdir,to_uid
 import nazgul.mount_doom.cracks_of_doom as cod
 from nazgul.project_gal import get_2Dkappa_map
 # Class structure
@@ -80,7 +82,8 @@ class LensSystem(BasicGal):
         # We assume that the cosmology has to be the same as the galaxy:
         self.cosmo               = self.gallens.cosmo
         mkdir(self.savedir)
-        
+
+
     def _identity(self):
         return (
             self.gallens._identity(),
@@ -92,6 +95,7 @@ class LensSystem(BasicGal):
                 Sim=None,
                 update_source_pos=False,
                 reload=True,
+                _rnd_seed=None, # to set differently to sample new source pos
                 verbose=verbose):
         upload_successful = False
         if reload:
@@ -102,7 +106,7 @@ class LensSystem(BasicGal):
             self.create_lens(kwargs_add_lenses=self.kwargs_add_lenses, # these are given here as the self, but in principle with the freedom to re-define them
                              Sim=Sim,verbose=verbose)
             if update_source_pos:
-                self.sample_source_pos(update=update_source_pos)
+                self.sample_source_pos(update=update_source_pos,_rnd_seed=_rnd_seed)
             elif self.kwargs_source["center_x"]==0 and self.kwargs_source["center_y"]==0:
                 warnings.warn("Source is still positioned at 0,0 but I was instructed not to resample its position.")
             # store the results
@@ -114,7 +118,17 @@ class LensSystem(BasicGal):
     @property
     def pkl_path(self):
         return _resolve_gal_path(self.savedir)/f"{self.name}_{self._hash_b64}.pkl"
-    
+    @property
+    def _rnd_seed(self):
+        """
+        Define a random seed unique for this specific lens. 
+        Used for reproducibility  
+        """
+        _str = self.pkl_path
+        # have to cut it if not it's too long
+        seed = int(str(to_uid(_str))[:9])
+        return seed
+
     def ReadClass(self,cl,verbose=True):
         LS = LoadLens(cl.pkl_path,verbose=verbose)
         return LS
@@ -328,13 +342,17 @@ class LensSystem(BasicGal):
     ##########
     
     def get_kw_critical_curve_caustics(self,
-                                       _radec=None):
+                                       _radec=None,
+                                      reload=True):
         """ Fit the critical curve and map it to the caustic
         """
+        if hasattr(self,"kw_crit"):
+            print("Reloading critical lines")
+            return self.kw_crit
         # note: alpha is computed from the particle (and shear from alpha)
         # thus depends on the particle lens model chosen, while kappa
         # is obtained directly as a density map + cosmological scaling
-        alpha_x,alpha_y = self.alpha_map(_radec=_radec)
+        print("Computing critical lines...")        alpha_x,alpha_y = self.alpha_map(_radec=_radec)
         kappa           = self.kappa_map(_radec=_radec)
         shear           = self.shear_map(_radec=_radec)
 
@@ -345,9 +363,14 @@ class LensSystem(BasicGal):
             pixel_num = self.gallens.pixel_num
         eigen_rad = 1 - kappa + shear
         eigen_tan = 1 - kappa - shear
+        
+        # clipping outliers and smoothing with a guassian filter
+        eigen_rad_smooth = clip_smooth_map(eigen_rad)
+        eigen_tan_smooth = clip_smooth_map(eigen_tan)
+        
         # have to find when those are ~0
-        mintv = np.min(np.abs(eigen_rad))
-        Dv    = np.max(np.abs(eigen_rad)) - mintv
+        mintv = np.min(np.abs(eigen_rad_smooth))
+        Dv    = np.max(np.abs(eigen_rad_smooth)) - mintv
         maxtv = mintv + 0.1*Dv
         test_values = np.linspace(mintv,maxtv,20)
         ierx,ietx = [],[] #placeholders 
@@ -356,34 +379,53 @@ class LensSystem(BasicGal):
             if len(ierx)/(pixel_num**2) >0.001 :
                 break
             else:
-                iery,ierx = np.where(cod.MAD_mask(np.abs(eigen_rad),0,tv)) 
+                iery,ierx = np.where(cod.MAD_mask(np.abs(eigen_rad_smooth),0,tv)) 
         # tangential
-        mintv = np.min(np.abs(eigen_tan))
-        Dv = np.max(np.abs(eigen_tan)) - mintv
+        mintv = np.min(np.abs(eigen_tan_smooth))
+        Dv = np.max(np.abs(eigen_tan_smooth)) - mintv
         maxtv = mintv + 0.1*Dv
         test_values = np.linspace(mintv,maxtv,20)
         for tv in test_values:
             if len(ietx)/(pixel_num**2) >0.001:
                 break
             else:
-                iety,ietx = np.where(cod.MAD_mask(np.abs(eigen_tan),0,tv))
+                iety,ietx = np.where(cod.MAD_mask(np.abs(eigen_tan_smooth),0,tv))
         if len(iery)==0:
-            plt.close("all")
             dbg_plot = "tmp/eigen_rad.png"
-            plt.imshow(np.abs(eigen_rad))
-            plt.colorbar()
-            plt.savefig(dbg_plot)
+            fig,axis = plt.subplots(2)
+            im0 = axis[0].imshow(np.abs(eigen_rad),origin="lower")
+            axis[0].set_title("|Eigen rad|")
+            divider = make_axes_locatable(axis[1])
+            cax = divider.append_axes('right', size='5%', pad=0.05)
+            fig.colorbar(im0, cax=cax, orientation='vertical')
+            
+            im0 = axis[1].imshow(np.abs(eigen_rad_smooth),origin="lower")
+            axis[1].set_title("|Eigen rad| (clipped and smoothed)")
+            divider = make_axes_locatable(axis[0])
+            cax = divider.append_axes('right', size='5%', pad=0.05)
+            fig.colorbar(im0, cax=cax, orientation='vertical')
+            fig.savefig(dbg_plot)
             print(f"Saving {dbg_plot}")
-            plt.close("all")
+            plt.close(fig)
             raise RuntimeError(f"Radial critical curve not found.\nCheck {dbg_plot}")
         if len(iety)==0:
-            plt.close("all")
             dbg_plot = "tmp/eigen_tan.png"
-            plt.imshow(np.abs(eigen_tan))
-            plt.colorbar()
-            plt.savefig(dbg_plot)
+            fig,axis = plt.subplots(2)
+            im0 = axis[0].imshow(np.abs(eigen_tan),origin="lower")
+            axis[0].set_title("|Eigen tan|")
+            divider = make_axes_locatable(axis[1])
+            cax = divider.append_axes('right', size='5%', pad=0.05)
+            fig.colorbar(im0, cax=cax, orientation='vertical')
+            
+            im0 = axis[1].imshow(np.abs(eigen_tan_smooth),origin="lower")
+            axis[1].set_title("|Eigen tan| (clipped and smoothed)")
+            divider = make_axes_locatable(axis[0])
+            cax = divider.append_axes('right', size='5%', pad=0.05)
+            fig.colorbar(im0, cax=cax, orientation='vertical')
+            fig.savefig(dbg_plot)
             print(f"Saving {dbg_plot}")
-            plt.close("all")
+            plt.close(fig)
+
             raise RuntimeError(f"Tangential critical curve not found.\nCheck {dbg_plot}")
         # coords
         if _radec is None:
@@ -398,22 +440,24 @@ class LensSystem(BasicGal):
         cl_rad_x,cl_rad_y = cod.fit_xy_spline(cl_rad_x_noisy,cl_rad_y_noisy)
         cl_tan_x,cl_tan_y = cod.fit_xy_spline(cl_tan_x_noisy,cl_tan_y_noisy)
         
+        
         # fit alpha in 2D
         # TODO: verify that it is indeed dec0,ra0 and not the other way out ->correct, see TEST
         alpha_x_spline = RectBivariateSpline(dec0,ra0, alpha_x)
         alpha_y_spline = RectBivariateSpline(dec0,ra0, alpha_y)
+        
+        cc_rad_x = cl_rad_x-alpha_x_spline.ev(cl_rad_y,cl_rad_x)
+        cc_rad_y = cl_rad_y-alpha_y_spline.ev(cl_rad_y,cl_rad_x)
 
-        cc_rad_x,cc_rad_y   = cl_rad_x-alpha_x_spline.ev(cl_rad_y,cl_rad_x),\
-                              cl_rad_y-alpha_y_spline.ev(cl_rad_y,cl_rad_x)
-
-        cc_tan_x,cc_tan_y   = cl_tan_x-alpha_x_spline.ev(cl_tan_y,cl_tan_x),\
-                              cl_tan_y-alpha_y_spline.ev(cl_tan_y,cl_tan_x)
+        cc_tan_x  = cl_tan_x-alpha_x_spline.ev(cl_tan_y,cl_tan_x)
+        cc_tan_y  = cl_tan_y-alpha_y_spline.ev(cl_tan_y,cl_tan_x)
 
         kw_crit = {"caustics":{"radial":[cc_rad_x,cc_rad_y],
                                "tangential":[cc_tan_x,cc_tan_y]},
                    "critical_lines":{"radial":[cl_rad_x,cl_rad_y],
                                      "tangential":[cl_tan_x,cl_tan_y]}
                   }
+        self.kw_crit = kw_crit
         return kw_crit
     ########################
     ########################
@@ -430,25 +474,43 @@ class LensSystem(BasicGal):
         self.kwargs_source["center_y"] = dec_source
         return 0
         
-    def sample_source_pos(self,update=False,_radec=None):
+    def sample_source_pos(self,update=False,_radec=None,_rnd_seed=None):
         """Sample the source position within the tangential
         critical caustic
-        TODO: optimise this computation and/or store the results
         """
         print("Sampling source position within tangential caustic")
+        
         if _radec is None:
             _radec = self.gallens._radec
+        if not _rnd_seed:
+            _rnd_seed = self._rnd_seed
+        # fixing seed for reproducibility            
+        print(f"Fixing seed to {_rnd_seed}")
+        np.random.seed(_rnd_seed)
+        
         kw_caustics  = self.get_kw_critical_curve_caustics(_radec=_radec)
         ra_ct,dec_ct = kw_caustics["caustics"]["tangential"]
-        # the tangential caustic is approximated to circular
-        # and we sample uniformily within that 
-        ra0_ct,dec0_ct = np.mean(ra_ct),np.mean(dec_ct)
-        rads_ct        = np.hypot(ra_ct-ra0_ct,dec_ct-dec0_ct)
-        rad0_ct        = np.std(rads_ct)
-        rad_source     = np.random.uniform(0,rad0_ct)
-        phi_source     = np.random.uniform(0,2*np.pi)
-        ra_source      = rad_source*np.cos(phi_source) 
-        dec_source     = rad_source*np.sin(phi_source) 
+        # We compute the convex hull defined by the tangential caustic
+        # sample uniformily from max to min, and accept only if
+        # within the convex hull
+        # not exact but fairly precise nonetheless
+        hull     = Delaunay(np.array([ra_ct,dec_ct]).T)
+        x_bounds = np.array([ra_ct.min(),ra_ct.max()])
+        y_bounds = np.array([dec_ct.min(),dec_ct.max()])
+    
+        for i in range(1000):
+            # sample within range
+            x_cnd = np.random.uniform(*x_bounds)
+            y_cnd = np.random.uniform(*y_bounds)
+            
+            # accept if inside the hull
+            if hull.find_simplex([x_cnd,y_cnd])>=0:
+                ra_source,dec_source = x_cnd,y_cnd
+                break
+        if i==1000:
+            raise RuntimeError("Failed to sample a source position")
+
+        
         if self.kwargs_source["center_x"]==0 and self.kwargs_source["center_x"]==0 and not update:
             print("Source position has to be sampled a first time")
             update=True
@@ -469,7 +531,7 @@ class LensSystem(BasicGal):
         # if not given as input, reads the computed deflection map
         if alpha_map is None:
             # if not already, compute alpha_map
-            alpha_map   = self.alpha_map
+            alpha_map   = self.alpha_map(_radec=_radec)
         alpha_x,alpha_y = alpha_map        
         x_source_plane, y_source_plane = RA-alpha_x,DEC-alpha_y
         # the coords have to be given as flat
@@ -595,4 +657,19 @@ class LensSystem(BasicGal):
         image_band      = [kw_data_sim, kw_psf_sim, kw_numerics_sim]
         multi_band_list = [image_band]
         return multi_band_list
+    
+
+def clip_map(map,sigma2clip=8,verbose=True):
+    if verbose:
+        print(f"Clipping map")
+    sgc = sigma_clip(map,sigma=sigma2clip)
+    msk_map = np.invert(sgc.mask)
+    return map*msk_map
+
+def clip_smooth_map(map,sigma2clip=8,sigma2smooth=3,verbose=True):
+    msked_map = clip_map(map,sigma2clip=sigma2clip,verbose=verbose)
+    if verbose:
+        print(f"Smoothing map")
+    map_smooth = gaussian_filter(msked_map,sigma=sigma2smooth)
+    return map_smooth
     
