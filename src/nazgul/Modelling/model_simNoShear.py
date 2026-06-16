@@ -15,6 +15,7 @@ from nazgul.mount_doom.lens_system import LensSystem
 
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.Modelling.lib_models import setup_lens,setup_sim_obs,get_kwargs_likelihood,get_lenses2model
+from nazgul.Modelling.lib_models import is_someone_workin_on_it,set_workin_on_it,workin_on_it
 from nazgul.Modelling.lib_models import save_kw,plot_model_plot
 from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std # default values
 
@@ -149,16 +150,22 @@ if __name__=="__main__":
                            "simsuite":simsuite,
                             "snaps":snaps}
     gal_lenses  = get_lenses2model(kw_get_all_gallens=kw_get_all_gallens,
-                                   n_lenses=n_lenses,
+                                   n_lenses=np.nan,
                                    min_thetaE=min_thetaE,
                                    skip_lenses=lenses2skip)
-    for gal_lens in gal_lenses: 
+    for i,gal_lens in enumerate(gal_lenses): 
         print("Loading lens "+gal_lens.name+"\n")
         lens = LensSystem.from_GalLens(gal_lens)
         res_dir = res_dir_base
         if run_type==1:
             res_dir = res_dir_base/"test"
         lens = setup_lens(lens,res_dir=res_dir)
+        # verify that no-one is working on it
+        if is_someone_workin_on_it(lens.model_res_dir):
+            print(f"This lens is being worked on, skipping- if not, delete the {workin_on_it} file") 
+            continue
+        set_workin_on_it(lens.model_res_dir,wrk = True)
+
         plot_kappamap(lens.gallens.kappa_map, 
                       extent_kpc=lens.gallens.kw_extents["extent_kpc"],
                       savename=f"{lens.model_res_dir}/kappa_gal.png")
@@ -235,6 +242,7 @@ if __name__=="__main__":
         nm = f'{lens.model_res_dir}/chain_plot.pdf'
         plt.savefig(nm)
         print(f"Saving {nm}")
+        set_workin_on_it(lens.model_res_dir,wrk = False)
 
         # Cleanup to save memory
         plt.close("all")
@@ -243,3 +251,8 @@ if __name__=="__main__":
         del kw_input
         del multi_band_list
         gc.collect()
+
+        # only do n lenses:
+        i+=1
+        if i==n_lenses:
+            break

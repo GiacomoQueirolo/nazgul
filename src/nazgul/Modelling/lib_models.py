@@ -51,13 +51,26 @@ def get_link_lens_path(lens,res_dir):
     if not hasattr(lens,"model_res_dir"): 
         lens.model_res_dir = _get_model_res_dir(lens,res_dir=res_dir)
     return lens.model_res_dir/"link_gallens.pkl"
-    
 
+workin_on_it = "WOI.dll"
+def set_workin_on_it(dir,wrk=True):
+    woi_file = Path(dir)/workin_on_it
+    with open(woi_file,"wb") as f:
+        dill.dump({"workin_on_it":wrk})
+    
+def is_someone_workin_on_it(dir):
+    woi_file = Path(dir)/workin_on_it
+    if not woi_file.is_file():
+        return False
+    else:
+        return load_whatever(woi_file)
+    
 def setup_lens(lens,res_dir,_plot=True,verbose=True):
     lens.model_res_dir = _get_model_res_dir(lens,res_dir=res_dir)
     lens.setup()
     lens.image_sim = lens.get_lensed_image(unconvolved=False)
     mkdir(lens.model_res_dir)
+    
     if verbose:
         print(f"Saving modelling results in {lens.model_res_dir}") 
     # For conveniency, but likely not the best idea:
@@ -385,6 +398,12 @@ if __name__=="__main__":
         if run_type==1:
             res_dir = res_dir_base/"test"
         lens = setup_lens(lens,res_dir=model_res_base) #change it with res_dir_base of the given model
+        # verify that no-one is working on it
+        if is_someone_workin_on_it(lens.model_res_dir):
+            print(f"This lens is being worked on, skipping- if not, delete the {workin_on_it} file") 
+            continue
+        set_workin_on_it(lens.model_res_dir,wrk = True)
+        
         plot_kappamap(lens.gallens.kappa_map, 
                       extent_kpc=lens.gallens.kw_extents["extent_kpc"],
                       savename=f"{res_dir}/kappa_gal.png")
@@ -464,3 +483,5 @@ if __name__=="__main__":
         plt.savefig(nm)
         print(f"Saving {nm}")
         plt.close()
+        set_workin_on_it(lens.model_res_dir,wrk = False)
+    
