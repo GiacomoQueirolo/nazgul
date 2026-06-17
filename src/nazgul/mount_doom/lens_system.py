@@ -12,7 +12,10 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from scipy.ndimage import zoom
 from scipy.spatial import Delaunay
+from scipy.ndimage import gaussian_filter
 from scipy.interpolate import RectBivariateSpline
+
+from astropy.stats import sigma_clip
 
 from lenstronomy.Util import util
 from lenstronomy.Util.util import array2image,image2array 

@@ -286,7 +286,7 @@ def get_lenses2model(res_dir,reload=True,**kw_get_lenses2model):
         lenses = _get_lenses2model(**kw_get_lenses2model)
         
     if update_cat:
-        lenses_cat = [lenses.pkl_path for l in lenses]
+        lenses_cat = [l.pkl_path for l in lenses]
         kw_cat_lens = {"lens_cat":lenses_cat,
                        "kw_require":kw_get_all_gallens}
         with open(cat_l2m,"wb") as f:

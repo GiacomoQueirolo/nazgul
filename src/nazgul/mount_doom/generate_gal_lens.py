@@ -386,7 +386,7 @@ def wrapper_get_all_lens(reload=True,
                 except ProjectionError as PE:
                     if mod_LP is not None:
                         del mod_LP
-                        gc.collect()
+                    gc.collect()
                     strikes+=1 
                         
                 kw_lenspart["projection_index"]+=1
@@ -407,7 +407,9 @@ def wrapper_get_all_lens(reload=True,
             continue
         finally:
             Gal_name = Gal.name
-            del Gal        
+            del Gal
+            if mod_LP is not None:
+                del mod_LP
             gc.collect()
             log_memory(f"after {Gal_name}") 
             log_top_allocs(f"after {Gal_name}")
