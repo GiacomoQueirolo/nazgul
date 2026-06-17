@@ -209,6 +209,10 @@ class SimPartGal(BasicPartGal):
             self._swift_gal = swift_gal
             return swift_gal
             
+    @swift_gal.deleter
+    def swift_gal(self):
+        del self._swift_gal
+    
     def initialise_parts(self):
         # heavy -> avoid until necessary and do not store
         sg               = self.swift_gal
