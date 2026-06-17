@@ -550,7 +550,10 @@ def _load_one_file(args):
 
             # DM has no smoothing scale
             results["smooth"] = None
-
+    print("DEBUG - particle_galaxy, _load_one_file")
+    # add this inside _load_one_file before return:
+    result_size = sum(v.nbytes for v in results.values() if hasattr(v,"nbytes"))
+    print(f"[WORKER] returning {result_size/1024**2:.1f} MB", flush=True)
     return results
 
 # this function is a wrapper for convenience - it takes the class itself as input
@@ -741,7 +744,7 @@ def Gal2MXYZ_part(Gal,part_type):
     # clip particle outliers AFTER recentering
     Ms,Xs,Ys,Zs = clip_coord(Ms,Xs,Ys,Zs)
     
-    return Ms, Xs,Ys,Zs
+    return Ms,Xs,Ys,Zs
     
 def compute_principal_axes(Gal):
     """
@@ -754,7 +757,8 @@ def compute_principal_axes(Gal):
                                                 x = Xstar.value,
                                                 y = Ystar.value,
                                                 z = Zstar.value)
-
+    # ensure the memory is freed
+    del Mstar,Xstar,Ystar,Zstar
     return principal_axes
 
         
