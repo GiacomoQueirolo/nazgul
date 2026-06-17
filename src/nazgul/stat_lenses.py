@@ -214,8 +214,8 @@ if __name__ =="__main__":
     print(f"Saving {fig_MtE}")
     plt.close()
     
-    #Cropping mass outliers
-    i_crop = masses<np.median(masses)+3*np.std(masses)
+    #Cropping mass outliers -> forget about it
+    i_crop = masses>0 #<np.median(masses)+3*np.std(masses)
     plt.scatter(masses[i_crop],thetaEs[i_crop],c=z_source_min[i_crop],cmap="viridis")
     plt.colorbar(label=r"z$_{source,min}$")
     plt.xlabel(r"M [M$_\odot$]")
@@ -232,13 +232,16 @@ if __name__ =="__main__":
     # (to comp. w SEAGLE selection M_* > 1.76 *1e10 Msun)
     m_s = []
     for g in gals:
+        g.setup()
         ms = float(g.M_stars)  #float(str(g).split("and Mass in ")[1].split("Stars:")[1].split(" ")[0] )
         m_s.append(ms)
     m_s = np.array(m_s)
     plt.hist(m_s,bins=15)
     plt.title(r"Star mass of galaxy [solar masses]")
+    plt.axvline(1.76 *1e10,label=r"m$_{\rm{SEAGLE min}} = 1.76e10 M$_{\odot}$")
     plt.xlabel(r"M$_{*}$ [M$_\odot$]")
     fig_ms = str(catdir)+"/Distr_Mstars.png"
+    plt.legend(loc="upper right")
     plt.savefig(fig_ms)
     plt.close()
 

@@ -592,7 +592,7 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
     
 warnings.filterwarnings("ignore")
 
-name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmgaLos"]
+name_models = ["noLOS","noLOS_g12","fitLOS","allLOS","fitLOS_fixedOD","fitLOS_fixedOD_fixedOmgaLos","simNoShear"]
 def get_res_dir(model):
     if model=="noLOS":
         from nazgul.Modelling.model_ext_shear import res_dir_base as res_dir
@@ -643,8 +643,6 @@ if __name__=="__main__":
     nrows  = len(lenses_modelled)
     ncols  = len(columns_ttl) # n* of wanted columns
     scl = 8
-    """
-    print("DEBUG - skipping result line")
     fig, axes = plt.subplots(nrows, ncols, figsize=(scl*ncols,scl*nrows))
     for i_row,lens in enumerate(lenses_modelled):
         plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,\
@@ -654,7 +652,6 @@ if __name__=="__main__":
     plt.savefig(nm_combined)
     print(f"Saved {nm_combined}")
     plt.close()
-    """
     
     for i_row,lens in enumerate(lenses_modelled):
         nm_single = f"{lens.model_res_dir}/single_result.pdf"    

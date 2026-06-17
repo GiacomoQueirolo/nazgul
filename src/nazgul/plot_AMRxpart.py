@@ -130,7 +130,7 @@ def plot_AMR_densityXpart(Gal,
     ax_tmp.set_xscale('log')
 
     ax_tmp.set_xlabel(f"Radius (R) ['']")
-    ax2.legend()
+    ax2.legend(loc="upper right")
     nm = f"{savedir}/Sigma_decomposed_proj{proj_index}.png"
     fig2.tight_layout()
     fig2.savefig(nm)
