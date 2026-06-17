@@ -55,6 +55,9 @@ def plot_AMR_densityXpart(Gal,
                                      max_particles=max_particles,
                                      min_area=min_area,
                                      dens_thresh=dens_thresh,clip=True)
+    # free memory
+    del kw_parts_all,kw_parts_all_proj
+    
     r_all,Sigma_encl_all   = cells2SigRad(kw_2Ddens_all)
     r_all = r_all.to("kpc")
 
@@ -100,8 +103,8 @@ def plot_AMR_densityXpart(Gal,
                                      min_area=min_area,
                                      dens_thresh=dens_thresh,
                                      clip=True)
-        
-        
+        # free memory
+        del kw_parts,kw_parts_proj
         del kw_2Ddens["MD_coords"]
         kw_2Ddens["MD_coords"] = kw_2Ddens_all["MD_coords"]
         # plot 2d dens distr.
@@ -135,6 +138,7 @@ def plot_AMR_densityXpart(Gal,
     fig2.tight_layout()
     fig2.savefig(nm)
     plt.close(fig2)
+    plt.close("all")
     print(f"Saved {nm}") 
     
     

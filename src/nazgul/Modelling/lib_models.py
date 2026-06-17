@@ -226,7 +226,7 @@ def get_kwargs_params_def(lens):
                     'source_model': source_params}
     return kwargs_params
 
-def get_lenses2model(kw_get_all_gallens={"snaps":[27]},n_lenses=None,min_thetaE=None,skip_lenses=[]):
+def _get_lenses2model(kw_get_all_gallens={"snaps":[27]},n_lenses=None,min_thetaE=None,skip_lenses=[]):
     precomputed_lenses =  np.array(get_all_gallens(**kw_get_all_gallens))
     if min_thetaE is None and n_lenses is None:
         n_lenses = 5
@@ -261,6 +261,38 @@ def get_lenses2model(kw_get_all_gallens={"snaps":[27]},n_lenses=None,min_thetaE=
     if len(lenses_selected)==0:
         raise RuntimeError("The boundary given are too strict - no galaxy satisfy it")
     return lenses_selected
+
+def get_lenses2model(res_dir,reload=True,**kw_get_lenses2model):
+    cat_l2m = Path(res_dir)/"cat_lens2model.dll"
+    update_cat  = True
+    if cat_l2m.is_file():
+        if reload:
+            print(f"Loading previously computed catalogue of lenses to models {cat_l2m}") 
+            kw_cat_lens = load_whatever(cat_l2m)
+            if not verify_same_requirements(kw_cat_lens["kw_require"],kw_get_lenses2model):
+                print(f"Catalogue {cat_l2m} exists, but doen't have the same requierements. Ignored and updated")
+                update_cat = True
+                lenses = _get_lenses2model(**kw_get_lenses2model)
+            else:
+                update_cat = False
+                cat_lens = kw_cat_lens["lens_cat"]
+                lenses_2unpack = [load_whatever(l) for l in cat_lens]
+                lenses = [l.unpack() for l in lenses_2unpack]
+        else:
+            print(f"Catalogue {cat_l2m} exists, but ignored")
+    else:
+        print(f"Catalogue {cat_l2m} doesn't exists - creating it now")
+        update_cat = True
+        lenses = _get_lenses2model(**kw_get_lenses2model)
+        
+    if update_cat:
+        lenses_cat = [lenses.pkl_path for l in lenses]
+        kw_cat_lens = {"lens_cat":lenses_cat,
+                       "kw_require":kw_get_all_gallens}
+        with open(cat_l2m,"wb") as f:
+            dill.dump(kw_cat_lens,f)
+        print(f"Saving catalogue of lenses to models {cat_l2m}") 
+    return lenses
     
 def save_kw(kw,nm_kw,str_kw_type=""):
     with open(nm_kw,"wb") as f:
@@ -383,7 +415,12 @@ if __name__=="__main__":
                           "subsim":subsim,
                            "simsuite":simsuite,
                             "snaps":snaps}
-    gal_lenses  = get_lenses2model(kw_get_all_gallens=kw_get_all_gallens,
+    res_dir = res_dir_base
+    if run_type==1:
+        res_dir = res_dir_base/"test"
+    gal_lenses  = get_lenses2model(res_dir=res_dir,
+                                   reload=True,
+                                   kw_get_all_gallens=kw_get_all_gallens,
                                    n_lenses=n_lenses,
                                    min_thetaE=min_thetaE,
                                    skip_lenses=lenses2skip)
@@ -394,9 +431,7 @@ if __name__=="__main__":
         kw_add_lenses = {"lens_model_list":["LOS"],
                         "kwargs_lens":[kw_los]}
         lens = LensSystem.from_GalLens(gal_lens,kwargs_add_lenses=kw_add_lenses)
-        res_dir = res_dir_base
-        if run_type==1:
-            res_dir = res_dir_base/"test"
+
         lens = setup_lens(lens,res_dir=model_res_base) #change it with res_dir_base of the given model
         # verify that no-one is working on it
         if is_someone_workin_on_it(lens.model_res_dir):

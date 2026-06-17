@@ -1,13 +1,7 @@
 """
 Add LOS effects
-"""
-import numpy as np
-import pandas as pd
-from scipy.ndimage import map_coordinates
-from lenstronomy.LensModel.LineOfSight.LOSModels.los import LOS
-
-from python_tools.conversion import find_index
-
+""" 
+import pandas as pd 
 
 kw_los_path = "/pbs/home/g/gqueirolo/analosis/analosis/results/datasets/golden_sample_input_kwargs.csv"
 def get_kw_los(kw_los_path=kw_los_path,index=0):

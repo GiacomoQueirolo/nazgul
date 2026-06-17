@@ -78,11 +78,11 @@ def Gal2MXYZ_part(Gal,part_type):
     return Gal2MXYZ_part(Gal,part_type)
 
 def Gal2kwMXYZ(Gal): 
-    Ms, Xs,Ys,Zs = Gal2MXYZ(Gal)
+    Ms,Xs,Ys,Zs = Gal2MXYZ(Gal)
     return {"Ms":Ms,"Xs":Xs,"Ys":Ys,"Zs":Zs}
 
 def Gal2kwMXYZ_part(Gal,part_type): 
-    Ms, Xs,Ys,Zs = Gal2MXYZ_part(Gal,part_type=part_type)
+    Ms,Xs,Ys,Zs = Gal2MXYZ_part(Gal,part_type=part_type)
     return {"Ms":Ms,"Xs":Xs,"Ys":Ys,"Zs":Zs}
 
 # from path to kw of Gal

@@ -97,6 +97,7 @@ def get_kw_tE(out_dll="tmp/del_theta_sis.dll",
                 kw_parts_proj = project_kw_parts(kw_parts=kw_parts,
                                                  proj_index=lensgal.Gal.proj_index)
                 axes = get_principal_axis_2D(kw_parts_proj)
+                del kw_parts,kw_parts_proj
                 kw_proj_res["principal_axes_2D"] = axes
                 with open(lensgal.Gal.projection_path,"wb") as f:
                     dill.dump(kw_proj_res,f)

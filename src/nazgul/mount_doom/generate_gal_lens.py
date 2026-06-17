@@ -9,11 +9,11 @@ Revolves around the GalLens class, plus several helper functions
 """
 import os,gc
 import dill
-import psutil
 import warnings
 import numpy as np
 from glob import glob
 from pathlib import Path
+import psutil,tracemalloc
 from time import gmtime, strftime
 from functools import cached_property 
 
@@ -314,11 +314,19 @@ def gal_already_computed(Gal):
     return gal_computed
 
 def log_memory(label=""):
-    # This probably should be somewhere else
+    # This function probably should be somewhere else
     proc = psutil.Process(os.getpid())
     mb = proc.memory_info().rss / 1024**2
     print(f"[MEM] {label}: {mb:.0f} MB", flush=True)
-    
+
+def log_top_allocs(label="", n=5):
+    # and for tracking the top allocations:
+    snapshot = tracemalloc.take_snapshot()
+    stats    = snapshot.statistics("lineno")
+    print(f"[TRACEMALLOC {label}]")
+    for s in stats[:n]:
+        print(f"  {s}")
+        
 def wrapper_get_all_lens(reload=True,
                         kw_lenspart={},
                         kw_galpart={},
@@ -331,6 +339,7 @@ def wrapper_get_all_lens(reload=True,
     kw_galpart  = get_kw_galpart(kw_galpart)
     all_Gal     = get_all_PG(**kw_galpart)
     all_lenses  = []
+    tracemalloc.start()
     if verbose:
         print(f"Found n={len(all_Gal)} Galaxies")
     for Gal in all_Gal:
@@ -353,10 +362,14 @@ def wrapper_get_all_lens(reload=True,
                 Gal.run(reload=reload)
             strikes = 0
             while kw_lenspart["projection_index"]<3:
+                mod_LP = None
                 try:
+                    log_memory(f"before GalLens run {Gal.name}")
                     mod_LP = GalLens(Galaxy=Gal,**kw_lenspart)
                     mod_LP.run(read_prev=reload)
                     mod_LP.Gal.slim_down()
+                    log_memory(f"after GalLens run {Gal.name}")
+                    supercrit = True
                     all_lenses.append(mod_LP)
                     pji = kw_lenspart["projection_index"]
                     print(f"Projection {pji} of {Gal.name} is supercritical!\n")
@@ -364,12 +377,18 @@ def wrapper_get_all_lens(reload=True,
                     plot_AMR_densityXpart(Gal=mod_LP.Gal,
                                           proj_index=pji,
                                           savedir=mod_LP.savedir)
+                    log_memory(f"after plot_AMR_densityXpart run {Gal.name}")
+
                     plt.close("all")
                     if not consider_all_proj:
                         print(f"Considering only the first supercritical solution.\n")
                         break
                 except ProjectionError as PE:
-                    strikes+=1
+                    if mod_LP is not None:
+                        del mod_LP
+                        gc.collect()
+                    strikes+=1 
+                        
                 kw_lenspart["projection_index"]+=1
             if strikes==3:
                 print(f"All projections of Galaxy {Gal.name} are not supercritical")
@@ -391,7 +410,7 @@ def wrapper_get_all_lens(reload=True,
             del Gal        
             gc.collect()
             log_memory(f"after {Gal_name}") 
-            
+            log_top_allocs(f"after {Gal_name}")
     if verbose and not _test:
         print(f"Found n={len(all_lenses)} Lenses")
         print(f"i.e. {np.round(len(all_lenses)/len(all_Gal*3)*100,1)}% of Galaxies (considering their rotations)")
@@ -407,18 +426,39 @@ def wrapper_get_rnd_lens(reload=True,
     """
     kw_lenspart = get_kw_lenspart(reload,kw_lenspart)
     kw_galpart  = get_kw_galpart(kw_galpart)
+    tracemalloc.start()
     while True:
         # TODO: this is efficient the first time, but if the galaxy is already computed as a lens,
         # it's a waste of time : verify if all projection are not already computed/ lensed given
         # the parameters
         Gal = get_rnd_PG(**kw_galpart)
         Gal.run()
+        Gal_name = Gal.name
+        mod_LP = None
         while kw_lenspart["projection_index"]<3:
             try:
+                log_memory(f"before GalLens run {Gal.name}")
                 mod_LP = GalLens(Galaxy=Gal,**kw_lenspart)
                 mod_LP.run(read_prev=reload)
+                mod_LP.Gal.slim_down()
+                log_mem(f"after GalLens run {Gal.name}")
+                pji = kw_lenspart["projection_index"]
+                print(f"Projection {pji} {Gal.name} is supercritical!\n")
+                # Plotting density for each individual particle
+                plot_AMR_densityXpart(Gal=mod_LP.Gal,
+                                      proj_index=pji,
+                                      savedir=mod_LP.savedir)
+                plt.close("all")
+                log_memory(f"after plot_AMR_densityXpart run {Gal.name}")
                 return mod_LP
             except ProjectionError as PE:
+                if mod_LP is not None:
+                    del mod_LP
+                    gc.collect()
                 kw_lenspart["projection_index"]+=1
+        del Gal        
+        gc.collect()
+        log_memory(f"after {Gal_name}") 
+        log_top_allocs(f"after {Gal_name}")
         print("All projections of this galaxy are not supercritical #\n","Trying different galaxy")
         kw_lenspart["projection_index"] = 0
