@@ -1,7 +1,7 @@
 # copy from plot_one_gal
 # the aim is to reproduce Fig.5 of SEAGLE I 
 # the  Surface density profiles of DM, stars, gas and the total mass of a typical ETG from EAGLE.
-import sys
+import sys,gc
 import warnings
 import argparse
 import numpy as np
@@ -139,7 +139,10 @@ def plot_AMR_densityXpart(Gal,
     fig2.savefig(nm)
     plt.close(fig2)
     plt.close("all")
+    Gal.slim_down()
+    gc.collect()
     print(f"Saved {nm}") 
+    
     
     
 if __name__=="__main__": 
