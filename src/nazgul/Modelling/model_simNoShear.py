@@ -149,16 +149,19 @@ if __name__=="__main__":
                           "subsim":subsim,
                            "simsuite":simsuite,
                             "snaps":snaps}
-    gal_lenses  = get_lenses2model(kw_get_all_gallens=kw_get_all_gallens,
+    res_dir = res_dir_base
+    if run_type==1:
+        res_dir = res_dir_base/"test"
+    gal_lenses  = get_lenses2model(res_dir=res_dir,
+                                   reload=True,
+                                   kw_get_all_gallens=kw_get_all_gallens,
                                    n_lenses=np.nan,
                                    min_thetaE=min_thetaE,
                                    skip_lenses=lenses2skip)
     for i,gal_lens in enumerate(gal_lenses): 
         print("Loading lens "+gal_lens.name+"\n")
         lens = LensSystem.from_GalLens(gal_lens)
-        res_dir = res_dir_base
-        if run_type==1:
-            res_dir = res_dir_base/"test"
+
         lens = setup_lens(lens,res_dir=res_dir)
         # verify that no-one is working on it
         if is_someone_workin_on_it(lens.model_res_dir):
