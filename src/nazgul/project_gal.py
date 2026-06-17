@@ -184,9 +184,16 @@ def project_Gal(GalProj,z_source_max,sample_z_source,min_thetaE,
     # Project the particles 
     kw_parts_proj = project_kw_parts(kw_parts=kw_parts,proj_index=proj_index)
 
+    principal_axes_2D = get_principal_axis_2D(kw_parts_proj)
+
     # compute 2D density AMR density map (parallelised)
     kw_2Ddens = dens_map_AMR(kw_parts_proj=kw_parts_proj,
                               verbose=verbose)
+
+    # From this point on kw_parts and kw_parts_proj are not used anymore
+    # explicitely free memory
+    del kw_parts
+    del kw_parts_proj
     
     savenameSigmaEnc =GalProj.proj_dir/f"Sigma_enc_proj{proj_index}.png"
 
@@ -229,8 +236,7 @@ Rerun trying different projection")
 
         proj_supercrit = True
 
-
-    kw_proj_res["principal_axes_2D"] = get_principal_axis_2D(kw_parts_proj)
+    kw_proj_res["principal_axes_2D"] =principal_axes_2D
     
     with open(GalProj.projection_path,"wb") as f:
         dill.dump(kw_proj_res,f)

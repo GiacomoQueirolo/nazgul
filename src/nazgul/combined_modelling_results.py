@@ -1,4 +1,5 @@
 # Try to generalise it
+import gc
 import os,sys
 import argparse
 import warnings
@@ -9,6 +10,7 @@ from pathlib import Path
 from textwrap import wrap
 from copy import copy,deepcopy
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from chainconsumer import Chain, ChainConsumer
@@ -91,16 +93,21 @@ def _glob_exactly_1(cnd_name,_str_info=""):
     else:
         return candidate[0]
 
-def get_all_lens_models(res_dir):
+def get_all_lens_model_paths(res_dir):
     pth_modlenses_res = glob(f"{res_dir}/snap*/kw_res.*")
+    pth_modlenses     = [Path(pth).parent for pth in pth_modlenses_res]
+    return pth_modlenses
+    
+def get_all_lens_models(res_dir):
+    pth_modlenses = get_all_lens_model_paths(res_dir)
     lenses = []
-    for pth_res in pth_modlenses_res:
+    for pth_lens in pth_modlenses:
         try:
             # if res exists AND is loaded correctly
-            load_whatever(pth_res)
+            load_whatever(pth_lens/"kw_res.*")
             # then we consider the lens
-            model_res_dir = Path(pth_res).parent
-            lens_link = model_res_dir/"link_gallens.pkl"
+            model_res_dir = pth_lens
+            lens_link     = model_res_dir/"link_gallens.pkl"
             if not os.path.exists(lens_link):
                 warnings.warn("MONKEY-PATCH- update name of the lens on the fly")
                 _lens_dir = Path(os.readlink(lens_link)).parent
@@ -477,12 +484,8 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
 
-    kwargs_result_wo_tracer = deepcopy(kwargs_result)
-    keys = copy(list(kwargs_result_wo_tracer.keys()))
-    for k in keys:
-        if "tracer" in str(k):
-            del kwargs_result_wo_tracer[k]
-
+    kwargs_result_wo_tracer = {k: v for k, v in kwargs_result.items() 
+                           if "tracer" not in str(k)}
     logL,_prms   = modelPlot._imageModel.likelihood_data_given_model(source_marg=False, linear_prior=None, **kwargs_result_wo_tracer)
 
     n_data = modelPlot._imageModel.num_data_evaluate
@@ -588,6 +591,12 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
         
     ax.legend(loc="upper left")
     #ax.legend()
+    
+    # free memory:
+    del chain_list, mc_sample, full_chain
+    del multi_band_list_out, kw_input, kwargs_result
+    del modelPlot, kwargs_result_wo_tracer
+    import gc; gc.collect()
     return axes
     
 warnings.filterwarnings("ignore")
@@ -613,7 +622,114 @@ def get_res_dir(model):
             print("To implement") 
         raise RuntimeError(f"model {model} not known")
     return res_dir
-    
+
+if __name__=="__main__":
+    parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot Combined results for all the lens model of given run")
+    parser.add_argument('-m','--model',type=str,
+                        dest="model",
+                        help=f"Name of type of model - accepted: {name_models}")
+    parser.add_argument('-ove','--overlay_ellipticity', dest="overlay_ellipticity", 
+                        default=False, action="store_true",
+                        help=f"If true, overlay ellipticity posterior")
+    parser.add_argument('-lpp','--lines_per_page', dest="lines_per_page",
+                        default=5, type=int,
+                        help="Number of lens rows per page in combined PDF (default=5)")
+    args     = parser.parse_args()
+    model    = args.model
+    overlay_ellipticity = args.overlay_ellipticity
+    lines_per_page      = args.lines_per_page
+
+    _rnd = 3
+    res_dir = get_res_dir(model)
+    nm_combined = f"{res_dir}/combined_result.pdf"
+
+    lens_resdir_paths = get_all_lens_model_paths(res_dir)  # paths only, no loading
+    n_lenses          = len(lens_resdir_paths)
+
+    columns_ttl = ["Sim Image", "Model", "Norm. Resid.", r"P($\theta_E$|S.I.)"]
+    if overlay_ellipticity:
+        columns_ttl.append(r"P($\gamma_{\rm{LOS},1}$,$\gamma_{\rm{LOS},2}$|S.I.) + P(e$_1$,e$_2$|S.I.)")
+    else:
+        columns_ttl.append(r"P($\gamma_{\rm{LOS},1}$,$\gamma_{\rm{LOS},2}$|S.I.)")
+    if "noLOS" in model:
+        columns_ttl[-1] = columns_ttl[-1].replace("LOS", "Shear")
+
+    ncols = len(columns_ttl)
+    scl   = 8
+
+    # accumulators for plot_los_outVsin, only needed if model=="allLOS"
+    lenses_for_los = []
+
+    with PdfPages(nm_combined) as pdf:
+
+        # iterate over pages
+        for page_start in range(0, n_lenses, lines_per_page):
+            page_slice  = lens_resdir_paths[page_start : page_start + lines_per_page]
+            nrows_page  = len(page_slice)
+
+            fig, axes = plt.subplots(nrows_page, ncols,
+                                     figsize=(scl * ncols, scl * nrows_page),
+                                     squeeze=False)
+
+            for i_row, model_res_dir in enumerate(page_slice):
+                # ── load lens ──────────────────────────────────────────────
+                lens = LoadLens(model_res_dir/"link_gallens.pkl")
+                lens.unpack()
+                lens.model_res_dir = model_res_dir
+
+                # ── single-lens PDF ────────────────────────────────────────
+                nm_single = f"{model_res_dir}/single_result.pdf"
+                fig_s, axes_s = plt.subplots(1, ncols,
+                                             figsize=(scl * ncols, scl),
+                                             squeeze=False)
+                plot_result_line(model, lens, axes_s, 0, 1,
+                                 columns_ttl, _rnd=_rnd,
+                                 overlay_ellipticity=overlay_ellipticity)
+                fig_s.suptitle(get_model_title(model))
+                fig_s.tight_layout()
+                fig_s.savefig(nm_single)
+                plt.close(fig_s)
+                print(f"Saved {nm_single}")
+
+                # ── row in combined page ───────────────────────────────────
+                plot_result_line(model, lens, axes, i_row, nrows_page,
+                                 columns_ttl, _rnd=_rnd,
+                                 overlay_ellipticity=overlay_ellipticity)
+
+                # ── keep lightweight ref for LOS plot if needed ────────────
+                if model == "allLOS":
+                    lenses_for_los.append(lens)
+                else:
+                    del lens
+                gc.collect()
+
+            fig.suptitle(get_model_title(model))
+            fig.tight_layout()
+            pdf.savefig(fig)
+            plt.close(fig)
+            print(f"Saved page {page_start // lines_per_page + 1} to {nm_combined}")
+            gc.collect()
+
+    print(f"Combined PDF complete: {nm_combined}")
+
+    # ── LOS comparison plots (allLOS only) ────────────────────────────────
+    if model == "allLOS":
+        fig, fig2 = plot_los_outVsin(lenses_for_los, _rnd=_rnd)
+
+        nm = f"{res_dir}/comp_glos_12_in_vs_out.pdf"
+        fig.savefig(nm)
+        plt.close(fig)
+        print(f"Saved {nm}")
+
+        nm = f"{res_dir}/comp_glos_in_vs_out.pdf"
+        fig2.savefig(nm)
+        plt.close(fig2)
+        print(f"Saved {nm}")
+
+        del lenses_for_los
+        gc.collect()
+        
+"""
 if __name__=="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot Combined results for all the lens model of given run")
     parser.add_argument('-m','--model',type=str,
@@ -676,7 +792,8 @@ if __name__=="__main__":
         fig2.savefig(nm)
         print(f"Saved {nm}")
         plt.close(fig2)
-"""
+##########
+##########
 if model!="noLOS":
     gamma1_full = c.analysis.get_parameter_summary(chain=Chain(samples=full_chain, name='lenstronomy_mcmc_emcee'),column=r"gamma1_los_lens1")
     gamma2_full = c.analysis.get_parameter_summary(chain=Chain(samples=full_chain, name='lenstronomy_mcmc_emcee'),column=r'gamma2_los_lens1')
@@ -689,3 +806,4 @@ if model!="noLOS":
  
 gamma_epl_full = c.analysis.get_parameter_summary(chain=Chain(samples=full_chain, name='lenstronomy_mcmc_emcee'),column=r'gamma_lens0')
 """
+
