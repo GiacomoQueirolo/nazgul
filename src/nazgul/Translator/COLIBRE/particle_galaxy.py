@@ -49,7 +49,10 @@ def get_masses_part(Gal,part_type):
 def _get_coord_part(part):
     "Return coordinates in [kpc] of given particle instance"
     coords = part.coordinates
-    Xpart,Ypart,Zpart =  np.transpose(coords.to_physical().in_units(u.kpc))        # kpc
+    coords_phys = coords.to_physical().in_units(u.kpc)
+    Xpart = coords_phys[:, 0] # kpc
+    Ypart = coords_phys[:, 1] # kpc
+    Zpart = coords_phys[:, 2] # kpc
     return Xpart,Ypart,Zpart
     
 def _get_masses_part(part):
@@ -131,7 +134,7 @@ def Gal2MXYZ_part(Gal,part_type):
     Xs,Ys,Zs = _get_coord_part(part)
     
     # center around the center of the galaxy 
-    Cx,Cy,Cz  = Gal.centre*u.Mpc
+    Cx,Cy,Cz  = Gal.centre*u.Mpc.to("kpc")*u.kpc
         
     Xs -= Cx
     Ys -= Cy
@@ -169,10 +172,11 @@ class SimPartGal(BasicPartGal):
         
         # here we load but not store the swift galaxy to avoid 
         # increasing the memory load
-        self.soap_file  = Path(self.swift_gal.halo_catalogue.soap_file)
+        sg              = self.swift_gal
+        self.soap_file  = Path(sg.halo_catalogue.soap_file)
         #'/cosma8/data/dp004/colibre/Runs/L0025N0752/THERMAL_AGN_m5/SOAP-HBT/halo_properties_0127.hdf5'
         
-        self.a =  self.swift_gal.metadata.a
+        self.a =  sg.metadata.a
         self.verbose_assert_almost_equal((1/self.a)-1,self.z,msg="Redshifts")
         self.verify_snap()
 
@@ -213,20 +217,22 @@ class SimPartGal(BasicPartGal):
         self.dark_matter = sg.dark_matter
         self.black_holes = sg.black_holes
         # The following are very inefficient
-        self.M_stars     = np.sum(self.stars.masses.to_physical().in_units(u.Msun))
-        self.M_gas       = np.sum(self.gas.masses.to_physical().in_units(u.Msun))
-        self.M_dm        = np.sum(self.dark_matter.masses.to_physical().in_units(u.Msun))
+        if not hasattr(self,"M_stars"):
+            self.M_stars     = np.sum(self.stars.masses.to_physical().in_units(u.Msun))
+        if not hasattr(self,"M_gas"):
+            self.M_gas       = np.sum(self.gas.masses.to_physical().in_units(u.Msun))
+        if not hasattr(self,"M_dm"):
+            self.M_dm        = np.sum(self.dark_matter.masses.to_physical().in_units(u.Msun))
         # again using dynamical masses for BH
-        self.M_bh        = np.sum(self.black_holes.dynamical_masses.to_physical().in_units(u.Msun))
-        self.N_part = len(sg.gas.particle_ids) +\
+        if not hasattr(self,"M_bh"):
+            self.M_bh        = np.sum(self.black_holes.dynamical_masses.to_physical().in_units(u.Msun))
+        if not hasattr(self,"N_part"):
+            self.N_part = len(sg.gas.particle_ids) +\
                  len(sg.dark_matter.particle_ids) +\
                  len(sg.stars.particle_ids) +\
                  len(sg.black_holes.particle_ids) 
-        
-        self.M = np.sum(get_masses(self.swift_gal).to_astropy().value) #Msun
-        # verify that the total mass is ~ to sum of particles' masses
-        #self.verbose_assert_almost_equal( self.M_tot,self.M,decimal=0,msg="Total mass vs Sum(part. masses)")
-        
+        if not hasattr(self,"M"):
+            self.M = self.M_stars + self.M_gas + self.M_dm + self.M_bh 
         return 0
         
     @cached_property
