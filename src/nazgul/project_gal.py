@@ -214,6 +214,7 @@ def project_Gal(GalProj,z_source_max,sample_z_source,min_thetaE,
             print("This projection of the galaxy does not lead to a supercritical lens. \
 Rerun trying different projection")
         # store the kw_z_min
+        del kw_z_min["fig_Sig"]
         kw_proj_res = kw_proj | kw_z_min
         pass
     else:
@@ -235,7 +236,10 @@ Rerun trying different projection")
         kw_proj_res  = kw_proj|kw_2Ddens|kw_z_min|kw_thetaE
 
         proj_supercrit = True
-
+    # explicitely free memory
+    del kw_2Ddens
+    del kw_z_min
+    
     kw_proj_res["principal_axes_2D"] =principal_axes_2D
     
     with open(GalProj.projection_path,"wb") as f:
@@ -283,6 +287,16 @@ def dens_map_AMR(kw_parts_proj,
     kw_2Ddens = {"MD_value":MD_value,"MD_coords":MD_coords,"AMR_cells":AMR_cells}
     return kw_2Ddens
 
+def get_interpSigEncArc2(theta,Sigma_encl_arc):
+    # intepolate it
+    _interpSigEncArc2   = interp1d(theta,Sigma_encl_arc)
+    Sigma_encl_arc_unit = Sigma_encl_arc.unit
+    # define it such that it preserves the units
+    def interpSigEncArc2(thetaE):
+        thetaE = ensure_unit(thetaE,u.arcsec)
+        return _interpSigEncArc2(thetaE)*Sigma_encl_arc_unit
+    return interpSigEncArc2
+
 def get_min_z_source(GalProj,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,savenameSigmaEnc = tmp_dir/"Sigma_enc.png"):
     """Given a projection, return the minimal z_source
     fails if it can't produce a supercritical lens w. z_source<z_source_max and 
@@ -302,13 +316,8 @@ def get_min_z_source(GalProj,kw_2Ddens,z_source_max,min_thetaE_kpc,verbose=True,
     Sigma_encl_arc = Sigma_encl/(arcXkpc**2)
 
     
-    # intepolate it
-    _interpSigEncArc2   = interp1d(theta,Sigma_encl_arc)
-    # define it such that it preserves the units
-    def interpSigEncArc2(thetaE):
-        thetaE = ensure_unit(thetaE,u.arcsec)
-        return _interpSigEncArc2(thetaE)*Sigma_encl_arc.unit
     # create a function to verify that the given lens is is indeed a lens
+    interpSigEncArc2 = get_interpSigEncArc2(theta,Sigma_encl_arc)
     verify_lens  = create_verify_lens_fnc(interpSigEncArc2)
     
     Sigma_crit_min_arc = Sigma_crit_min/(arcXkpc**2)
@@ -348,7 +357,21 @@ def create_verify_lens_fnc(interpSigEncArc2):
     Create function to verify that the galaxy is supercritical given the chosen 
     conditions: max z, min thetaE
     """
+    # extract just the underlying data arrays from the interpolator
+    Sigma_encl_arc_unit = interpSigEncArc2.__closure__[0].cell_contents
+    _interpolator = interpSigEncArc2.__closure__[1].cell_contents
+    x_data  = _interpolator.x
+    y_data  = _interpolator.y
+    kind    = _interpolator._kind
+    _cache  = {}   # mutable object in closure, not serialised heavily
+
     def verify_lens(gal_class,min_thetaE=None,z_source_max=None):
+        if "interp" not in _cache:
+            from scipy.interpolate import interp1d
+            _cache["interp"] =  interp1d(x_data, y_data, kind=kind)
+        def rec_interpSigEncArc2(theta):
+            thetaE = ensure_unit(thetaE,u.arcsec)
+            return  _cache["interp"](thetaE)*Sigma_encl_arc_unit
         z_lens  = gal_class.z 
         cosmo   = gal_class.cosmo 
         arcXkpc = cosmo.arcsec_per_kpc_proper(z_lens)
@@ -358,7 +381,7 @@ def create_verify_lens_fnc(interpSigEncArc2):
         if z_source_max is None:
             z_source_max = gallens_class.z_source_max
             
-        minSigEncArc2  = interpSigEncArc2(min_thetaE)
+        minSigEncArc2  = rec_interpSigEncArc2(min_thetaE)
         minSigEnc      = minSigEncArc2*(arcXkpc**2)
         Dd             = cosmo.angular_diameter_distance(z_lens)
         thresh_DsDds   = minSigEnc*(4*np.pi*const.G*Dd)/(const.c**2)

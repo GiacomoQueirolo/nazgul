@@ -30,7 +30,7 @@ def mask_SEAGLE(lens,image=None,threshold_scale=3,fwhm=.05,sig_clip=3):
         tor of typically 2.5–5 below the original noise. Pixels above
         the threshold are set to one and all others to zero."
     """
-    if not image:
+    if image is None:
         image = lens.image_sim
     fwhm_pix = to_dimless(fwhm)/to_dimless(lens.deltaPix)
     filt_img = gaussian_filter(image,sigma=fwhm_pix)

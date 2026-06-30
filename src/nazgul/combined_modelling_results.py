@@ -435,15 +435,11 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
 
     nm_res = _glob_exactly_1(f"{lens.model_res_dir}/kw_res.*")
     kwargs_result = load_whatever(nm_res)
-    try:
-        modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
-                          arrow_size=0.02, cmap_string="gist_heat",
-                          image_likelihood_mask_list=kwargs_likelihood["image_likelihood_mask_list"])
-    except:
-        print(nm_res,nm_input,nm_mblo)
-        print(np.shape(kwargs_likelihood["image_likelihood_mask_list"]),multi_band_list_out)
-        exit()
-
+    
+    modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
+                      arrow_size=0.02, cmap_string="gist_heat",
+                      image_likelihood_mask_list=kwargs_likelihood["image_likelihood_mask_list"])
+    
     model_band = modelPlot._band_plot_list[0]
     kw_modelplot = {"vmin":model_band._v_min_default,
                     "vmax":model_band._v_max_default,

@@ -367,7 +367,6 @@ def wrapper_get_all_lens(reload=True,
                     log_memory(f"before GalLens run {Gal.name}")
                     mod_LP = GalLens(Galaxy=Gal,**kw_lenspart)
                     mod_LP.run(read_prev=reload)
-                    mod_LP.Gal.slim_down()
                     log_memory(f"after GalLens run {Gal.name}")
                     supercrit = True
                     all_lenses.append(mod_LP)
@@ -377,9 +376,11 @@ def wrapper_get_all_lens(reload=True,
                     plot_AMR_densityXpart(Gal=mod_LP.Gal,
                                           proj_index=pji,
                                           savedir=mod_LP.savedir)
+                    plt.close("all")
+                    mod_LP.Gal.slim_down()
+
                     log_memory(f"after plot_AMR_densityXpart run {Gal.name}")
 
-                    plt.close("all")
                     if not consider_all_proj:
                         print(f"Considering only the first supercritical solution.\n")
                         break

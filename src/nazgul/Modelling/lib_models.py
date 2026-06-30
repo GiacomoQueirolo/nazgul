@@ -65,11 +65,20 @@ def is_someone_workin_on_it(dir):
     else:
         return load_whatever(woi_file)
     
-def setup_lens(lens,res_dir,_plot=True,verbose=True):
+def setup_lens(lens,res_dir,kwargs_source=None,
+               _plot=True,check_if_workin_on_it=True,
+               verbose=True):
     lens.model_res_dir = _get_model_res_dir(lens,res_dir=res_dir)
-    lens.setup()
-    lens.image_sim = lens.get_lensed_image(unconvolved=False)
     mkdir(lens.model_res_dir)
+    # verify that no-one is working on it
+    if check_if_workin_on_it:
+        if is_someone_workin_on_it(lens.model_res_dir):
+            warnings.warn(f"This lens, {lens.name} is being worked on, skipping- if not, delete the {workin_on_it} file") 
+            return None
+        set_workin_on_it(lens.model_res_dir,wrk = True)
+
+    lens.setup()
+    lens.image_sim = lens.get_lensed_image(kwargs_source=kwargs_source, unconvolved=False)
     
     if verbose:
         print(f"Saving modelling results in {lens.model_res_dir}") 
@@ -109,16 +118,11 @@ def setup_sim_obs(lens,band_str="HST_F160W",pssf=3):
     # the following contain 9 PSF depending on their position in the CCD
     # we will consider the central position -> i think it should be the second to last (not too important here )
     psf = load_fits(psf_path)[-2]
-    if np.any(psf<0):
-        warnings.warn("Some negative pixels in the PSF")
-        i_psf0,j_psf0 = np.where(psf<0)
-        if i_psf0.shape[0]*100/psf.ravel().shape[0]>30:
-            raise ValueError("PSF has more than 30% negative pixels, something is not right")
-        warnings.warn("Setting minimum value for negative PSF pixels")
-        psf[psf<0] = np.min(psf[psf>0])/100
+    psf = _positivise_psf(psf)
     # we can supersample it
     if pssf!=1:
         psf_ss  = zoom(psf,pssf,order=3)
+        psf_ss  = _positivise_psf(psf_ss)
         kwargs_psf = {"kernel_point_source":psf_ss,
                       "point_source_supersampling_factor":pssf}
     else:
@@ -128,6 +132,15 @@ def setup_sim_obs(lens,band_str="HST_F160W",pssf=3):
                                                kwargs_psf=kwargs_psf)
     return multi_band_list
 
+def _positivise_psf(psf):
+    if np.any(psf<0):
+        warnings.warn("Some negative pixels in the PSF")
+        i_psf0,j_psf0 = np.where(psf<0)
+        if i_psf0.shape[0]*100/psf.ravel().shape[0]>30:
+            raise ValueError("PSF has more than 30% negative pixels, something is not right")
+        warnings.warn("Setting minimum value for negative PSF pixels")
+        psf[psf<0] = np.min(psf[psf>0])/100
+    return psf
 
 def get_lens_mask(lens,image_obs,plot_mask=True):
     # masking inner and outer of thetaE -> nope, follow SEAGLE approach
@@ -269,7 +282,7 @@ def get_lenses2model(res_dir,reload=True,**kw_get_lenses2model):
         if reload:
             print(f"Loading previously computed catalogue of lenses to models {cat_l2m}") 
             kw_cat_lens = load_whatever(cat_l2m)
-            if not verify_same_requirements(kw_cat_lens["kw_require"],kw_get_lenses2model):
+            if not kw_cat_lens["kw_require"] == kw_get_lenses2model:
                 print(f"Catalogue {cat_l2m} exists, but doen't have the same requierements. Ignored and updated")
                 update_cat = True
                 lenses = _get_lenses2model(**kw_get_lenses2model)
@@ -288,7 +301,7 @@ def get_lenses2model(res_dir,reload=True,**kw_get_lenses2model):
     if update_cat:
         lenses_cat = [l.pkl_path for l in lenses]
         kw_cat_lens = {"lens_cat":lenses_cat,
-                       "kw_require":kw_get_all_gallens}
+                       "kw_require":kw_get_lenses2model}
         with open(cat_l2m,"wb") as f:
             dill.dump(kw_cat_lens,f)
         print(f"Saving catalogue of lenses to models {cat_l2m}") 
@@ -432,13 +445,9 @@ if __name__=="__main__":
                         "kwargs_lens":[kw_los]}
         lens = LensSystem.from_GalLens(gal_lens,kwargs_add_lenses=kw_add_lenses)
 
-        lens = setup_lens(lens,res_dir=model_res_base) #change it with res_dir_base of the given model
-        # verify that no-one is working on it
-        if is_someone_workin_on_it(lens.model_res_dir):
-            print(f"This lens is being worked on, skipping- if not, delete the {workin_on_it} file") 
+        lens = setup_lens(lens,res_dir=model_res_base,check_if_workin_on_it=True) #change it with res_dir_base of the given model
+        if lens is None:
             continue
-        set_workin_on_it(lens.model_res_dir,wrk = True)
-        
         plot_kappamap(lens.gallens.kappa_map, 
                       extent_kpc=lens.gallens.kw_extents["extent_kpc"],
                       savename=f"{res_dir}/kappa_gal.png")
