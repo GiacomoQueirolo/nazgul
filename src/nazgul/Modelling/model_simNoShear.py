@@ -15,7 +15,7 @@ from nazgul.mount_doom.lens_system import LensSystem
 
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.Modelling.lib_models import setup_lens,setup_sim_obs,get_kwargs_likelihood,get_lenses2model
-from nazgul.Modelling.lib_models import is_someone_workin_on_it,set_workin_on_it,workin_on_it
+from nazgul.Modelling.lib_models import set_workin_on_it
 from nazgul.Modelling.lib_models import save_kw,plot_model_plot
 from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std # default values
 
@@ -152,23 +152,23 @@ if __name__=="__main__":
     res_dir = res_dir_base
     if run_type==1:
         res_dir = res_dir_base/"test"
+
+    print("\nGetting catalogue of lenses 2 model\n###################\n")
     gal_lenses  = get_lenses2model(res_dir=res_dir,
                                    reload=True,
                                    kw_get_all_gallens=kw_get_all_gallens,
                                    n_lenses=np.nan,
                                    min_thetaE=min_thetaE,
                                    skip_lenses=lenses2skip)
+    print("\nCatalogue of lenses 2 model obtained\n###################\n")
+    
     for i,gal_lens in enumerate(gal_lenses): 
-        print("Loading lens "+gal_lens.name+"\n")
+        print("\nLoading lens "+gal_lens.name+"\n###################")
         lens = LensSystem.from_GalLens(gal_lens)
-
-        lens = setup_lens(lens,res_dir=res_dir)
-        # verify that no-one is working on it
-        if is_someone_workin_on_it(lens.model_res_dir):
-            print(f"This lens is being worked on, skipping- if not, delete the {workin_on_it} file") 
+        lens = setup_lens(lens,res_dir=res_dir,check_if_workin_on_it=True)
+        if lens is None: #means that someone is workin on it
             continue
-        set_workin_on_it(lens.model_res_dir,wrk = True)
-
+            
         plot_kappamap(lens.gallens.kappa_map, 
                       extent_kpc=lens.gallens.kw_extents["extent_kpc"],
                       savename=f"{lens.model_res_dir}/kappa_gal.png")
@@ -245,6 +245,7 @@ if __name__=="__main__":
         nm = f'{lens.model_res_dir}/chain_plot.pdf'
         plt.savefig(nm)
         print(f"Saving {nm}")
+        # reset flag to false
         set_workin_on_it(lens.model_res_dir,wrk = False)
 
         # Cleanup to save memory
