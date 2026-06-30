@@ -2,6 +2,7 @@
 # the aim is to reproduce Fig.5 of SEAGLE I 
 # the  Surface density profiles of DM, stars, gas and the total mass of a typical ETG from EAGLE.
 import sys,gc
+import copy
 import warnings
 import argparse
 import numpy as np
@@ -76,6 +77,10 @@ def plot_AMR_densityXpart(Gal,
     # Plotting all the density
     
     figall,axall = plot_AMR_cells(kw_2Ddens_all,kw_extents=kw_extents)
+    MD_coord_all = copy.copy(kw_2Ddens_all["MD_coords"])
+    # free memory
+    del kw_2Ddens_all
+    
     figall.suptitle("AMR of total mass projection")
     nm = f"{savedir}/AMR_full_proj{proj_index}.png"
     figall.savefig(nm)
@@ -106,7 +111,7 @@ def plot_AMR_densityXpart(Gal,
         # free memory
         del kw_parts,kw_parts_proj
         del kw_2Ddens["MD_coords"]
-        kw_2Ddens["MD_coords"] = kw_2Ddens_all["MD_coords"]
+        kw_2Ddens["MD_coords"] = MD_coord_all
         # plot 2d dens distr.
         fig1,ax1 = plot_AMR_cells(kw_2Ddens,kw_extents=kw_extents)
         fig1.suptitle(f"AMR of mass projection of {tp} particles")
@@ -117,6 +122,9 @@ def plot_AMR_densityXpart(Gal,
 
         # plot 1D Sigma
         r,Sigma_encl   = cells2SigRad(kw_2Ddens)
+        # free memory
+        del kw_2Ddens
+        
         r = r.to("kpc")
         Sigma_encl = Sigma_encl.to("Msun/kpc^2")
         ax2.plot(r,Sigma_encl/1e9,color=base_colors[i],label=tp)
