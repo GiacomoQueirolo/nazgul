@@ -69,16 +69,16 @@ def setup_lens(lens,res_dir,kwargs_source=None,
                _plot=True,check_if_workin_on_it=True,
                verbose=True):
     lens.model_res_dir = _get_model_res_dir(lens,res_dir=res_dir)
+    mkdir(lens.model_res_dir)
     # verify that no-one is working on it
     if check_if_workin_on_it:
         if is_someone_workin_on_it(lens.model_res_dir):
-            warnings.warn(f"This lens is being worked on, skipping- if not, delete the {workin_on_it} file") 
+            warnings.warn(f"This lens, {lens.name} is being worked on, skipping- if not, delete the {workin_on_it} file") 
             return None
         set_workin_on_it(lens.model_res_dir,wrk = True)
 
     lens.setup()
     lens.image_sim = lens.get_lensed_image(kwargs_source=kwargs_source, unconvolved=False)
-    mkdir(lens.model_res_dir)
     
     if verbose:
         print(f"Saving modelling results in {lens.model_res_dir}") 
