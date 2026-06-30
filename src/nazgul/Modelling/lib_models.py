@@ -65,8 +65,17 @@ def is_someone_workin_on_it(dir):
     else:
         return load_whatever(woi_file)
     
-def setup_lens(lens,res_dir,kwargs_source=None,_plot=True,verbose=True):
+def setup_lens(lens,res_dir,kwargs_source=None,
+               _plot=True,check_if_workin_on_it=True,
+               verbose=True):
     lens.model_res_dir = _get_model_res_dir(lens,res_dir=res_dir)
+    # verify that no-one is working on it
+    if check_if_workin_on_it:
+        if is_someone_workin_on_it(lens.model_res_dir):
+            warnings.warn(f"This lens is being worked on, skipping- if not, delete the {workin_on_it} file") 
+            return None
+        set_workin_on_it(lens.model_res_dir,wrk = True)
+
     lens.setup()
     lens.image_sim = lens.get_lensed_image(kwargs_source=kwargs_source, unconvolved=False)
     mkdir(lens.model_res_dir)
@@ -432,13 +441,9 @@ if __name__=="__main__":
                         "kwargs_lens":[kw_los]}
         lens = LensSystem.from_GalLens(gal_lens,kwargs_add_lenses=kw_add_lenses)
 
-        lens = setup_lens(lens,res_dir=model_res_base) #change it with res_dir_base of the given model
-        # verify that no-one is working on it
-        if is_someone_workin_on_it(lens.model_res_dir):
-            print(f"This lens is being worked on, skipping- if not, delete the {workin_on_it} file") 
+        lens = setup_lens(lens,res_dir=model_res_base,check_if_workin_on_it=True) #change it with res_dir_base of the given model
+        if lens is None:
             continue
-        set_workin_on_it(lens.model_res_dir,wrk = True)
-        
         plot_kappamap(lens.gallens.kappa_map, 
                       extent_kpc=lens.gallens.kw_extents["extent_kpc"],
                       savename=f"{res_dir}/kappa_gal.png")
