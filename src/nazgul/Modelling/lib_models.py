@@ -65,10 +65,10 @@ def is_someone_workin_on_it(dir):
     else:
         return load_whatever(woi_file)
     
-def setup_lens(lens,res_dir,_plot=True,verbose=True):
+def setup_lens(lens,res_dir,kwargs_source=None,_plot=True,verbose=True):
     lens.model_res_dir = _get_model_res_dir(lens,res_dir=res_dir)
     lens.setup()
-    lens.image_sim = lens.get_lensed_image(unconvolved=False)
+    lens.image_sim = lens.get_lensed_image(kwargs_source=kwargs_source, unconvolved=False)
     mkdir(lens.model_res_dir)
     
     if verbose:
