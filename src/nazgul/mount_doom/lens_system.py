@@ -380,36 +380,17 @@ class LensSystem(BasicGal):
             raise RuntimeError("No negative radial eigenvalue - something is off")
         if not np.any(eigen_tan_orig<0):
             raise RuntimeError("No negative radial eigenvalue - something is off")
-        # clipping outliers and smoothing with a guassian filter
-        eigen_rad_smooth = clip_smooth_map(eigen_rad_orig)
-        is_rad_smooth    = True
-        eigen_tan_smooth = clip_smooth_map(eigen_tan_orig)
-        is_tan_smooth    = True
-        if np.any(eigen_rad_smooth<0):
-            eigen_rad = eigen_rad_smooth
-        else:
-            warnings.warn("Eigen radial could not be smoothed - using un-smoothed map (increase noise)")
-            eigen_rad = eigen_rad_orig
-            is_rad_smooth = False
-        if np.any(eigen_tan_smooth<0):
-            eigen_tan = eigen_tan_smooth
-        else:
-            warnings.warn("Eigen tangential could not be smoothed - using un-smoothed map (increase noise)")
-            eigen_tan = eigen_tan_orig
-            is_tan_smooth = False
-        # have to find when those are ~0
-        mintv = np.min(np.abs(eigen_rad))
-        Dv    = np.max(np.abs(eigen_rad)) - mintv
-        maxtv = mintv + 0.1*Dv
-        test_values = np.linspace(mintv,maxtv,20)
-        ierx,ietx = [],[] #placeholders 
-        # radial
-        for tv in test_values:
-            if len(ierx)/(pixel_num**2) >0.001 :
-                break
-            else:
-                iery,ierx = np.where(cod.MAD_mask(np.abs(eigen_rad),0,tv)) 
-        if len(iery)==0:            
+        # it's not enough that there is 1 point<0, there have to be at least a few
+        min_points = 10
+        # clipping outliers and smoothing with a guassian filter (wrapper try to optimise the smoothing)
+        eigen_rad,is_rad_smooth = wrapper_clip_smooth_map(eigen_rad_orig,name="Eigen radial",min_points=min_points)
+        eigen_tan,is_tan_smooth = wrapper_clip_smooth_map(eigen_tan_orig,name="Eigen tangetial",
+                                                          min_points=min_points)
+
+        iery,ierx = get0_index(eigen_rad,pixel_num)
+        iety,ietx = get0_index(eigen_rad,pixel_num)
+        
+        if len(iery)<min_points:            
             ####DEBUG####
             nm = "tmp/eigen_rad.dll"
             with open(nm,"wb") as f:
@@ -438,17 +419,8 @@ class LensSystem(BasicGal):
             print(f"Saving {dbg_plot}")
             plt.close(fig)
             raise RuntimeError(f"Radial critical curve not found.\nCheck {dbg_plot}")
-        # tangential
-        mintv = np.min(np.abs(eigen_tan))
-        Dv = np.max(np.abs(eigen_tan)) - mintv
-        maxtv = mintv + 0.1*Dv
-        test_values = np.linspace(mintv,maxtv,20)
-        for tv in test_values:
-            if len(ietx)/(pixel_num**2) >0.001:
-                break
-            else:
-                iety,ietx = np.where(cod.MAD_mask(np.abs(eigen_tan),0,tv))
-        if len(iety)==0:
+
+        if len(iety)<min_points:
             dbg_plot = "tmp/eigen_tan.png"
             ext = self.gallens.kw_extents["extent_arcsec"]
 
@@ -777,4 +749,37 @@ def clip_smooth_map(map,sigma2clip=8,sigma2smooth=3,verbose=True):
         print(f"Smoothing map")
     map_smooth = gaussian_filter(msked_map,sigma=sigma2smooth)
     return map_smooth
-    
+
+
+def wrapper_clip_smooth_map(map,min_points=10,sigma2clip=8,
+                            sigma2smooth_min=1,sigma2smooth_max=10,name=None,verbose=False):
+    is_smooth = False
+    for s2s in np.linspace(sigma2smooth_max,sigma2smooth_min,20):
+        map_smooth = clip_smooth_map(map,sigma2clip=sigma2clip,sigma2smooth=s2s,verbose=verbose)
+        points = len(np.where(map_smooth<0)[0])
+        if points>min_points:
+            is_smooth = True
+            return map_smooth,is_smooth
+    if not is_smooth:            
+        warnings.warn(f"{name} could not be smoothed - using un-smoothed map (increase noise)")
+    return map_smooth,is_smooth
+
+
+def get0_index(map,pixel_num):
+    """
+    # have to find when those are ~0
+    mintv = np.min(np.abs(eigen_rad))
+    Dv    = np.max(np.abs(eigen_rad)) - mintv
+    maxtv = mintv + 0.1*Dv
+    test_values = np.linspace(mintv,maxtv,20)
+    """
+    test_values = np.linspace(.1,4)
+    ix,iy = [],[] #placeholders 
+    # radial
+    for tv in test_values:
+        if len(ix)/(pixel_num**2) >0.001 :
+            break
+        else:
+            iy,ix = np.where(cod.MAD_mask(np.abs(map),0,tv)) 
+    # not the inverted order
+    return ix,iy
