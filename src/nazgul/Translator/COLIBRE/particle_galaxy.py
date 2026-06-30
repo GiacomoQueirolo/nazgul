@@ -134,12 +134,18 @@ def Gal2MXYZ_part(Gal,part_type):
     Xs,Ys,Zs = _get_coord_part(part)
     
     # center around the center of the galaxy 
-    Cx,Cy,Cz  = Gal.centre*u.Mpc.to("kpc")*u.kpc
+    Cx,Cy,Cz  = Gal.centre*1e3*u.kpc # Mpc
         
     Xs -= Cx
     Ys -= Cy
     Zs -= Cz
-    return Ms, Xs,Ys,Zs
+    
+    #Convert all to astropy for convenience
+    Ms = Ms.to_astropy()
+    Xs = Xs.to_astropy()
+    Ys = Ys.to_astropy()
+    Zs = Zs.to_astropy()
+    return Ms,Xs,Ys,Zs
 
 def get_kw_SimPartGal(kw_Gal,sim,simsuite,subsim,data_dir,z,snap,M,Centre,reload):
     assert simsuite==simsuite_name
