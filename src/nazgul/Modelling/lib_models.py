@@ -118,16 +118,11 @@ def setup_sim_obs(lens,band_str="HST_F160W",pssf=3):
     # the following contain 9 PSF depending on their position in the CCD
     # we will consider the central position -> i think it should be the second to last (not too important here )
     psf = load_fits(psf_path)[-2]
-    if np.any(psf<0):
-        warnings.warn("Some negative pixels in the PSF")
-        i_psf0,j_psf0 = np.where(psf<0)
-        if i_psf0.shape[0]*100/psf.ravel().shape[0]>30:
-            raise ValueError("PSF has more than 30% negative pixels, something is not right")
-        warnings.warn("Setting minimum value for negative PSF pixels")
-        psf[psf<0] = np.min(psf[psf>0])/100
+    psf = _positivise_psf(psf)
     # we can supersample it
     if pssf!=1:
         psf_ss  = zoom(psf,pssf,order=3)
+        psf_ss  = _positivise_psf(psf_ss)
         kwargs_psf = {"kernel_point_source":psf_ss,
                       "point_source_supersampling_factor":pssf}
     else:
@@ -137,6 +132,15 @@ def setup_sim_obs(lens,band_str="HST_F160W",pssf=3):
                                                kwargs_psf=kwargs_psf)
     return multi_band_list
 
+def _positivise_psf(psf):
+    if np.any(psf<0):
+        warnings.warn("Some negative pixels in the PSF")
+        i_psf0,j_psf0 = np.where(psf<0)
+        if i_psf0.shape[0]*100/psf.ravel().shape[0]>30:
+            raise ValueError("PSF has more than 30% negative pixels, something is not right")
+        warnings.warn("Setting minimum value for negative PSF pixels")
+        psf[psf<0] = np.min(psf[psf>0])/100
+    return psf
 
 def get_lens_mask(lens,image_obs,plot_mask=True):
     # masking inner and outer of thetaE -> nope, follow SEAGLE approach

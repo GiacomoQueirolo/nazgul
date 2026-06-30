@@ -163,7 +163,7 @@ if __name__=="__main__":
     print("\nCatalogue of lenses 2 model obtained\n###################\n")
     
     for i,gal_lens in enumerate(gal_lenses): 
-        print("\nLoading lens "+gal_lens.name+"\n###################")
+        print("\nLoading lens "+gal_lens.name+"\n###############################")
         lens = LensSystem.from_GalLens(gal_lens)
         lens = setup_lens(lens,res_dir=res_dir,check_if_workin_on_it=True)
         if lens is None: #means that someone is workin on it
