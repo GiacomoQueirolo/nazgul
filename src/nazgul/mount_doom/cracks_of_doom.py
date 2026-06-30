@@ -5,6 +5,7 @@ General script for helper functions used in the generation of lenses
 import dill
 import warnings
 import numpy as np
+from copy import copy
 from pathlib import Path
 from functools import cached_property 
 
@@ -134,7 +135,7 @@ def MAD_mask(values,v0=0,sigma_scale=3):
     return mask
 
 # optimised w. CGPT:
-def fit_xy_spline(x, y,
+def fit_xy_spline_old(x, y,
     u=np.linspace(0, 1, 200),
     n_eval=150,           # points used for error estimation
     ):
@@ -202,6 +203,78 @@ def fit_xy_spline(x, y,
     xs, ys = splev(u, best_tck)
     return xs, ys
 
+# this obtained via Claude
+def fit_xy_spline(x, y,
+                  u=np.linspace(0, 1, 200),
+                  n_eval=150):   # ← expose this; set False for open arcs
+    
+    # --- order by arc length, not angle ---
+    # Start from the point with the most extreme position (e.g. leftmost)
+    # to get a consistent starting point
+    i_start = np.argmin(x)   # or use np.argmin(y), depending on geometry
+    
+    # reorder: rotate array so i_start is first
+    x_rot = np.roll(x, -i_start)
+    y_rot = np.roll(y, -i_start)
+    
+    # compute cumulative arc length as parameter
+    dx   = np.diff(x_rot)
+    dy   = np.diff(y_rot)
+    ds   = np.hypot(dx, dy)
+    # argsort by arc length from the starting point would require 
+    # nearest-neighbour chaining; simpler: use angular order only 
+    # if periodic, otherwise sort by x or use a greedy chain
+    xc    = np.median(x)
+    yc    = np.median(y)
+    for _ in range(3):
+        xc = np.average(x, weights=1/np.hypot(x - xc, y - yc))
+        yc = np.average(y, weights=1/np.hypot(x - xc, y - yc))
+
+    theta = np.arctan2(y - yc, x - xc)
+    order = np.argsort(theta)
+    x_ord = x[order]
+    y_ord = y[order]
+    x_ord = np.append(x_ord, x_ord[0])
+    y_ord = np.append(y_ord, y_ord[0])
+
+
+    n     = len(x_ord)
+    u_fit = np.linspace(0, 1, n)
+    idx   = np.linspace(0, n - 1, n_eval).astype(int)
+    u_sub = u_fit[idx]
+    x_sub = x_ord[idx]
+    y_sub = y_ord[idx]
+
+    # --- coarse search ---
+    s_vals = np.logspace(-5, -1, 12)
+    errs   = np.empty(len(s_vals))
+    for i, s in enumerate(s_vals):
+        tck, _ = splprep([x_ord, y_ord], s=s * n,
+                          per=True, quiet=True)
+        xs, ys = splev(u_sub, tck)
+        if i==0:
+            x_rough,y_rough = copy(xs),copy(ys)
+        errs[i] = np.sum(np.hypot(xs - x_sub, ys - y_sub))
+    if np.std(xs)<(np.std(x_ord)/1e5):
+        print("Rough fit seems to work best")
+        return x_rough,y_rough
+    # --- refine ---
+    i0 = np.argmin(errs)
+    lo = max(i0 - 1, 0)
+    hi = min(i0 + 1, len(s_vals) - 1)
+    s_refined = np.logspace(np.log10(s_vals[lo]), np.log10(s_vals[hi]), 10)
+    best_err, best_tck = np.inf, None
+    for s in s_refined:
+        tck, _ = splprep([x_ord, y_ord], s=s * n,
+                          per=True, quiet=True)
+        xs, ys = splev(u_sub, tck)
+
+        err    = np.sum(np.hypot(xs - x_sub, ys - y_sub))
+        if err < best_err:
+            best_err, best_tck = err, tck
+
+    xs, ys = splev(u, best_tck)
+    return xs, ys
 #
 # helper funct
 #
@@ -468,17 +541,30 @@ class BasicLensPart(BasicGal):
             z_source      = np.random.choice(z_source_list)
         return z_source
     
-    def galaxy_projection(self,verbose=True,recompute=False,**kwargs_proj):       
-        list_att_gal_prj = ["z_source_min",
-                           "z_source",
-                           "MD_coords",
-                            "thetaE",
-                            "SigCrit"]
-        for att_gal_prj in list_att_gal_prj:
-            # we should not recompute it if it already has the solutions 
-            if not hasattr(self,att_gal_prj):
-                recompute = True
-                break
+    def galaxy_projection(self,verbose=True,recompute=False,**kwargs_proj):
+        """
+        Compute galaxy projection given a certain projection
+
+        If not reload, then automatically recompute
+        else, if not recompute, check if results are present - if not, recompute
+
+        At the end, if not recompute (ie results are already present) return, 
+        else recompute and return
+        """
+        if not self.reload:
+            recompute = True
+        else:
+            if not recompute:
+                list_att_gal_prj = ["z_source_min",
+                                   "z_source",
+                                   "MD_coords",
+                                    "thetaE",
+                                    "SigCrit"]
+                for att_gal_prj in list_att_gal_prj:
+                    # we should not recompute it if it already has the solutions 
+                    if not hasattr(self,att_gal_prj):
+                        recompute = True
+                        break
         if not recompute:
             return
         # Compute projection
@@ -487,7 +573,7 @@ class BasicLensPart(BasicGal):
                                         sample_z_source=self.sample_z_source,
                                         min_thetaE=self.min_thetaE,
                                         arcXkpc=self.arcXkpc,verbose=verbose,
-                                        reload=self.reload,
+                                        reload=not recompute,
                                        **kwargs_proj)
         # store results
         assert self.proj_index == kwres_proj_res["proj_index"]
@@ -504,3 +590,4 @@ class BasicLensPart(BasicGal):
         self.SigCrit       = SigCrit(cosmo=self.cosmo,
                                      z_lens=self.z_lens,
                                      z_source=self.z_source) # Msun/kpc^2
+        return 
