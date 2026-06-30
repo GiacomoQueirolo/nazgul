@@ -91,7 +91,9 @@ kwargs_sersic_ellipse_mag = {'magnitude':25.}|kwargs_sersic_ellipse_basic
 kwargs_source_default     = kwargs_sersic_ellipse_mag
 source_model_list         = ['SERSIC_ELLIPSE']
 
-def get_kwargs_sourceSim(Sim,kwargs_source=kwargs_source_default):
+def get_kwargs_sourceSim(Sim,kwargs_source=None):
+    if kwargs_source is None:
+        kwargs_source = kwargs_source_default
     if "magnitude" in kwargs_source.keys():
         kwargs_source_list       = [kwargs_source]
         # the following only depends on -kwargs_source_params, -magnitude_0_point -source_model_list
@@ -99,16 +101,18 @@ def get_kwargs_sourceSim(Sim,kwargs_source=kwargs_source_default):
         kwargs_source            = kwargs_source_list[0]
     return kwargs_source
 
-def get_dataclasses(Sim,kwargs_source=kwargs_source_default):
-        print("Pixel_num: ",  Sim.numpix)
-        print("DeltaPix: ",   np.round(Sim.pixel_scale,3))
-        data_class         = Sim.data_class
-        psf_class          = Sim.psf_class
-        kwargs_numerics    = {'supersampling_factor': 1, 'supersampling_convolution': False}
-        # Source Params
-        source_model_class = Sim.source_model_class
-        kwargs_source      = get_kwargs_sourceSim(Sim,kwargs_source=kwargs_source)
-        return data_class,psf_class,source_model_class,kwargs_numerics,kwargs_source
+def get_dataclasses(Sim,kwargs_source=None):
+    if kwargs_source is None:
+        kwargs_source = kwargs_source_default
+    print("Pixel_num: ",  Sim.numpix)
+    print("DeltaPix: ",   np.round(Sim.pixel_scale,3))
+    data_class         = Sim.data_class
+    psf_class          = Sim.psf_class
+    kwargs_numerics    = {'supersampling_factor': 1, 'supersampling_convolution': False}
+    # Source Params
+    source_model_class = Sim.source_model_class
+    kwargs_source      = get_kwargs_sourceSim(Sim,kwargs_source=kwargs_source)
+    return data_class,psf_class,source_model_class,kwargs_numerics,kwargs_source
 
 ##########################
 # Model class for parts. #
