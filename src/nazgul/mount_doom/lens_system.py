@@ -183,20 +183,21 @@ class LensSystem(BasicGal):
     ###############
     
 
-    def create_lens(self,kwargs_add_lenses=empty_kwargs_add_lenses,Sim=None,verbose=verbose):
+    def create_lens(self,kwargs_add_lenses=empty_kwargs_add_lenses,
+                    Sim=None,kwargs_source=None,verbose=verbose):
         # Define the radius based on ~ theta_E
         self.radius    = self.gallens.radius
         if verbose:
             print("Image radius:",np.round(self.radius,3))        
         # setup dataclasses (dataclass,psf_class,sourcemodel and some helper kwargs):
-        self.setup_dataclasses(Sim=Sim,verbose=verbose)
+        self.setup_dataclasses(Sim=Sim,kwargs_source=kwargs_source, verbose=verbose)
         # setup lenses 
         self.setup_lenses(kwargs_add_lenses=kwargs_add_lenses,
                         verbose=verbose)        
     def store(self):
         store_lens(self)
         
-    def setup_dataclasses(self,Sim=None,verbose=True):
+    def setup_dataclasses(self,Sim=None,kwargs_source=None,verbose=True):
         """
         Define all classes not dependent on lensing
         Handled by SimAPI
@@ -205,7 +206,7 @@ class LensSystem(BasicGal):
             Sim = self.get_Sim()
         if verbose:
             print("Setting up data classes ...")
-        self.data_class,self.psf_class,self.source_model_class,self.kwargs_numerics,self.kwargs_source = cod.get_dataclasses(Sim)
+        self.data_class,self.psf_class,self.source_model_class,self.kwargs_numerics,self.kwargs_source = cod.get_dataclasses(Sim,kwargs_source = kwargs_source)
         if verbose:
             print("... Data classes set up")
         return 0
@@ -644,10 +645,11 @@ class LensSystem(BasicGal):
         
     def get_lensed_image(self,
                          Sim=None,
+                         kwargs_source=None,
                          _radec=None, # 
                          unconvolved=True):
         
-        imageNumerics,sourceModel = self.get_imageNumerics(Sim=Sim,return_sourceModel=True)
+        imageNumerics,sourceModel = self.get_imageNumerics(Sim=Sim,kwargs_source=kwargs_source,return_sourceModel=True)
         kwargs_source = imageNumerics.kwargs_source
         alpha_map = self.alpha_map(_radec=_radec)
         x_source_plane,y_source_plane = self.get_xy_source_plane(alpha_map=alpha_map)
@@ -669,18 +671,18 @@ class LensSystem(BasicGal):
     # Simulating observations
     #########################
     
-    def get_imageNumerics(self,Sim=None,return_sourceModel=False):    
+    def get_imageNumerics(self,Sim=None,return_sourceModel=False,kwargs_source=None):    
         if Sim is None:
             Sim = self.get_Sim()
             if not hasattr(self,"data_class"):
-                self.setup_dataclasses(Sim=Sim)
+                self.setup_dataclasses(Sim=Sim,kwargs_source=kwargs_source)
             data_class      = self.data_class
             psf_class       = self.psf_class
             sourceModel     = self.source_model_class 
             kwargs_source   = self.kwargs_source
             kwargs_numerics = self.kwargs_numerics     
         else:
-            data_class,psf_class,sourceModel,kwargs_numerics,kwargs_source = cod.get_dataclasses(Sim)
+            data_class,psf_class,sourceModel,kwargs_numerics,kwargs_source = cod.get_dataclasses(Sim,kwargs_source=kwargs_source)
         imageNumerics = self._get_imageNumerics(data_class=data_class,
                                                 psf_class=psf_class,
                                                 kwargs_numerics=kwargs_numerics)
