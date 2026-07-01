@@ -369,7 +369,7 @@ def create_verify_lens_fnc(interpSigEncArc2):
         if "interp" not in _cache:
             from scipy.interpolate import interp1d
             _cache["interp"] =  interp1d(x_data, y_data, kind=kind)
-        def rec_interpSigEncArc2(theta):
+        def rec_interpSigEncArc2(thetaE):
             thetaE = ensure_unit(thetaE,u.arcsec)
             return  _cache["interp"](thetaE)*Sigma_encl_arc_unit
         z_lens  = gal_class.z 
