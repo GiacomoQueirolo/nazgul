@@ -230,7 +230,7 @@ if __name__=="__main__":
         plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likelihood,res_dir=lens.model_res_dir)
         # don't store pso results
         emcee = chain_list[-1]
-        sampler_type, mc_sample, param_mcmc, mc_logL   = emce
+        sampler_type, mc_sample, param_mcmc, mc_logL   = emcee
         emcee_path = f'{lens.model_res_dir}/emcee_chain.dll'
         save_data(emcee,emcee_path,"emcee chain")
 

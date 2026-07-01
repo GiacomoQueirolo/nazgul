@@ -381,7 +381,7 @@ def plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likeli
     plt.close(f)
     print(f"Saving {nm}")
     
-    reduced_chi2 = get_red_chi2(modelPlot=modelPlot,kwargs_result=kwargs_result,verbose=True)    
+    reduced_chi2 = get_red_chi2(modelPlot=modelPlot,verbose=True)    
     #Normalised plot
     f, axes = plt.subplots(figsize=(10,7))
     modelPlot.normalized_residual_plot(ax=axes,v_min=-3, v_max=3,text=r"Norm. Resid $\chi^2_{red.}$="+str(np.round(reduced_chi2,2)))
