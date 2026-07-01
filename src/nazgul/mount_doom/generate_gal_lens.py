@@ -13,7 +13,6 @@ import warnings
 import numpy as np
 from glob import glob
 from pathlib import Path
-import psutil,tracemalloc
 from time import gmtime, strftime
 from functools import cached_property 
 
@@ -39,8 +38,9 @@ from nazgul.likelihood import Likelihood
 from nazgul.project_gal import get_2Dkappa_map,ProjectionError
 from nazgul.project_gal import Gal2kw_samples,ProjGal
 from nazgul.pathfinder import get_lens_lowdir_from_galdir,get_proj_dir_from_galdir
-
 from nazgul.mount_doom.cracks_of_doom import BasicLensPart,get_extents,kw_prior_z_source_stnd
+# debugging memory leak tools (wip - placeholder position)
+from nazgul.memory_leak_tools import log_memory,log_top_allocs
 
 #Default values
 import nazgul.configurations as conf
@@ -312,20 +312,6 @@ def gal_already_computed(Gal):
                 gal_computed = False
                 return gal_computed
     return gal_computed
-
-def log_memory(label=""):
-    # This function probably should be somewhere else
-    proc = psutil.Process(os.getpid())
-    mb = proc.memory_info().rss / 1024**2
-    print(f"[MEM] {label}: {mb:.0f} MB", flush=True)
-
-def log_top_allocs(label="", n=5):
-    # and for tracking the top allocations:
-    snapshot = tracemalloc.take_snapshot()
-    stats    = snapshot.statistics("lineno")
-    print(f"[TRACEMALLOC {label}]")
-    for s in stats[:n]:
-        print(f"  {s}")
         
 def wrapper_get_all_lens(reload=True,
                         kw_lenspart={},
@@ -405,7 +391,6 @@ def wrapper_get_all_lens(reload=True,
         except RuntimeError as RE:
             print(f'RUNTIME ERROR FOR THIS GALAXY:\n{RE}\nMOVING TO NEXT')
             kw_lenspart["projection_index"] = 0
-            continue
         finally:
             Gal_name = Gal.name
             del Gal

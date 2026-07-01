@@ -1,8 +1,10 @@
 # Try to generalise it
 import gc
+
 import os,sys
 import argparse
 import warnings
+import tracemalloc
 import numpy as np
 import pandas as pd
 from glob import glob
@@ -10,13 +12,13 @@ from pathlib import Path
 from textwrap import wrap
 from copy import copy,deepcopy
 import matplotlib.pyplot as plt
+import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from chainconsumer import Chain, ChainConsumer
-from chainconsumer.plotting import plot_contour,plot_truths,plot_dist
+from chainconsumer import Chain #, ChainConsumer
+from chainconsumer.plotting import plot_contour,plot_dist #,plot_truths
 
-from lenstronomy.Plots.model_plot import ModelPlot
 from lenstronomy.Util.param_util import shear_polar2cartesian,ellipticity2phi_q
 
 from python_tools.tools import short_SciNot
@@ -24,9 +26,12 @@ from python_tools.get_res import load_whatever
 
 from nazgul.lens_part_LOS import get_kw_los
 from nazgul.mount_doom.cracks_of_doom import LoadLens
+# debugging memory leak tools (wip - placeholder position)
+from nazgul.memory_leak_tools import log_memory,log_top_allocs
+from nazgul.Modelling.lib_models import get_red_chi2,get_model_plot
 
+matplotlib.use('Agg') 
 
-c = ChainConsumer()
 # thank you Nat!
 green        = ['#a6dba0','#5aae61','#1b7837']
 purple       = ['#c2a5cf', '#9970ab', '#762a83']
@@ -93,37 +98,17 @@ def _glob_exactly_1(cnd_name,_str_info=""):
     else:
         return candidate[0]
 
-def get_all_lens_model_paths(res_dir):
-    pth_modlenses_res = glob(f"{res_dir}/snap*/kw_res.*")
+def get_all_lens_model_paths(res_dir,snaps=[]):
+    if snaps ==[]:
+        pth_modlenses_res = glob(f"{res_dir}/snap*/kw_res.*")
+    else:
+        pth_modlenses_res = []
+        for s in snaps:
+            for pth in glob(f"{res_dir}/snap_{s}_*/kw_res.*"):
+                pth_modlenses_res.append(pth)
     pth_modlenses     = [Path(pth).parent for pth in pth_modlenses_res]
     return pth_modlenses
     
-def get_all_lens_models(res_dir):
-    pth_modlenses = get_all_lens_model_paths(res_dir)
-    lenses = []
-    for pth_lens in pth_modlenses:
-        try:
-            # if res exists AND is loaded correctly
-            load_whatever(pth_lens/"kw_res.*")
-            # then we consider the lens
-            model_res_dir = pth_lens
-            lens_link     = model_res_dir/"link_gallens.pkl"
-            if not os.path.exists(lens_link):
-                warnings.warn("MONKEY-PATCH- update name of the lens on the fly")
-                _lens_dir = Path(os.readlink(lens_link)).parent
-                _nm_lns = str(model_res_dir.name)
-                prj_index = int(_nm_lns.split("Prj")[1][0])
-                nmlns = _nm_lns.split("_")[2]
-                candidate_lens_name = "Sub_Lens_"+nmlns+"_Prj"+str(prj_index)+"*"
-                cnd_name =  str(_lens_dir)+"/"+candidate_lens_name
-                lens_link = _glob_exactly_1(cnd_name,_str_info="lens dir ="+str(_lens_dir)) 
-            lens      = LoadLens(lens_link)
-            lens.unpack() 
-            lens.model_res_dir = model_res_dir
-            lenses.append(lens)
-        except Exception as e:
-            print(f"Failed to load {pth_res} due to {e} - skipping.")
-    return lenses
 
 
 def _convert_shear2LOS(mc_sample,param_mcmc):
@@ -407,10 +392,8 @@ def plot_los_outVsin_const(axes,g_los1_in,g_los2_in,
     ax.errorbar(x,g_los2_out_med,yerr=g_los2_out_std,c="k",fmt="ko",ecolor="k",elinewidth=.8)
     ax.legend()
     return axes
-    
-def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_ellipticity=False):
-    fig       = axes.flatten()[0].get_figure()
-    lens_name = lens.name.replace("Sub_","")
+
+def get_full_chain(lens,model):
     chnl_path = f'{lens.model_res_dir}/chain_list.dll'
     chain_list = load_whatever(chnl_path)
     sampler_type, mc_sample, param_mcmc, mc_logL  = chain_list[-1]
@@ -419,26 +402,27 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
         mc_sample,param_mcmc = _convert_shear2LOS(mc_sample,param_mcmc)
     elif model=="noLOS_g12":
         mc_sample,param_mcmc = _convert_polarshear2LOS(mc_sample,param_mcmc)
-
     full_chain = pd.DataFrame( np.array(mc_sample) , columns=param_mcmc)
+    del mc_sample,chain_list
+    return full_chain
 
-    nm_mblo = _glob_exactly_1(f"{lens.model_res_dir}/multi_band_list_out.*")
-    multi_band_list_out = load_whatever(nm_mblo)
-    nm_input = f"{lens.model_res_dir}/kw_input.dll"            
-    kw_input = load_whatever(nm_input)
-    kwargs_data_joint= kw_input["kwargs_data_joint"] 
-    kwargs_model = kw_input["kwargs_model"]
-    kwargs_constraints  = kw_input["kwargs_constraints"] 
-    kwargs_likelihood  = kw_input["kwargs_likelihood"]
-    kwargs_params  = kw_input["kwargs_params"]
-    fitting_kwargs_list  = kw_input["fitting_kwargs_list"]
-
-    nm_res = _glob_exactly_1(f"{lens.model_res_dir}/kw_res.*")
-    kwargs_result = load_whatever(nm_res)
+def load_kw_data(model,lens):
+    full_chain = get_full_chain(lens,model)
     
-    modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
-                      arrow_size=0.02, cmap_string="gist_heat",
-                      image_likelihood_mask_list=kwargs_likelihood["image_likelihood_mask_list"])
+    res_dir = lens.model_res_dir
+    modelPlot = get_model_plot(res_dir=res_dir)
+    
+    kw_data = dict(full_chain=full_chain,
+                   modelPlot=modelPlot)
+    return kw_data
+
+def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3,overlay_ellipticity=False):
+    fig       = axes.flatten()[0].get_figure()
+    lens_name = lens.name.replace("Sub_","")
+    if kw_data is None:    
+        kw_data = load_kw_data(model,lens)
+    modelPlot  = kw_data["modelPlot"]
+    full_chain = kw_data["full_chain"]
     
     model_band = modelPlot._band_plot_list[0]
     kw_modelplot = {"vmin":model_band._v_min_default,
@@ -480,16 +464,9 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
 
-    kwargs_result_wo_tracer = {k: v for k, v in kwargs_result.items() 
-                           if "tracer" not in str(k)}
-    logL,_prms   = modelPlot._imageModel.likelihood_data_given_model(source_marg=False, linear_prior=None, **kwargs_result_wo_tracer)
-
-    n_data = modelPlot._imageModel.num_data_evaluate
-    reduced_chi2  = -logL * 2 / n_data
-    kw_modelplot_resid = deepcopy(kw_modelplot)
-    kw_modelplot_resid["vmin"] = -3
-    kw_modelplot_resid["vmax"] = 3
-    kw_modelplot_resid["cmap"] = "bwr"
+    reduced_chi2  = get_red_chi2(modelPlot,verbose=False)
+    
+    kw_modelplot_resid = {**kw_modelplot, "vmin": -3, "vmax": 3, "cmap": "bwr"}
     im0 = ax.imshow(model_band._norm_residuals,**kw_modelplot_resid)
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=0.05)
@@ -505,8 +482,7 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
         ax.set_title(columns_ttl[3])
     if i_row==nrows-1:
         ax.set_xlabel(r"$\theta_E$")
-    i_thetaE = np.where(param_mcmc=="theta_E_lens0")
-    thetaE   = mc_sample.T[i_thetaE][0]
+    thetaE = full_chain["theta_E_lens0"].to_numpy() 
     plot_dist(ax, Chain(samples=full_chain, name=lens_name, shade=True, color='#2c7fb8', smooth=20, bins=10,
                                    shade_gradient = 0.4, linewidth=3.0), px="theta_E_lens0",)
     lbl_tE_meas = r"$\theta_{\rm{E}}=$"+str(np.round(np.median(thetaE),_rnd))+"+-"+str(np.round(np.std(thetaE),_rnd))+'"'
@@ -517,19 +493,21 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
     
     # Posterior gamma_ext
     ax = axes[i_row][4]
+    chain4plotcont = Chain(samples=full_chain, name=lens_name, shade=True, 
+                           color=warm[1], shade_gradient = 0.8, linewidth=3.0)
     if i_row ==0:
         ax.set_title(columns_ttl[4])
-    plot_contour(ax, Chain(samples=full_chain, name=lens_name, shade=True, color=cool[1], shade_gradient = 0.8, linewidth=3.0), px="gamma1_los_lens1", py="gamma2_los_lens1")
+    plot_contour(ax, chain4plotcont, px="gamma1_los_lens1", py="gamma2_los_lens1")
     if overlay_ellipticity:
-        plot_contour(ax, Chain(samples=full_chain, name=lens_name, shade=True, color=warm[1], shade_gradient = 0.8, linewidth=3.0), px="e1_lens0", py="e2_lens0")
+        plot_contour(ax, chain4plotcont, px="e1_lens0", py="e2_lens0")
         
     if overlay_ellipticity:
         column_g12e12 = ['gamma1_los_lens1', 'gamma2_los_lens1',"e1_lens0","e2_lens0"]
     else:
         column_g12e12 = ['gamma1_los_lens1', 'gamma2_los_lens1']
     g12e12 = full_chain.loc[:,column_g12e12]
-    med_g12e12 = g12e12.median().array
-    sig_g12e12 = g12e12.std().array
+    med_g12e12 = g12e12.median()
+    sig_g12e12 = g12e12.std()
     for i in range(4):
         if i<2:
             col= warm[0]
@@ -589,10 +567,10 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,_rnd=3,overlay_elli
     #ax.legend()
     
     # free memory:
-    del chain_list, mc_sample, full_chain
-    del multi_band_list_out, kw_input, kwargs_result
-    del modelPlot, kwargs_result_wo_tracer
-    import gc; gc.collect()
+    del modelPlot
+    del full_chain,
+    del g12e12,thetaE
+    gc.collect()
     return axes
     
 warnings.filterwarnings("ignore")
@@ -627,11 +605,13 @@ if __name__=="__main__":
     parser.add_argument('-ove','--overlay_ellipticity', dest="overlay_ellipticity", 
                         default=False, action="store_true",
                         help=f"If true, overlay ellipticity posterior")
+    parser.add_argument('-snap','--snap',dest="snaps",default=[],nargs="+",help="(Optional) Define a specific snap list")
     parser.add_argument('-lpp','--lines_per_page', dest="lines_per_page",
                         default=5, type=int,
                         help="Number of lens rows per page in combined PDF (default=5)")
     args     = parser.parse_args()
     model    = args.model
+    snaps    = args.snaps
     overlay_ellipticity = args.overlay_ellipticity
     lines_per_page      = args.lines_per_page
 
@@ -639,7 +619,7 @@ if __name__=="__main__":
     res_dir = get_res_dir(model)
     nm_combined = f"{res_dir}/combined_result.pdf"
 
-    lens_resdir_paths = get_all_lens_model_paths(res_dir)  # paths only, no loading
+    lens_resdir_paths = get_all_lens_model_paths(res_dir,snaps=snaps)  # paths only, no loading
     n_lenses          = len(lens_resdir_paths)
 
     columns_ttl = ["Sim Image", "Model", "Norm. Resid.", r"P($\theta_E$|S.I.)"]
@@ -655,57 +635,72 @@ if __name__=="__main__":
 
     # accumulators for plot_los_outVsin, only needed if model=="allLOS"
     lenses_for_los = []
-
+    tracemalloc.start()
     with PdfPages(nm_combined) as pdf:
 
         # iterate over pages
         for page_start in range(0, n_lenses, lines_per_page):
+            log_memory("beggining page loop")
             page_slice  = lens_resdir_paths[page_start : page_start + lines_per_page]
             nrows_page  = len(page_slice)
-
             fig, axes = plt.subplots(nrows_page, ncols,
                                      figsize=(scl * ncols, scl * nrows_page),
                                      squeeze=False)
-
+            log_memory("after subplots instantiation")
             for i_row, model_res_dir in enumerate(page_slice):
+                log_memory("beggining row loop")
                 # ── load lens ──────────────────────────────────────────────
                 lens = LoadLens(model_res_dir/"link_gallens.pkl")
                 lens.unpack()
                 lens.model_res_dir = model_res_dir
-
+                log_memory("loaded lens")
+                kw_data = load_kw_data(model,lens)
+                log_memory("loaded kw_data")
                 # ── single-lens PDF ────────────────────────────────────────
                 nm_single = f"{model_res_dir}/single_result.pdf"
                 fig_s, axes_s = plt.subplots(1, ncols,
                                              figsize=(scl * ncols, scl),
                                              squeeze=False)
+                log_memory("before plot_result_line 1")
                 plot_result_line(model, lens, axes_s, 0, 1,
                                  columns_ttl, _rnd=_rnd,
+                                 kw_data =kw_data,
                                  overlay_ellipticity=overlay_ellipticity)
+                log_memory("after plot_result_line 1")
                 fig_s.suptitle(get_model_title(model))
                 fig_s.tight_layout()
                 fig_s.savefig(nm_single)
                 plt.close(fig_s)
+                plt.close("all")
+                del fig_s,axes_s
+                gc.collect()
                 print(f"Saved {nm_single}")
 
                 # ── row in combined page ───────────────────────────────────
+                log_memory("before plot_result_line 2")
                 plot_result_line(model, lens, axes, i_row, nrows_page,
-                                 columns_ttl, _rnd=_rnd,
+                                 columns_ttl, _rnd=_rnd,kw_data=kw_data,
                                  overlay_ellipticity=overlay_ellipticity)
-
+                
+                log_memory("after plot_result_line 2")
                 # ── keep lightweight ref for LOS plot if needed ────────────
                 if model == "allLOS":
                     lenses_for_los.append(lens)
                 else:
                     del lens
+                del kw_data
                 gc.collect()
-
+                log_memory("End of row loop - deleted kw_data")
+                
             fig.suptitle(get_model_title(model))
             fig.tight_layout()
             pdf.savefig(fig)
             plt.close(fig)
+            del fig
             print(f"Saved page {page_start // lines_per_page + 1} to {nm_combined}")
             gc.collect()
-
+            log_memory("End of page loop")
+            log_top_allocs()
     print(f"Combined PDF complete: {nm_combined}")
 
     # ── LOS comparison plots (allLOS only) ────────────────────────────────
@@ -715,17 +710,47 @@ if __name__=="__main__":
         nm = f"{res_dir}/comp_glos_12_in_vs_out.pdf"
         fig.savefig(nm)
         plt.close(fig)
+        del fig
         print(f"Saved {nm}")
 
         nm = f"{res_dir}/comp_glos_in_vs_out.pdf"
         fig2.savefig(nm)
         plt.close(fig2)
+        del fig2
         print(f"Saved {nm}")
 
         del lenses_for_los
         gc.collect()
         
 """
+def get_all_lens_models(res_dir):
+    pth_modlenses = get_all_lens_model_paths(res_dir)
+    lenses = []
+    for pth_lens in pth_modlenses:
+        try:
+            # if res exists AND is loaded correctly
+            load_whatever(pth_lens/"kw_res.*")
+            # then we consider the lens
+            model_res_dir = pth_lens
+            lens_link     = model_res_dir/"link_gallens.pkl"
+            if not os.path.exists(lens_link):
+                warnings.warn("MONKEY-PATCH- update name of the lens on the fly")
+                _lens_dir = Path(os.readlink(lens_link)).parent
+                _nm_lns = str(model_res_dir.name)
+                prj_index = int(_nm_lns.split("Prj")[1][0])
+                nmlns = _nm_lns.split("_")[2]
+                candidate_lens_name = "Sub_Lens_"+nmlns+"_Prj"+str(prj_index)+"*"
+                cnd_name =  str(_lens_dir)+"/"+candidate_lens_name
+                lens_link = _glob_exactly_1(cnd_name,_str_info="lens dir ="+str(_lens_dir)) 
+            lens = LoadLens(lens_link)
+            lens.unpack() 
+            lens.model_res_dir = model_res_dir
+            lenses.append(lens)
+        except Exception as e:
+            print(f"Failed to load {pth_lens} due to {e} - skipping.")
+    return lenses
+
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot Combined results for all the lens model of given run")
     parser.add_argument('-m','--model',type=str,
@@ -790,6 +815,8 @@ if __name__=="__main__":
         plt.close(fig2)
 ##########
 ##########
+c = ChainConsumer()
+
 if model!="noLOS":
     gamma1_full = c.analysis.get_parameter_summary(chain=Chain(samples=full_chain, name='lenstronomy_mcmc_emcee'),column=r"gamma1_los_lens1")
     gamma2_full = c.analysis.get_parameter_summary(chain=Chain(samples=full_chain, name='lenstronomy_mcmc_emcee'),column=r'gamma2_los_lens1')
