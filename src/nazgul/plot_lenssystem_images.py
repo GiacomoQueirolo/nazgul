@@ -22,7 +22,7 @@ res_dir_base      = model_res_base/"simNoShear/"
 
 
 if __name__=="__main__":
-    parser = argparse.ArgumentParser(prog=sys.argv[0],description="Simulate (without shear) and model the lens (with shear) - Study the Internal Shear")
+    parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot the observed input to the model")
     parser.add_argument('-nl','--n_lenses',type=int,dest="n_lenses",default=5,help=f"Number of lenses to model")
     parser.add_argument('-mtE','--min_thetaE',type=float,dest="min_thetaE",default=None,help=f"Min theta_E for the gal to be considered a lens")
     parser.add_argument('-snap','--snap',nargs="+",type=int,dest="snaps",default=[],help=f"List of snaps to consider - default is all")
