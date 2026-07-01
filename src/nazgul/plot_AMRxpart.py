@@ -1,6 +1,7 @@
 # copy from plot_one_gal
 # the aim is to reproduce Fig.5 of SEAGLE I 
 # the  Surface density profiles of DM, stars, gas and the total mass of a typical ETG from EAGLE.
+import os
 import sys,gc
 import copy
 import warnings
@@ -31,6 +32,7 @@ def plot_AMR_densityXpart(Gal,
                      scale_tE_cutout = 10,
                      savedir       = None,
                      part_thresh   = 1e4, # min n* of particles to be plotted
+                     rerun         = False,
                      verbose=True):
     """ 
     Compute and plot density Adaptive Mesh Refinement map split into the various particles
@@ -38,7 +40,15 @@ def plot_AMR_densityXpart(Gal,
     if not savedir:
         savedir  = f"{Gal.gal_dir}/Plots/"
     mkdir(savedir)
+    nm_Sgm = f"{savedir}/Sigma_decomposed_proj{proj_index}.png"
 
+    if not rerun:
+        # Check if last plot is already present
+        # if so, skip plotting them again
+        if os.path.isfile(nm_Sgm):
+            warnings.warn(f"Plot {nm_Sgm} already present - skipping.")
+            return None
+    
     z_lens   = Gal.z 
     arcXkpc  = Gal.cosmo.arcsec_per_kpc_proper(z_lens)
     Dd       = Gal.cosmo.angular_diameter_distance(z_lens).to("Mpc")
@@ -82,9 +92,9 @@ def plot_AMR_densityXpart(Gal,
     del kw_2Ddens_all
     
     figall.suptitle("AMR of total mass projection")
-    nm = f"{savedir}/AMR_full_proj{proj_index}.png"
-    figall.savefig(nm)
-    print(f"Saved {nm}") 
+    nm_AMR = f"{savedir}/AMR_full_proj{proj_index}.png"
+    figall.savefig(nm_AMR)
+    print(f"Saved {nm_AMR}") 
     plt.close(figall)
     fig2,ax2 = plt.subplots(1)
     ax2.plot(r_all,Sigma_encl_all/1e9,color='cyan',label="Total")
@@ -115,10 +125,12 @@ def plot_AMR_densityXpart(Gal,
         # plot 2d dens distr.
         fig1,ax1 = plot_AMR_cells(kw_2Ddens,kw_extents=kw_extents)
         fig1.suptitle(f"AMR of mass projection of {tp} particles")
-        nm = f"{savedir}/AMR_{tp}_proj{proj_index}.png"
-        fig1.savefig(nm)
+        nm_amr_dec = f"{savedir}/AMR_{tp}_proj{proj_index}.png"
+        fig1.savefig(nm_amr_dec)
         plt.close(fig1)
-        print(f"Saved {nm}") 
+        del fig1,ax1
+        gc.collect()
+        print(f"Saved {nm_amr_dec}") 
 
         # plot 1D Sigma
         r,Sigma_encl   = cells2SigRad(kw_2Ddens)
@@ -142,14 +154,13 @@ def plot_AMR_densityXpart(Gal,
 
     ax_tmp.set_xlabel(f"Radius (R) ['']")
     ax2.legend(loc="upper right")
-    nm = f"{savedir}/Sigma_decomposed_proj{proj_index}.png"
     fig2.tight_layout()
-    fig2.savefig(nm)
+    fig2.savefig(nm_Sgm)
+    print(f"Saved {nm_Sgm}") 
     plt.close(fig2)
     plt.close("all")
     Gal.slim_down()
     gc.collect()
-    print(f"Saved {nm}") 
     
     
     

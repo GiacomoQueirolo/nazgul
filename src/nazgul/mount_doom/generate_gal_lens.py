@@ -10,6 +10,7 @@ Revolves around the GalLens class, plus several helper functions
 import os,gc
 import dill
 import warnings
+import tracemalloc
 import numpy as np
 from glob import glob
 from pathlib import Path
@@ -331,12 +332,13 @@ def wrapper_get_all_lens(reload=True,
     for Gal in all_Gal:
         # Verify if all proj. have not already been computed 
         # (not important if it is a lens or not)
-        print(f"\nNew Gal:\n     {Gal.name}\n")
+        Gal_name = Gal.name
+        print(f"\nNew Gal:\n     {Gal_name}\n")
         try:
             if gal_already_computed(Gal):
                 print("Galaxy already computed")
                 if _list_of_skippable_gals is not None:
-                    if Gal.name in _list_of_skippable_gals:
+                    if Gal_name in _list_of_skippable_gals:
                         print("Skipping because in skippable list")
                         continue
                 if reload:
@@ -350,22 +352,23 @@ def wrapper_get_all_lens(reload=True,
             while kw_lenspart["projection_index"]<3:
                 mod_LP = None
                 try:
-                    log_memory(f"before GalLens run {Gal.name}")
+                    log_memory(f"before GalLens run {Gal_name}")
                     mod_LP = GalLens(Galaxy=Gal,**kw_lenspart)
                     mod_LP.run(read_prev=reload)
-                    log_memory(f"after GalLens run {Gal.name}")
+                    log_memory(f"after GalLens run {Gal_name}")
                     supercrit = True
                     all_lenses.append(mod_LP)
                     pji = kw_lenspart["projection_index"]
-                    print(f"Projection {pji} of {Gal.name} is supercritical!\n")
+                    print(f"Projection {pji} of {Gal_name} is supercritical!\n")
                     # Plotting density for each individual particle
                     plot_AMR_densityXpart(Gal=mod_LP.Gal,
                                           proj_index=pji,
-                                          savedir=mod_LP.savedir)
+                                          savedir=mod_LP.savedir,
+                                          rerun=not reload)
                     plt.close("all")
                     mod_LP.Gal.slim_down()
 
-                    log_memory(f"after plot_AMR_densityXpart run {Gal.name}")
+                    log_memory(f"after plot_AMR_densityXpart run {Gal_name}")
 
                     if not consider_all_proj:
                         print(f"Considering only the first supercritical solution.\n")
@@ -378,7 +381,7 @@ def wrapper_get_all_lens(reload=True,
                         
                 kw_lenspart["projection_index"]+=1
             if strikes==3:
-                print(f"All projections of Galaxy {Gal.name} are not supercritical")
+                print(f"All projections of Galaxy {Gal_name} are not supercritical")
             print("Next galaxy.")
             if verbose:
                 print("#########\nTime stamp:\n")
@@ -392,7 +395,6 @@ def wrapper_get_all_lens(reload=True,
             print(f'RUNTIME ERROR FOR THIS GALAXY:\n{RE}\nMOVING TO NEXT')
             kw_lenspart["projection_index"] = 0
         finally:
-            Gal_name = Gal.name
             del Gal
             if mod_LP is not None:
                 del mod_LP
