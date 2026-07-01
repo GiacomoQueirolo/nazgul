@@ -43,13 +43,13 @@ n_part_std = 500
 n_burn_std = 1000
 n_run_std  = 10000
 
-def _get_model_res_dir(lens,res_dir):
+def get_model_res_dir(lens,res_dir):
     res_dir = Path(f"{res_dir}/snap_{lens.gallens.Gal.snap}_{lens.name}")
     return res_dir
     
 def get_link_lens_path(lens,res_dir):
     if not hasattr(lens,"model_res_dir"): 
-        lens.model_res_dir = _get_model_res_dir(lens,res_dir=res_dir)
+        lens.model_res_dir = get_model_res_dir(lens,res_dir=res_dir)
     return lens.model_res_dir/"link_gallens.pkl"
 
 workin_on_it = "WOI.dll"
@@ -63,12 +63,12 @@ def is_someone_workin_on_it(dir):
     if not woi_file.is_file():
         return False
     else:
-        return load_whatever(woi_file)
+        return load_whatever(woi_file)["workin_on_it"]
     
 def setup_lens(lens,res_dir,kwargs_source=None,
                _plot=True,check_if_workin_on_it=True,
                verbose=True):
-    lens.model_res_dir = _get_model_res_dir(lens,res_dir=res_dir)
+    lens.model_res_dir = get_model_res_dir(lens,res_dir=res_dir)
     mkdir(lens.model_res_dir)
     # verify that no-one is working on it
     if check_if_workin_on_it:
@@ -102,7 +102,11 @@ def setup_lens(lens,res_dir,kwargs_source=None,
     src = lens.gallens.pkl_path
     dst = get_link_lens_path(lens,res_dir=res_dir)
     if not os.path.islink(dst):
-        os.symlink(src,dst)
+        try:
+            os.symlink(src,dst)
+        except FileExistsError as e:
+            print(f"This error \n{e}\n should not happen, but it's not too important")
+            
     return lens
     
     
@@ -307,11 +311,42 @@ def get_lenses2model(res_dir,reload=True,**kw_get_lenses2model):
         print(f"Saving catalogue of lenses to models {cat_l2m}") 
     return lenses
     
-def save_kw(kw,nm_kw,str_kw_type=""):
-    with open(nm_kw,"wb") as f:
-        dill.dump(kw,f)
-    print(f"Saving {str_kw_type} kw: {nm_kw}")
+def save_data(data,nm_data,str_data_type=""):
+    with open(nm_data,"wb") as f:
+        dill.dump(data,f)
+    print(f"Saving {str_data_type}: {nm_data}")
 
+def load_kwargs_result(res_dir):
+    nm_res = f"{res_dir}/kw_res.dll"   
+    kwargs_result = load_whatever(nm_res)
+    return kwargs_result
+
+def get_model_plot(res_dir,
+                   multi_band_list_out = None,
+                   kw_input= None,
+                   kwargs_result=None):
+    if multi_band_list_out is None:
+        multi_band_list_out = load_mblo(res_dir)
+    if kw_input  is None:
+        kw_input = load_kw_input(res_dir)
+    if kwargs_result is None:
+        kwargs_result = load_kwargs_result(res_dir)
+    kwargs_model      = kw_input["kwargs_model"]
+    kwargs_likelihood = kw_input["kwargs_likelihood"]
+    modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
+                          arrow_size=0.02, cmap_string="gist_heat",
+                          image_likelihood_mask_list=kwargs_likelihood["image_likelihood_mask_list"])
+    return modelPlot
+
+def load_mblo(res_dir):
+    nm_mblo = f"{res_dir}/multi_band_list_out.dll"
+    multi_band_list_out = load_whatever(nm_mblo)
+    return multi_band_list_out
+def load_kw_input(res_dir):
+    nm_input = f"{res_dir}/kw_input.dll"
+    kw_input = load_whatever(nm_input)
+    return kw_input
+    
 def plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likelihood,res_dir,plot_point_sources=False):
     modelPlot = ModelPlot(multi_band_list_out, kwargs_model, kwargs_result, 
                           arrow_size=0.02, cmap_string="gist_heat",
@@ -346,19 +381,7 @@ def plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likeli
     plt.close(f)
     print(f"Saving {nm}")
     
-    kwargs_result_wo_tracer = deepcopy(kwargs_result)
-    keys = copy(list(kwargs_result_wo_tracer.keys()))
-    for k in keys:
-        if "tracer" in str(k):
-            del kwargs_result_wo_tracer[k]
-    ### 
-    logL,_prms   = modelPlot._imageModel.likelihood_data_given_model(source_marg=False, linear_prior=None, **kwargs_result_wo_tracer)
-    
-    n_data = modelPlot._imageModel.num_data_evaluate
-    reduced_chi2  = -logL * 2 / n_data
-    print(f'{np.round(reduced_chi2,2)} reduced X^2 of all evaluated imaging data combined\n')
-    print("################################\n")
-    
+    reduced_chi2 = get_red_chi2(modelPlot=modelPlot,kwargs_result=kwargs_result,verbose=True)    
     #Normalised plot
     f, axes = plt.subplots(figsize=(10,7))
     modelPlot.normalized_residual_plot(ax=axes,v_min=-3, v_max=3,text=r"Norm. Resid $\chi^2_{red.}$="+str(np.round(reduced_chi2,2)))
@@ -385,6 +408,31 @@ def plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likeli
         print(f"Saving {nm}")
         plt.close(f)
 
+def get_kwres_wo_tracer(kwargs_result):
+    keys = copy(list(kwargs_result.keys()))
+    if any([True for k in keys if "tracer" in k]):
+        kwargs_result_wo_tracer = deepcopy(kwargs_result)
+        for k in keys:
+            if "tracer" in str(k):
+                del kwargs_result_wo_tracer[k]
+        return kwargs_result_wo_tracer
+    else:
+        return kwargs_result
+    
+def get_red_chi2(modelPlot,verbose=True):
+    """
+    kwargs_result_wo_tracer = get_kwres_wo_tracer(kwargs_result)
+    ### 
+    logL,_prms   = modelPlot._imageModel.likelihood_data_given_model(source_marg=False, linear_prior=None, **kwargs_result_wo_tracer)
+    
+    n_data = modelPlot._imageModel.num_data_evaluate
+    reduced_chi2  = -logL * 2 / n_data
+    """
+    reduced_chi2 = modelPlot._band_plot_list[0].reduced_x2
+    if verbose:
+        print(f'{np.round(reduced_chi2,2)} reduced X^2 of all evaluated imaging data combined\n')
+        print("################################\n")
+    return reduced_chi2
 
 if __name__=="__main__":
     raise RuntimeError("Do not run this - kept only as a reference")
@@ -461,7 +509,7 @@ if __name__=="__main__":
         
         kwargs_likelihood = get_kwargs_likelihood(lens,image_obs=image_obs)
     
-        kwargs_data_joint = {'multi_band_list': multi_band_list, 'multi_band_type': 'multi-linear'}
+        kwargs_data_joint = {'multi_bakw[nd_list': multi_band_list, 'multi_band_type': 'multi-linear'}
     
         # Params:
         
@@ -492,27 +540,29 @@ if __name__=="__main__":
                     "kw_add_lenses":       kw_add_lenses
                    }
         nm_input = f"{res_dir}/kw_input.dll"
-        save_kw(kw_input,nm_input,"input")
+        save_data(kw_input,nm_input,"input")
         
         chain_list = fitting_seq.fit_sequence(fitting_kwargs_list)
         kwargs_result = fitting_seq.best_fit()
         print("kwargs_result",kwargs_result)
         nm_res = f"{res_dir}/kw_res.dll"
-        save_kw(kwargs_result,nm_res,"result output")
+        save_data(kwargs_result,nm_res,"result output")
         
         
         # we need to extract the updated multi_band_list object since the coordinate shifts were updated in the kwargs_data portions of it
         multi_band_list_out = fitting_seq.multi_band_list
         nm_mblo = f"{res_dir}/multi_band_list_out.dll"
-        save_kw(multi_band_list_out,nm_mblo,"output multiband list")
+        save_data(multi_band_list_out,nm_mblo,"output multiband list")
 
 
         plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likelihood,res_dir=res_dir)
         
         if run_type!=1:
-            sampler_type, mc_sample, param_mcmc, mc_logL  = chain_list[-1]
-            chnl_path = f'{lens.model_res_dir}/chain_list.dll'
-            save_kw(chain_list,chnl_path,"chain list")
+            # don't store pso results
+            emcee = chain_list[-1]
+            sampler_type, mc_sample, param_mcmc, mc_logL   = emcee
+            emcee_path = f'{lens.model_res_dir}/emcee_chain.dll'
+            save_data(emcee,emcee_path,"emcee chain")
 
             corner(mc_sample,labels=param_mcmc,show_titles=True,plot_datapoints=False,hist_kwargs= {"density":True})
             nm = f'{lens.model_res_dir}/mcmc_post.pdf'

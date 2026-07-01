@@ -16,7 +16,7 @@ from nazgul.mount_doom.lens_system import LensSystem
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.Modelling.lib_models import setup_lens,setup_sim_obs,get_kwargs_likelihood,get_lenses2model
 from nazgul.Modelling.lib_models import set_workin_on_it
-from nazgul.Modelling.lib_models import save_kw,plot_model_plot
+from nazgul.Modelling.lib_models import save_data,plot_model_plot
 from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std # default values
 
 lens_model_list   = ['EPL','LOS_MINIMAL']
@@ -213,25 +213,26 @@ if __name__=="__main__":
                     #"kw_add_lenses":       kw_add_lenses
                    }
         nm_input = f"{lens.model_res_dir}/kw_input.dll"
-        save_kw(kw_input,nm_input,"input")
+        save_data(kw_input,nm_input,"input")
         
         chain_list = fitting_seq.fit_sequence(fitting_kwargs_list)
         kwargs_result = fitting_seq.best_fit()
         print("kwargs_result",kwargs_result)
         nm_res = f"{lens.model_res_dir}/kw_res.dll"
-        save_kw(kwargs_result,nm_res,"result output")
+        save_data(kwargs_result,nm_res,"result output")
         
         
         # we need to extract the updated multi_band_list object since the coordinate shifts were updated in the kwargs_data portions of it
         multi_band_list_out = fitting_seq.multi_band_list
         nm_mblo = f"{lens.model_res_dir}/multi_band_list_out.dll"
-        save_kw(multi_band_list_out,nm_mblo,"output multiband list")
+        save_data(multi_band_list_out,nm_mblo,"output multiband list")
         
         plot_model_plot(multi_band_list_out,kwargs_model,kwargs_result,kwargs_likelihood,res_dir=lens.model_res_dir)
-        
-        sampler_type, mc_sample, param_mcmc, mc_logL  = chain_list[-1]
-        chnl_path = f'{lens.model_res_dir}/chain_list.dll'
-        save_kw(chain_list,chnl_path,"chain list")
+        # don't store pso results
+        emcee = chain_list[-1]
+        sampler_type, mc_sample, param_mcmc, mc_logL   = emce
+        emcee_path = f'{lens.model_res_dir}/emcee_chain.dll'
+        save_data(emcee,emcee_path,"emcee chain")
 
         corner(mc_sample,labels=param_mcmc,show_titles=True,plot_datapoints=False,hist_kwargs= {"density":True})
         nm = f'{lens.model_res_dir}/mcmc_post.pdf'
