@@ -23,7 +23,7 @@ res_dir_base      = model_res_base/"simNoShear/"
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(prog=sys.argv[0],description="Plot the observed input to the model")
-    parser.add_argument('-nl','--n_lenses',type=int,dest="n_lenses",default=5,help=f"Number of lenses to model")
+    parser.add_argument('-nl','--n_lenses',type=int,dest="n_lenses",default=np.nan,help=f"Number of lenses to model")
     parser.add_argument('-mtE','--min_thetaE',type=float,dest="min_thetaE",default=None,help=f"Min theta_E for the gal to be considered a lens")
     parser.add_argument('-snap','--snap',nargs="+",type=int,dest="snaps",default=[],help=f"List of snaps to consider - default is all")
     parser.add_argument('-sim','--sim',type=str,dest="sim",default=std_sim,help=f"Simulation name")
@@ -48,7 +48,7 @@ if __name__=="__main__":
     gal_lenses  = get_lenses2model(res_dir=res_dir,
                                    reload=True,
                                    kw_get_all_gallens=kw_get_all_gallens,
-                                   n_lenses=np.nan,
+                                   n_lenses=n_lenses,
                                    min_thetaE=min_thetaE,
                                    skip_lenses=lenses2skip)
 
@@ -64,7 +64,7 @@ if __name__=="__main__":
               "\n####################################################\n")
         lens = LensSystem.from_GalLens(gal_lens)
         try:
-            lens = setup_lens(lens,res_dir=res_dir)
+            lens = setup_lens(lens,res_dir=res_dir,check_if_workin_on_it=False)
         except Exception as e:
             warnings.warn(f"DEBUG\nlens {lens} has failed due to:\n{e}\n")
             err_fail.append({"lens":{lens.name},"error":e})
@@ -72,15 +72,17 @@ if __name__=="__main__":
         """plot_kappamap(lens.gallens.kappa_map, 
                       extent_kpc=lens.gallens.kw_extents["extent_kpc"],
                       savename=f"{lens.model_res_dir}/kappa_gal.png")"""
-        
+
         multi_band_list = setup_sim_obs(lens)
-        image_orig = lens.get_lensed_image(unconvolved=True)
+        Sim = lens.get_Sim() 
+        image_orig = lens.get_lensed_image(Sim=Sim,unconvolved=True)
         image_obs = multi_band_list[0][0]["image_data"]
         mask = get_lens_mask(lens,image_obs,plot_mask=False)
-        limits.append([_limits(np.log10(image_obs))])
+        mask[mask==0] = np.nan
+        limits.append([_limits(np.log10(image_obs*mask))])
         nms_lenses.append(lens.name)
-        obs_images.append(image_orig)
-        sim_images.append(image_obs*mask)
+        obs_images.append(image_obs*mask)
+        sim_images.append(image_orig)
         ext = lens.gallens.kw_extents["extent_arcsec"]
         extents.append(ext)
         del lens
@@ -118,8 +120,8 @@ if __name__=="__main__":
                          extents = extents,
                          limits  = limits,
                          output_pdf = "tmp/all_sim_lenses.pdf",
-                         cmap1 = "hot",
-                         cmap2 = "hot",
+                         cmap1 = "gist_heat",
+                         cmap2 = "gist_heat",
                          log_scale1 = True,
                          log_scale2 = True,
                          label1 = "Simulated images",

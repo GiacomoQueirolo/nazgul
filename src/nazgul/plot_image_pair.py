@@ -24,8 +24,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 def _limits(img):
 
     # copy from lenstronomy/Plots/model_band_plot.py
-    lo = max(np.nanmin(img), -5)+.3
-    hi = min(np.nanmax(img), 10)+.8
+    lo = max(np.nanmin(img), -5)
+    hi = min(np.nanmax(img), 10)
 
     return lo, hi
 
@@ -43,8 +43,8 @@ def plot_image_pairs_pdf(
     label2="Image 2",
     label_cl1 = "flux",
     label_cl2 = "flux",
-    vmin1=None, vmax1=None,
-    vmin2=None, vmax2=None,
+    #vmin1=None, vmax1=None,
+    #vmin2=None, vmax2=None,
     log_scale1=True,
     log_scale2=False,
     limits=None,
@@ -258,6 +258,6 @@ if __name__ == "__main__":
         log_scale2=False,
         cmap1="gist_heat",
         cmap2="bwr",
-        vmin2=-3, vmax2=3,
+        #vmin2=-3, vmax2=3,
         verbose=True,
     )
