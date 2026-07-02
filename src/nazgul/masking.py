@@ -94,29 +94,32 @@ def resize_mask(mask,target_image):
     mask_rescaled[np.where(mask_rescaled<0.5)]  = 0
     return mask_rescaled
     
-def mask_bright_center(lens,image=None,rad=0.15,fwhm=.05):
+def mask_bright_center(lens,image=None,rad_pix=10):
     """
     re-centre the mask around the brightest pixel
     """
     if image is None:
         image = lens.image_sim
-    mask_cent = mask_center(lens,image=image,rad=rad)
+    mask_cent = mask_center(lens,image=image,rad=5*lens.deltaPix)
     # find brightest pixel within the mask
     masked_part = invert_mask(mask_cent)*image
-
+    """
+    # the following is not necessary since we are using the sim image
+    # to define the mask (ie no noise)
+    fwhm = 0.7
     fwhm_pix = to_dimless(fwhm)/to_dimless(lens.deltaPix)
     filt_masked = gaussian_filter(masked_part,sigma=fwhm_pix)
     ymax,xmax   = np.where(filt_masked==np.max(filt_masked))
     # consider the first one
     xmax = xmax[0]
     ymax = ymax[0]
-
+    """
     ymax,xmax   = np.where(masked_part==np.max(masked_part))
     # consider the first one
     xmax = xmax[0]
     ymax = ymax[0]
     # mask around that one
     mask = np.ones_like(image)
-    r_mask_in = to_dimless(rad/lens.deltaPix)     #pixel 
+    r_mask_in = rad_pix# to_dimless(rad/lens.deltaPix)     #pixel 
     mask = mask_in(xmax,ymax,r_mask_in,mask)
     return mask
