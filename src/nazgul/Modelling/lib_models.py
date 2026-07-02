@@ -33,6 +33,9 @@ from nazgul.stat_lenses import get_all_gallens
 from nazgul.lens_part_LOS import get_kw_los
 from nazgul.pathfinder import get_sim_dir,tmp_dir
 
+# WOI cross-machine lock
+from python_tools.tools_WOI import workin_on_it, set_workin_on_it, is_someone_workin_on_it
+
 lens_model_list_def   = ['EPL']
 source_model_list_def = ["SERSIC"]
 model_res_base      = tmp_dir/"models/"
@@ -51,19 +54,6 @@ def get_link_lens_path(lens,res_dir):
     if not hasattr(lens,"model_res_dir"): 
         lens.model_res_dir = get_model_res_dir(lens,res_dir=res_dir)
     return lens.model_res_dir/"link_gallens.pkl"
-
-workin_on_it = "WOI.dll"
-def set_workin_on_it(dir,wrk=True):
-    woi_file = Path(dir)/workin_on_it
-    with open(woi_file,"wb") as f:
-        dill.dump({"workin_on_it":wrk},f)
-    
-def is_someone_workin_on_it(dir):
-    woi_file = Path(dir)/workin_on_it
-    if not woi_file.is_file():
-        return False
-    else:
-        return load_whatever(woi_file)["workin_on_it"]
     
 def setup_lens(lens,res_dir,kwargs_source=None,
                _plot=True,check_if_workin_on_it=True,
@@ -78,7 +68,8 @@ def setup_lens(lens,res_dir,kwargs_source=None,
         set_workin_on_it(lens.model_res_dir,wrk = True)
 
     lens.setup()
-    lens.image_sim = lens.get_lensed_image(kwargs_source=kwargs_source, unconvolved=False)
+    Sim = lens.get_Sim() 
+    lens.image_sim = lens.get_lensed_image(Sim=Sim,kwargs_source=kwargs_source, unconvolved=False)
     
     if verbose:
         print(f"Saving modelling results in {lens.model_res_dir}") 
@@ -110,7 +101,7 @@ def setup_lens(lens,res_dir,kwargs_source=None,
     return lens
     
     
-def setup_sim_obs(lens,band_str="HST_F160W",pssf=3):
+def setup_sim_obs(lens,band_str="HST_F160W",pssf=2):
     if band_str=="HST_F160W":
         band     = HST(band='WFC3_F160W', psf_type="PIXEL")
         # TOOD: bug (?) in lenstronomy, psf_type is not passed to band
@@ -122,15 +113,21 @@ def setup_sim_obs(lens,band_str="HST_F160W",pssf=3):
     # the following contain 9 PSF depending on their position in the CCD
     # we will consider the central position -> i think it should be the second to last (not too important here )
     psf = load_fits(psf_path)[-2]
+    # This PSF is already supersampled by a factor 4
+    # the original PSF area is 25x25 pixel in the native resolution 0.128 "/pix
+    # now in 101x101 pixels in res 0.032 "/pix
+    
     psf = _positivise_psf(psf)
-    # we can supersample it
+    # we can further supersample it
     if pssf!=1:
         psf_ss  = zoom(psf,pssf,order=3)
         psf_ss  = _positivise_psf(psf_ss)
-        kwargs_psf = {"kernel_point_source":psf_ss,
-                      "point_source_supersampling_factor":pssf}
     else:
-        kwargs_psf = {"kernel_point_source":psf}
+        psf_ss  = psf
+    pssf *=4 # original the supersampling factor
+    # we have to rescale the pixel scale of the PSF in "camera"
+    kwargs_psf = {"kernel_point_source":psf_ss,
+                  "point_source_supersampling_factor":pssf}
     
     multi_band_list = lens.sim_multi_band_list(band=band,
                                                kwargs_psf=kwargs_psf)
@@ -149,8 +146,12 @@ def _positivise_psf(psf):
 def get_lens_mask(lens,image_obs,plot_mask=True):
     # masking inner and outer of thetaE -> nope, follow SEAGLE approach
     #image = kwargs_data["image_data"]
-    mask_HD = mask_SEAGLE(lens)*mask_bright_center(lens,rad=lens.gallens.thetaE*.5) #mask_max_dens(lens)
-    mask_LD = resize_mask(mask_HD,image_obs)
+    mask_SE = mask_SEAGLE(lens,image=image_obs) 
+    mask_HD = mask_bright_center(lens)
+    #,rad=lens.gallens.thetaE*.5) #mask_max_dens(lens)
+    mask_LD = resize_mask(mask_HD,image_obs)*mask_SE
+    mask_SE_large = resize_mask(mask_SE,mask_HD)
+    
     if plot_mask:
         plt.close()
         plt.close("all")
@@ -167,8 +168,8 @@ def get_lens_mask(lens,image_obs,plot_mask=True):
         
         ax =axes[0][1]
         ax.set_title("Masked Image")
-        mask_nan = copy(mask_HD)
-        mask_nan[np.where(mask_HD==0)] = np.nan
+        mask_nan = copy(mask_HD*mask_SE_large)
+        mask_nan[np.where(mask_nan==0)] = np.nan
         im0 = ax.imshow(np.log10(mask_nan*lens.image_sim),**kw_plot)
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size='5%', pad=0.05)
