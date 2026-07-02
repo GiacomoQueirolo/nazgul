@@ -190,7 +190,7 @@ class LensSystem(BasicGal):
         if verbose:
             print("Image radius:",np.round(self.radius,3))        
         # setup dataclasses (dataclass,psf_class,sourcemodel and some helper kwargs):
-        self.setup_dataclasses(Sim=Sim,kwargs_source=kwargs_source, verbose=verbose)
+        self.setup_dataclasses(Sim=Sim, verbose=verbose)
         # setup lenses 
         self.setup_lenses(kwargs_add_lenses=kwargs_add_lenses,
                         verbose=verbose)        
@@ -514,7 +514,7 @@ class LensSystem(BasicGal):
         self.kwargs_source["center_y"] = dec_source
         return 0
         
-    def sample_source_pos(self,update=False,_radec=None,rnd_seed=None):
+    def sample_source_pos(self,update=False,_radec=None,rnd_seed=None,recompute=False):
         """Sample the source position within the tangential
         critical caustic
         """
@@ -527,66 +527,20 @@ class LensSystem(BasicGal):
         # fixing seed for reproducibility            
         print(f"Fixing seed to {rnd_seed}")
         np.random.seed(rnd_seed)
-        
-        kw_caustics  = self.get_kw_critical_curve_caustics(_radec=_radec)
-        ra_ct,dec_ct = kw_caustics["caustics"]["tangential"]
-        ra_cr,dec_cr = kw_caustics["caustics"]["radial"]
-        # We compute the convex hull defined by the tangential caustic
-        # sample uniformily from max to min, and accept only if
-        # within the convex hull
-        # not exact but fairly precise nonetheless
-        if kw_caustics["tan_smooth"]:
-            hull_tan  = Delaunay(np.array([ra_ct,dec_ct]).T)
-            def accept_tan(x0,y0):
-                return hull_tan.find_simplex([x0,y0])!=-1
-        else:
-            r0ct,d0ct = np.mean(ra_ct),np.mean(dec_ct)
-            r0st,d0st = np.std(ra_ct),np.std(dec_ct)
-            sigt = np.hypot(r0st,d0st)
-            def accept_tan(x0,y0):
-                # within 1 sigma from the center
-                return np.hypot(x0-r0ct,y0-d0ct) < sigt
-                
-        if kw_caustics["rad_smooth"]:
-            hull_rad  = Delaunay(np.array([ra_cr,dec_cr]).T)
-            def accept_rad(x0,y0):
-                return hull_rad.find_simplex([x_cnd,y_cnd])!=-1
-        else:
-            r0cr,d0cr = np.mean(ra_cr),np.mean(dec_cr)
-            r0sr,d0sr = np.std(ra_cr),np.std(dec_cr)
-            sigr = np.hypot(r0sr,d0sr)
-            def accept_rad(x0,y0):
-                # within 1 sigma from the center
-                return np.hypot(x0-r0cr,y0-d0cr) < sigr
-                
-        x_bounds = np.array([np.min([ra_ct.min(),ra_cr.min()]),
-                             np.max([ra_ct.max(),ra_cr.max()]) 
-                            ])
-        y_bounds = np.array([np.min([dec_ct.min(),dec_cr.min()]),
-                             np.max([dec_ct.max(),dec_cr.max()])
-                            ])
-
-        ra_source,dec_source = None,None
-        for i in range(1000):
-            # sample within range
-            x_cnd = np.random.uniform(*x_bounds)
-            y_cnd = np.random.uniform(*y_bounds)
+        res_path = self.savedir/"kw_sampled_source_pos.dll"
+        try:
+            assert not recompute
+            kw_sampled_source_pos = load_whatever(res_path)
+            print("Loaded pre-computed source position")
+            ra_source = kw_sampled_source_pos["ra_source"]
+            dec_source = kw_sampled_source_pos["dec_source"]
+        except:
+            ra_source,dec_source = _sample_source_pos(self,_radec=_radec)
+            kw_sampled_source_pos = {"ra_source":ra_source,"dec_source":dec_source}
+            with open(res_path,"wb") as f:
+                dill.dump(kw_sampled_source_pos,f)
+            print("Stored computed source position")
             
-            # accept if inside the hull (if smooth) or 
-            # within a sigma of the mean if not smooth
-            if accept_rad(x_cnd,y_cnd) and accept_tan(x_cnd,y_cnd):
-                ra_source,dec_source = x_cnd,y_cnd
-                break
-        if ra_source is None:
-            print(x_bounds)
-            print(y_bounds)
-            plt.close()
-            plt.scatter(ra_cr,dec_cr,marker=".",label="radial",color="b")
-            plt.scatter(ra_ct,dec_ct,marker=".",label="tang.",color="r")
-            plt.legend()
-            plt.savefig("tmp/tmp.png")
-            plt.close()
-            raise RuntimeError("Failed to sample a source position")
         if self.kwargs_source["center_x"]==0 and self.kwargs_source["center_x"]==0 and not update:
             print("Source position has to be sampled a first time")
             update=True
@@ -616,17 +570,19 @@ class LensSystem(BasicGal):
         return x_source_plane,y_source_plane
         
     def get_lensed_image(self,
-                         Sim=None,
+                         Sim,
                          kwargs_source=None,
                          _radec=None, # 
                          unconvolved=True):
-        
-        imageNumerics,sourceModel = self.get_imageNumerics(Sim=Sim,kwargs_source=kwargs_source,return_sourceModel=True)
-        kwargs_source = imageNumerics.kwargs_source
+        imageNumerics,sourceModel = self.get_imageNumerics(Sim=Sim,return_sourceModel=True)
         alpha_map = self.alpha_map(_radec=_radec)
         x_source_plane,y_source_plane = self.get_xy_source_plane(alpha_map=alpha_map)
+        if kwargs_source is None:
+            #note: the following should be the standard use
+            kwargs_source = self.kwargs_source
         kwargs_source_list            = [kwargs_source]
-        source_light                  = sourceModel.surface_brightness(x_source_plane, y_source_plane, kwargs_source_list, k=None)
+        source_light                  = sourceModel.surface_brightness(x_source_plane, y_source_plane, 
+                                                                       kwargs_source_list, k=None)
         # the following is to compare the Sim to the "native" resolution of the gallens image
         sim_deltapix                  = imageNumerics.grid_class.pixel_width
         if not np.abs(sim_deltapix-to_dimless(self.gallens.deltaPix))<1e-10:
@@ -642,25 +598,11 @@ class LensSystem(BasicGal):
 
     # Simulating observations
     #########################
-    
-    def get_imageNumerics(self,Sim=None,return_sourceModel=False,kwargs_source=None):    
-        if Sim is None:
-            Sim = self.get_Sim()
-            if not hasattr(self,"data_class"):
-                self.setup_dataclasses(Sim=Sim,kwargs_source=kwargs_source)
-            data_class      = self.data_class
-            psf_class       = self.psf_class
-            sourceModel     = self.source_model_class 
-            kwargs_source   = self.kwargs_source
-            kwargs_numerics = self.kwargs_numerics     
-        else:
-            data_class,psf_class,sourceModel,kwargs_numerics,kwargs_source = cod.get_dataclasses(Sim,kwargs_source=kwargs_source)
+    def get_imageNumerics(self,Sim,return_sourceModel=False):    
+        data_class,psf_class,sourceModel,kwargs_numerics,_ = cod.get_dataclasses(Sim)
         imageNumerics = self._get_imageNumerics(data_class=data_class,
                                                 psf_class=psf_class,
                                                 kwargs_numerics=kwargs_numerics)
-                                                
-        # add this for convenience:
-        imageNumerics.kwargs_source = kwargs_source
         if return_sourceModel:
             return imageNumerics,sourceModel
         return imageNumerics
@@ -705,11 +647,12 @@ class LensSystem(BasicGal):
                 )
         return Sim
 
-    def sim_image(self,SimObs,noisy=False):
+    def sim_image(self,SimObs,kwargs_source=None,noisy=False):
         """Obtain simulated images given SimObs
         """
         image_SimObs     = self.get_lensed_image(Sim=SimObs,
-                                             unconvolved=False)
+                                                 kwargs_source=kwargs_source,
+                                                 unconvolved=False)
         if noisy:
             image_SimObsnoisy  = image_SimObs + SimObs.noise_for_model(model=image_SimObs)
             error_SimObs       = SimObs.estimate_noise(image_SimObsnoisy) # NOT variance
@@ -783,3 +726,74 @@ def get0_index(map,pixel_num):
             iy,ix = np.where(cod.MAD_mask(np.abs(map),0,tv)) 
     # not the inverted order
     return ix,iy
+
+def _sample_source_pos(lens,_radec=None):
+    """
+    Sample the source position within the tangential and radial caustics
+    Note: we could restrict to within only tang. 
+    """
+    kw_caustics  = lens.get_kw_critical_curve_caustics(_radec=_radec)
+    ra_ct,dec_ct = kw_caustics["caustics"]["tangential"]
+    ra_cr,dec_cr = kw_caustics["caustics"]["radial"]
+    # We compute the convex hull defined by the tangential caustic
+    # sample uniformily from max to min, and accept only if
+    # within the convex hull
+    # not exact but fairly precise nonetheless
+    if kw_caustics["tan_smooth"]:
+        hull_tan  = Delaunay(np.array([ra_ct,dec_ct]).T)
+        def accept_tan(x0,y0):
+            return hull_tan.find_simplex([x0,y0])!=-1
+    else:
+        r0ct,d0ct = np.mean(ra_ct),np.mean(dec_ct)
+        r0st,d0st = np.std(ra_ct),np.std(dec_ct)
+        sigt = np.hypot(r0st,d0st)
+        def accept_tan(x0,y0):
+            # within 1 sigma from the center
+            return np.hypot(x0-r0ct,y0-d0ct) < sigt
+
+    
+    if kw_caustics["rad_smooth"]:
+        hull_rad  = Delaunay(np.array([ra_cr,dec_cr]).T)
+        def accept_rad(x0,y0):
+            return hull_rad.find_simplex([x_cnd,y_cnd])!=-1
+    else:
+        r0cr,d0cr = np.mean(ra_cr),np.mean(dec_cr)
+        r0sr,d0sr = np.std(ra_cr),np.std(dec_cr)
+        sigr = np.hypot(r0sr,d0sr)
+        def accept_rad(x0,y0):
+            # within 1 sigma from the center
+            return np.hypot(x0-r0cr,y0-d0cr) < sigr
+    
+    x_bounds = np.array([np.min([ra_ct.min(),ra_cr.min()]),
+                         np.max([ra_ct.max(),ra_cr.max()]) 
+                        ])
+    y_bounds = np.array([np.min([dec_ct.min(),dec_cr.min()]),
+                         np.max([dec_ct.max(),dec_cr.max()])
+                        ])
+    
+    #x_bounds = np.array([ra_ct.min(),ra_ct.max()])
+    #y_bounds = np.array([dec_ct.min(),dec_ct.max()])
+    
+    ra_source,dec_source = None,None
+    for i in range(1000):
+        # sample within range
+        x_cnd = np.random.uniform(*x_bounds)
+        y_cnd = np.random.uniform(*y_bounds)
+        
+        # accept if inside the hull (if smooth) or 
+        # within a sigma of the mean if not smooth
+        if accept_rad(x_cnd,y_cnd) and accept_tan(x_cnd,y_cnd):
+            ra_source,dec_source = x_cnd,y_cnd
+            break
+    if ra_source is None:
+        print(x_bounds)
+        print(y_bounds)
+        plt.close()
+        #ra_cr,dec_cr = kw_caustics["caustics"]["radial"]
+        plt.scatter(ra_cr,dec_cr,marker=".",label="radial",color="b")
+        plt.scatter(ra_ct,dec_ct,marker=".",label="tang.",color="r")
+        plt.legend()
+        plt.savefig("tmp/radec_ct_cr_debug.png")
+        plt.close()
+        raise RuntimeError("Failed to sample a source position")
+    return ra_source,dec_source
