@@ -3,6 +3,7 @@ Project the particles along different axis and verify if that produces a supercr
 a maximum source redshift and a minimum Einstein angle
 Uses Adaptime Mesh Refinement for the estimation of the density map
 """
+import gc
 import dill
 import warnings
 import numpy as np
@@ -166,7 +167,6 @@ def project_Gal(GalProj,z_source_max,sample_z_source,min_thetaE,
             if verbose:
                 print("Failed to load because "+str(e))
                 print("Recomputing projection ...")
-                kw_proj_res = {} 
             pass
     # else compute it
     if arcXkpc is None:
@@ -234,13 +234,12 @@ Rerun trying different projection")
         kw_thetaE = {"thetaE":thetaE} 
                     
         kw_proj_res  = kw_proj|kw_2Ddens|kw_z_min|kw_thetaE
-
         proj_supercrit = True
     # explicitely free memory
     del kw_2Ddens
     del kw_z_min
-    
-    kw_proj_res["principal_axes_2D"] =principal_axes_2D
+    gc.collect()
+    kw_proj_res["principal_axes_2D"] = principal_axes_2D
     
     with open(GalProj.projection_path,"wb") as f:
         dill.dump(kw_proj_res,f)
@@ -369,9 +368,9 @@ def create_verify_lens_fnc(interpSigEncArc2):
         if "interp" not in _cache:
             from scipy.interpolate import interp1d
             _cache["interp"] =  interp1d(x_data, y_data, kind=kind)
-        def rec_interpSigEncArc2(thetaE):
-            thetaE = ensure_unit(thetaE,u.arcsec)
-            return  _cache["interp"](thetaE)*Sigma_encl_arc_unit
+        def rec_interpSigEncArc2(theta):
+            theta = ensure_unit(theta,u.arcsec)
+            return  _cache["interp"](theta)*Sigma_encl_arc_unit
         z_lens  = gal_class.z 
         cosmo   = gal_class.cosmo 
         arcXkpc = cosmo.arcsec_per_kpc_proper(z_lens)
@@ -379,7 +378,7 @@ def create_verify_lens_fnc(interpSigEncArc2):
             min_thetaE = gal_class.min_thetaE
         min_thetaE = ensure_unit(min_thetaE,u.arcsec)
         if z_source_max is None:
-            z_source_max = gallens_class.z_source_max
+            z_source_max = gal_class.z_source_max
             
         minSigEncArc2  = rec_interpSigEncArc2(min_thetaE)
         minSigEnc      = minSigEncArc2*(arcXkpc**2)
