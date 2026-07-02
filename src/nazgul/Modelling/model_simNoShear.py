@@ -15,9 +15,11 @@ from nazgul.mount_doom.lens_system import LensSystem
 
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.Modelling.lib_models import setup_lens,setup_sim_obs,get_kwargs_likelihood,get_lenses2model
-from nazgul.Modelling.lib_models import set_workin_on_it
 from nazgul.Modelling.lib_models import save_data,plot_model_plot
 from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std # default values
+
+# WOI cross-machine lock
+from python_tools.tools_WOI import set_workin_on_it
 
 lens_model_list   = ['EPL','LOS_MINIMAL']
 source_model_list = ["SERSIC"]
