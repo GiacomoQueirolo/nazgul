@@ -23,11 +23,12 @@ from lenstronomy.Util.param_util import shear_polar2cartesian,ellipticity2phi_q
 
 from python_tools.tools import short_SciNot
 from python_tools.get_res import load_whatever
+from python_tools.tools_WOI import is_someone_workin_on_it
 
 from nazgul.lens_part_LOS import get_kw_los
 from nazgul.mount_doom.cracks_of_doom import LoadLens
-# debugging memory leak tools (wip - placeholder position)
-from nazgul.memory_leak_tools import log_memory,log_top_allocs
+# debugging memory leak tools 
+from python_tools.memory_leak_tools import log_memory,log_top_allocs
 from nazgul.Modelling.lib_models import get_red_chi2,get_model_plot
 
 matplotlib.use('Agg') 
@@ -107,6 +108,12 @@ def get_all_lens_model_paths(res_dir,snaps=[]):
             for pth in glob(f"{res_dir}/snap_{s}_*/kw_res.*"):
                 pth_modlenses_res.append(pth)
     pth_modlenses     = [Path(pth).parent for pth in pth_modlenses_res]
+    if pth_modlenses==[]:
+        raise RuntimeError(f"No modelled lenses found in {res_dir}")
+    flag = np.invert([is_someone_workin_on_it(i) for i in pth_modlenses])
+    if np.any(flag):
+        pth_modlenses = np.array(pth_modlenses)[flag]
+        pth_modlenses = pth_modlenses.tolist()
     return pth_modlenses
     
 
@@ -198,9 +205,9 @@ def plot_los_outVsin(lenses,_rnd=3):
         nm_input = f"{lens.model_res_dir}/kw_input.dll"            
         kw_input = load_whatever(nm_input)
 
-        chnl_path = f'{lens.model_res_dir}/chain_list.dll'
-        chain_list = load_whatever(chnl_path)
-        sampler_type, mc_sample, param_mcmc, mc_logL  = chain_list[-1]
+        chnl_path = f'{lens.model_res_dir}/emcee_chain.dll'
+        emcee_chain = load_whatever(chnl_path)
+        sampler_type, mc_sample, param_mcmc, mc_logL  = emcee_chain
         mc_sample  = np.array(mc_sample)
         param_mcmc = np.array(param_mcmc)
         i_gamma_los1 = np.where(param_mcmc=="gamma1_los_lens1")
@@ -394,16 +401,16 @@ def plot_los_outVsin_const(axes,g_los1_in,g_los2_in,
     return axes
 
 def get_full_chain(lens,model):
-    chnl_path = f'{lens.model_res_dir}/chain_list.dll'
-    chain_list = load_whatever(chnl_path)
-    sampler_type, mc_sample, param_mcmc, mc_logL  = chain_list[-1]
+    chnl_path = f'{lens.model_res_dir}/emcee_chain.dll'
+    emcee_chain = load_whatever(chnl_path)
+    sampler_type, mc_sample, param_mcmc, mc_logL  = emcee_chain
     param_mcmc = np.array(param_mcmc)
     if model == "noLOS":
         mc_sample,param_mcmc = _convert_shear2LOS(mc_sample,param_mcmc)
     elif model=="noLOS_g12":
         mc_sample,param_mcmc = _convert_polarshear2LOS(mc_sample,param_mcmc)
     full_chain = pd.DataFrame( np.array(mc_sample) , columns=param_mcmc)
-    del mc_sample,chain_list
+    del mc_sample,emcee_chain
     return full_chain
 
 def load_kw_data(model,lens):
