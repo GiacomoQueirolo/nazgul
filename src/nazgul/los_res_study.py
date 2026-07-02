@@ -8,10 +8,11 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from python_tools.get_res import load_whatever
+from python_tools.tools_WOI import is_someone_workin_on_it
 
 from nazgul.mount_doom.lens_system import LensSystem
 from nazgul.combined_modelling_results import get_full_chain
-from Modelling.lib_models import model_res_base,save_data,get_model_res_dir,get_model_plot,get_red_chi2
+from Modelling.lib_models import model_res_base,save_data,get_model_res_dir,get_red_chi2
 from Modelling.lib_models import load_kwargs_result,load_mblo,load_kw_input,get_model_plot
 
 def get_g1g2_from_lens(lens,full_chain):
@@ -38,6 +39,9 @@ def _get_g1g2(path_lenses,lenses2ignore=[]):
                 continue
         else:
             model_res_dir = Path(path)
+            if is_someone_workin_on_it(model_res_dir):
+                # Still under work - results not updated
+                continue
             gallens = load_whatever(model_res_dir/"link_gallens.pkl")
             gallens.unpack()
             lens    = LensSystem.from_GalLens(gallens)
@@ -113,7 +117,7 @@ if __name__=="__main__":
 
     ax_g1g2.set_title(r"Scatter of $\gamma_{\rm{LOS}}$ components for "+str(model_name) )  
     nm_g1g2_fig = res_dir/"g1g2_scatter.png"
-    plt.legend()
+    fig_g1g2.legend()
     fig_g1g2.savefig(nm_g1g2_fig)
     print(f"Saving {nm_g1g2_fig}")
     plt.close(fig_g1g2)
