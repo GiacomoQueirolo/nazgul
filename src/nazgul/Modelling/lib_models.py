@@ -295,23 +295,28 @@ def _get_lenses2model(kw_get_all_gallens={"snaps":[27]},n_lenses=None,min_thetaE
 def get_lenses2model(res_dir,reload=True,**kw_get_lenses2model):
     cat_l2m = Path(res_dir)/"cat_lens2model.dll"
     update_cat  = True
+    recompute   = False
     if cat_l2m.is_file():
         if reload:
             print(f"Loading previously computed catalogue of lenses to models {cat_l2m}") 
             kw_cat_lens = load_whatever(cat_l2m)
             if not kw_cat_lens["kw_require"] == kw_get_lenses2model:
-                print(f"Catalogue {cat_l2m} exists, but doen't have the same requierements. Ignored and updated")
-                update_cat = True
-                lenses = _get_lenses2model(**kw_get_lenses2model)
+                print(f"Catalogue {cat_l2m} exists, but doen't have the same requirements. Ignored and updated")
+                recompute  = True
             else:
                 update_cat = False
+                recompute  = False
                 cat_lens = kw_cat_lens["lens_cat"]
                 lenses_2unpack = [load_whatever(l) for l in cat_lens]
                 lenses = [l.unpack() for l in lenses_2unpack]
         else:
-            print(f"Catalogue {cat_l2m} exists, but ignored")
+            print(f"Catalogue {cat_l2m} exists, but ignored - recomputing it and updating it")
+            recompute = True
     else:
         print(f"Catalogue {cat_l2m} doesn't exists - creating it now")
+        recompute = True
+
+    if recompute:
         update_cat = True
         lenses = _get_lenses2model(**kw_get_lenses2model)
         
