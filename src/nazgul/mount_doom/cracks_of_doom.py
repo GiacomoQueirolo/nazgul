@@ -117,15 +117,58 @@ def get_dataclasses(Sim,kwargs_source=None):
 ##########################
 # Model class for parts. #
 ##########################
-# kwargs of ultra-performing band for default simulated images -> quite arbitrary, possibly to improve
+# kwargs of ultra-performing band for default simulated images -> quite arbitrary, possibly to improve 
 kwargs_band_sim = {'read_noise': 0, # no RN noise
  'pixel_scale': None,               # to update depending on the lens
  'ccd_gain': 2.5,             # standard gain for HST
- 'exposure_time': 5400.0,     # standard exp time for HST
+ 'exposure_time': 5400.0,     # very long exp time for HST
  'sky_brightness': 35,        #"dark" sky
  'magnitude_zero_point': 30,  # very deep 
- 'num_exposures': 1,          # standard HST n exp.
+ 'num_exposures': 4,          # standard HST n exp.
  'psf_type': 'NONE'}          # "infinite" psf resolution 
+
+######################################
+# kwargs_of realistic HST observations used to simulate the "observed" images 
+kwargs_band_HST_camera = {
+    'read_noise': 2,                      # Readout noise
+    'pixel_scale':0.065,                  # F160W after drizzling (could also do 0.08 to be more conservative
+    'ccd_gain': 2.35,                     # averaged over the 4 amplifier (does it matter?)
+}
+# inspired by F160W taken from idgc07c[nlpq]q_flt.fits 
+sky_count      = 0.11 # after drizzling, clip outliers and take median
+exp_time_1exp  = 550 # ~average over 4 exposures
+# taken from https://www.stsci.edu/hst/instrumentation/wfc3/data-analysis/photometric-calibration/ir-photometric-calibration
+# the following ZP computation is also correct, returns 25.937 and the error is 0.008 so it's consistent
+# PHOTFLAM is the inverse sensitivity at the infinite aperture, taken from
+#PHOTFLAM_f160w = 1.9429e-20 
+#PHOTPLAM_f160w = 15369.18
+#ZP_AB_f160w = -2.5*np.log10(PHOTFLAM_f160w) - 21.1 - 5*np.log10(PHOTPLAM_f160w) + 18.6921
+ZP_AB_f160w    = 25.941 
+
+sky_brightness = -np.log10(sky_count*exp_time_1exp) * 2.5 + ZP_AB_f160w
+kwargs_band_HST_obs = {
+    'sky_brightness':sky_brightness,      # ~21.5 mag
+    'exposure_time':exp_time_1exp,        # average time for 1 exposure
+    'magnitude_zero_point':ZP_AB_f160w,   # ~25.9 mag
+    'num_exposures': 4,                   # stnd n* of exposures
+    'psf_type':'PIXEL'                    # kernel to be provided later on
+}
+class band_HST():
+    """
+    Inspired by class HST in lenstronomy.SimulationAPI.ObservationConfig.py 
+    """
+    def __init__(self,
+                 kwargs_camera = kwargs_band_HST_camera,
+                 kwargs_obs    = kwargs_band_HST_obs):
+        self.camera = kwargs_camera
+        self.obs = kwargs_obs
+    def kwargs_single_band(self):
+        """
+        :return: merged kwargs from camera and obs dicts
+        """
+        kwargs = util.merge_dicts(self.camera, self.obs)
+        return kwargs
+######################################
 kw_prior_z_source_minimal = {"z_source_max":conf.z_source_max}
 kw_prior_z_source_stnd    = kw_prior_z_source_zl|kw_prior_z_source_minimal
                 
