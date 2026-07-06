@@ -20,7 +20,7 @@ def masking_thetaE(lens):
     return mask
 
 
-def mask_SEAGLE(lens,image=None,threshold_scale=3,fwhm=.05,sig_clip=3):
+def mask_SEAGLE(lens,image=None,threshold_scale=5,fwhm=.1,sig_clip=3.5):
     """Mask the image following SEAGLE approach:
         SEAGLE_I, Section 3.5:
         "convolving the noisy lensed images with a
