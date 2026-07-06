@@ -160,12 +160,12 @@ def plot_image_pairs_pdf(
  
                 img1 = _prep_img(images1[idx], log_scale1)
                 img2 = _prep_img(images2[idx], log_scale2)
-                if limits is not None:
+                if limits is None:
                     lo1, hi1 = _limits(img1)
-                    #lo2, hi2 = _limits(img2, vmin2, vmax2)
+                    lo2, hi2 = _limits(img2)
                 else:
                     lo1,hi1 = limits[idx]
-                lo2,hi2 = lo1,hi1
+                    lo2,hi2 = lo1,hi1
                 
                 # name label
                 ax_nm = fig.add_subplot(gs[gs_row, base_col])

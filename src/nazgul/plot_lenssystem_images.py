@@ -79,14 +79,15 @@ if __name__=="__main__":
         image_obs = multi_band_list[0][0]["image_data"]
         mask = get_lens_mask(lens,image_obs,plot_mask=False)
         mask[mask==0] = np.nan
-        limits.append([_limits(np.log10(image_obs*mask))])
         nms_lenses.append(lens.name)
-        obs_images.append(image_obs*mask)
         sim_images.append(image_orig)
+        obs_images.append(image_obs*mask)
+        limits.append(_limits(np.log10(np.where(image_obs > 0, image_obs, np.nan))))
         ext = lens.gallens.kw_extents["extent_arcsec"]
         extents.append(ext)
         del lens
         gc.collect()
+        
         """
         fig,axis = plt.subplots(1,1)
         ax = axis[0]
