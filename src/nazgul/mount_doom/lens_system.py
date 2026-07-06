@@ -14,7 +14,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.ndimage import zoom
 from scipy.spatial import Delaunay
 from scipy.ndimage import gaussian_filter
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline,griddata
 
 from astropy.stats import sigma_clip
 
@@ -343,7 +343,7 @@ class LensSystem(BasicGal):
     def shear_map(self,_radec=None):
         return self.get_kw_shear(_radec=_radec)["shear"]
 
-    # Caustics 
+    # Caustics
     ##########
     
     def get_kw_critical_curve_caustics(self,
@@ -575,24 +575,30 @@ class LensSystem(BasicGal):
                          _radec=None, # 
                          unconvolved=True):
         imageNumerics,sourceModel = self.get_imageNumerics(Sim=Sim,return_sourceModel=True)
-        alpha_map = self.alpha_map(_radec=_radec)
-        x_source_plane,y_source_plane = self.get_xy_source_plane(alpha_map=alpha_map)
+        alpha_map_HR = self.alpha_map(_radec=_radec)
+        # Downsample alpha_map to the imagenumerics grid resolution by interpolation
+        coord = _radec
+        if coord is None:
+            coord = self.gallens._radec
+        # the following are "flat" coordinates
+        coord_out   = imageNumerics.coordinates_evaluate
+        alpha_map_x = interpolate_map(map=alpha_map_HR[0],coord=coord,coord_out=coord_out)
+        alpha_map_y = interpolate_map(map=alpha_map_HR[1],coord=coord,coord_out=coord_out)
+        alpha_map   = alpha_map_x,alpha_map_y
+        x_source_plane,y_source_plane = self.get_xy_source_plane(_radec=coord_out,alpha_map=alpha_map)
+        
         if kwargs_source is None:
             #note: the following should be the standard use
             kwargs_source = self.kwargs_source
         kwargs_source_list            = [kwargs_source]
+        # note: following is in flux/arcsec^2 -> has to be converted into flux/pix eventually
         source_light                  = sourceModel.surface_brightness(x_source_plane, y_source_plane, 
                                                                        kwargs_source_list, k=None)
         # the following is to compare the Sim to the "native" resolution of the gallens image
-        sim_deltapix                  = imageNumerics.grid_class.pixel_width
-        if not np.abs(sim_deltapix-to_dimless(self.gallens.deltaPix))<1e-10:
-            if sim_deltapix<to_dimless(self.gallens.deltaPix):
-                raise RuntimeError("Simulated observatory cannot have higher resolution than baseline simulation") 
-            # different pixel scale (due to different simulated observatory)
-            source_light_im        = array2image(source_light)
-            pixel_num_aim          = imageNumerics.grid_class.num_grid_points_axes[0]
-            source_light_downgrade = zoom(source_light_im,pixel_num_aim/self.gallens.pixel_num)
-            source_light           = image2array(source_light_downgrade)
+        sim_deltapix  = imageNumerics.grid_class.pixel_width
+        gal_deltapix  = to_dimless(self.gallens.deltaPix)
+        if sim_deltapix+1e15<gal_deltapix:
+            raise RuntimeError("Simulated observatory can not have higher resolution than baseline simulation") 
         image_sim = imageNumerics.re_size_convolve(source_light, unconvolved=unconvolved)
         return image_sim
 
@@ -600,17 +606,11 @@ class LensSystem(BasicGal):
     #########################
     def get_imageNumerics(self,Sim,return_sourceModel=False):    
         data_class,psf_class,sourceModel,kwargs_numerics,_ = cod.get_dataclasses(Sim)
-        imageNumerics = self._get_imageNumerics(data_class=data_class,
-                                                psf_class=psf_class,
-                                                kwargs_numerics=kwargs_numerics)
-        if return_sourceModel:
-            return imageNumerics,sourceModel
-        return imageNumerics
-                                        
-    def _get_imageNumerics(self,data_class,psf_class,kwargs_numerics):
         imageNumerics = NumericsSubFrame(pixel_grid=data_class,
                                          psf=psf_class, 
-                            **kwargs_numerics)
+                                         **kwargs_numerics)
+        if return_sourceModel:
+            return imageNumerics,sourceModel
         return imageNumerics
  
     
@@ -627,8 +627,10 @@ class LensSystem(BasicGal):
         if band is None:
             # This is the resolution of the simulation itself
             kwargs_single_band = self.kwargs_band_sim
-            kwargs_single_band["pixel_scale"] = to_dimless(self.gallens.deltaPix)
+            kwargs_single_band["pixel_scale"] = to_dimless(self.gallens.deltaPix)            
+            # keep the pixel number as high as the simulation
             pixel_num = self.gallens.pixel_num
+            # assumes the PSF is either NONE (default) or already defined
         else:
             kwargs_single_band = band.kwargs_single_band()
             if kwargs_psf is not None:
@@ -797,3 +799,10 @@ def _sample_source_pos(lens,_radec=None):
         plt.close()
         raise RuntimeError("Failed to sample a source position")
     return ra_source,dec_source
+
+def interpolate_map(map,coord,coord_out):
+    map_flat = image2array(map)
+    map_out = griddata(coord,map_flat,coord_out)
+    if len(np.shape(coord_out))==2:
+        map_out = array2image(map_out)
+    return map_out
