@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 from astropy.stats import sigma_clip
 from scipy.ndimage import zoom,gaussian_filter
@@ -5,7 +6,9 @@ from scipy.ndimage import zoom,gaussian_filter
 from python_tools.tools import to_dimless
 from python_tools.image_manipulation import mask_in, mask_out
 
+
 def masking_thetaE(lens):
+    raise RuntimeError("Deprecated")
     # we want to mask everything apart the thetaE 
     tE  = to_dimless(lens.thetaE) #arcsec
     # rad = 2thetaE
@@ -20,7 +23,7 @@ def masking_thetaE(lens):
     return mask
 
 
-def mask_SEAGLE(lens,image=None,threshold_scale=5,fwhm=.1,sig_clip=3.5):
+def mask_SEAGLE(lens,image=None,fwhm=.1,sig_clip=3.5,min_perc_not_masked=.55):
     """Mask the image following SEAGLE approach:
         SEAGLE_I, Section 3.5:
         "convolving the noisy lensed images with a
@@ -29,6 +32,8 @@ def mask_SEAGLE(lens,image=None,threshold_scale=5,fwhm=.1,sig_clip=3.5):
         set a surface brightness threshold for the mask being a fac-
         tor of typically 2.5–5 below the original noise. Pixels above
         the threshold are set to one and all others to zero."
+        We don't define the threshold, but the minimum percentage of unmasked
+        pixels, min_perc_not_masked, and loop over a range of reasonable thresholds
     """
     if image is None:
         image = lens.image_sim
@@ -37,10 +42,21 @@ def mask_SEAGLE(lens,image=None,threshold_scale=5,fwhm=.1,sig_clip=3.5):
     # compute the threshold from the noise
     sgc = sigma_clip(image,sigma=sig_clip)        
     msk_sky = np.invert(sgc.mask)
-    threshold = threshold_scale*np.median(msk_sky*image)
+    # optimise the noise threshold
+    Npix = np.shape(image)[0]*np.shape(image)[1]
+    for threshold_scale in np.linspace(5,1,30):
+        threshold = threshold_scale*np.median(msk_sky*image)
     
-    mask     = np.ones_like(image)
-    mask[np.where(filt_img<threshold)] = 0
+        mask     = np.ones_like(image)
+        mask[np.where(filt_img<threshold)] = 0
+    
+        perc_not_masked = np.sum(mask)/Npix
+        if perc_not_masked>min_perc_not_masked:
+            break
+    if perc_not_masked==0:
+        raise RuntimeError("mask_SEAGLE: Masking everything")
+    elif perc_not_masked==1:
+        warnings.warn("mask_SEAGLE: Masking nothing")
     return mask
 
 def mask_max_dens(lens,image=None,rad=0.15):
