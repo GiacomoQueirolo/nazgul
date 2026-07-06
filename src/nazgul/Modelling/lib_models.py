@@ -24,7 +24,7 @@ from python_tools.get_res import load_whatever
 from nazgul.plot_PL import plot_all
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
-from nazgul.mount_doom.cracks_of_doom import LoadLens,get_extents
+from nazgul.mount_doom.cracks_of_doom import LoadLens,get_extents,band_HST
 from nazgul.mount_doom.lens_system import LensSystem
 from nazgul.plot_PL import plot_kappamap
 from nazgul.stat_lenses import get_all_gallens
@@ -68,6 +68,8 @@ def setup_lens(lens,res_dir,kwargs_source=None,
         set_workin_on_it(lens.model_res_dir,wrk = True)
 
     lens.setup()
+    # Note: the following is only used for plotting
+    # and mask definition (to find the bright center of the image)
     Sim = lens.get_Sim() 
     lens.image_sim = lens.get_lensed_image(Sim=Sim,kwargs_source=kwargs_source, unconvolved=False)
     
@@ -99,40 +101,48 @@ def setup_lens(lens,res_dir,kwargs_source=None,
             print(f"This error \n{e}\n should not happen, but it's not too important")
             
     return lens
-    
-    
-def setup_sim_obs(lens,band_str="HST_F160W",pssf=2):
-    if band_str=="HST_F160W":
-        band     = HST(band='WFC3_F160W', psf_type="PIXEL")
-        # TOOD: bug (?) in lenstronomy, psf_type is not passed to band
-        band.obs["psf_type"] = "PIXEL"
-        psf_path = Path(f"./ObsData/HST/WFC3/F160W/PSFSTD_WFC3IR_F160W.fits")
+
+
+def setup_sim_obs(lens, band_str="HST_F160W", pssf_effective=5):
+    if np.abs(int(pssf_effective)-pssf_effective)>1e-7:
+        raise RuntimeError("We should have an integer pssf_effective") 
+
+    if band_str == "HST_F160W":
+        band = band_HST() 
+        
+        # obtained from https://www.stsci.edu/hst/instrumentation/wfc3/data-analysis/psf
+        psf_path = Path("./ObsData/HST/WFC3/F160W/PSFSTD_WFC3IR_F160W.fits")
+        
+        delta_pix_native = 0.128          # arcsec/pix, native F160W
+        pssf_orig        = 4              # STScI PSF supersampling vs native
+        delta_pix_psf    = delta_pix_native / pssf_orig   # = 0.032 arcsec/pix
+
+        delta_pix_band   = band.camera["pixel_scale"]     # = 0.08 arcsec/pix (lenstronomy target)
+        pssf_band        = delta_pix_native / delta_pix_band # = 1.6
+        # pssf is the ratio of image pixel scale to PSF pixel scale,
+        # as lenstronomy expects. The PSF must be zoomed to achieve this.
+        # Current PSF pixel scale: delta_pix_psf = 0.032 "/pix
+        # Target PSF pixel scale for given pssf: delta_pix_band / pssf
+        zoom_factor = pssf_effective*pssf_band/pssf_orig
     else:
         raise RuntimeError("Pragma no cover: to implement other bands and PSFs")
-    
-    # the following contain 9 PSF depending on their position in the CCD
-    # we will consider the central position -> i think it should be the second to last (not too important here )
-    psf = load_fits(psf_path)[-2]
-    # This PSF is already supersampled by a factor 4
-    # the original PSF area is 25x25 pixel in the native resolution 0.128 "/pix
-    # now in 101x101 pixels in res 0.032 "/pix
-    
-    psf = _positivise_psf(psf)
-    # we can further supersample it
-    if pssf!=1:
-        psf_ss  = zoom(psf,pssf,order=3)
-        psf_ss  = _positivise_psf(psf_ss)
-    else:
-        psf_ss  = psf
-    pssf *=4 # original the supersampling factor
-    # we have to rescale the pixel scale of the PSF in "camera"
-    kwargs_psf = {"kernel_point_source":psf_ss,
-                  "point_source_supersampling_factor":pssf}
-    
-    multi_band_list = lens.sim_multi_band_list(band=band,
-                                               kwargs_psf=kwargs_psf)
-    return multi_band_list
 
+    psf = load_fits(psf_path)[-2]
+    psf = _positivise_psf(psf)
+    
+    if zoom_factor<1:
+        warnings.warn("PSSF should be set s.t. zoom_factor>1")
+    
+    if not np.isclose(zoom_factor, 1):
+        psf = zoom(psf, zoom_factor, order=3)
+        psf = _positivise_psf(psf)
+        
+    kwargs_psf = {
+        "kernel_point_source": psf,
+        "point_source_supersampling_factor": pssf_effective
+    }
+    return lens.sim_multi_band_list(band=band, kwargs_psf=kwargs_psf)
+    
 def _positivise_psf(psf):
     if np.any(psf<0):
         warnings.warn("Some negative pixels in the PSF")
@@ -141,6 +151,8 @@ def _positivise_psf(psf):
             raise ValueError("PSF has more than 30% negative pixels, something is not right")
         warnings.warn("Setting minimum value for negative PSF pixels")
         psf[psf<0] = np.min(psf[psf>0])/100
+    # renormalise it aftwards
+    psf /= psf.sum()
     return psf
 
 def get_lens_mask(lens,image_obs,plot_mask=True):
