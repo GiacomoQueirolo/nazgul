@@ -394,7 +394,7 @@ class LensSystem(BasicGal):
             ####DEBUG####
             nm = "tmp/eigen_rad.dll"
             with open(nm,"wb") as f:
-                dill.dump([eigen_rad_orig,eigen_rad_smooth],
+                dill.dump([eigen_rad_orig,eigen_rad,is_rad_smooth],
                           f)
             print(f"Check {nm}")
             ###############
@@ -408,9 +408,12 @@ class LensSystem(BasicGal):
             cax = divider.append_axes('right', size='5%', pad=0.05)
             fig.colorbar(im0, cax=cax, orientation='vertical')
             
-            im0 = axis[1].imshow(np.abs(eigen_rad_smooth),
+            im0 = axis[1].imshow(np.abs(eigen_rad),
                                  extent=ext,origin="lower")
-            axis[1].set_title("|Eigen rad| (clipped and smoothed)")
+            str_smooth=""
+            if is_rad_smooth:
+                str_smooth = " and smoothed"
+            axis[1].set_title("|Eigen rad| (clipped"+str_smooth+")")
             divider = make_axes_locatable(axis[0])
             cax = divider.append_axes('right', size='5%', pad=0.05)
             fig.colorbar(im0, cax=cax, orientation='vertical')
