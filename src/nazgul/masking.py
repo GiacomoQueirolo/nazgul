@@ -105,7 +105,7 @@ def mask_max_dens(lens,image=None,rad=0.15):
     if not image:
         image = lens.image_sim
     # by construction recentered around densest point
-    cx,cy = lens.pixel_num/2.,lens.pixel_num/2.
+    cx,cy = np.array(image.shape)/2.
     # for some reason this might be a bit off -> take the maximum density
     y,x    = np.where(lens.kappa_map==lens.kappa_map.max())
     #RA,DEC = lens.get_RADEC()
