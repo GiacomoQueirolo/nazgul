@@ -25,6 +25,10 @@ std_data_dir = path_nazgul/"RingBearer"
 tmp_dir = path_nazgul/"tmp"
 mkdir(tmp_dir)
 
+# result directory
+results_dir = path_nazgul/"results"
+mkdir(results_dir)
+
 std_simsuite_dir = std_data_dir/std_simsuite # which simulation suite
 std_sim_dir      = std_simsuite_dir/std_sim  # which simulation
 
