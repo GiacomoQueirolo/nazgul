@@ -86,14 +86,27 @@ kwargs_sersic_ellipse_basic = {'R_sersic': .1, 'n_sersic': 3,
                             'center_y': 0, 
                             'e1': 0.0, 
                             'e2': 0.0}
-kwargs_sersic_ellipse     = {'amp': 100.}|kwargs_sersic_ellipse_basic
-kwargs_sersic_ellipse_mag = {'magnitude':23.}|kwargs_sersic_ellipse_basic
-kwargs_source_default     = kwargs_sersic_ellipse_mag
+kwargs_sersic_ellipse         = {'amp': 100.}|kwargs_sersic_ellipse_basic
+kwargs_sersic_ellipse_mag     = {'magnitude':24.}|kwargs_sersic_ellipse_basic
+kwargs_sersic_ellipse_abs_mag = {'abs_magnitude':-22}|kwargs_sersic_ellipse_basic
+
+kwargs_source_default     = kwargs_sersic_ellipse_abs_mag
 source_model_list         = ['SERSIC_ELLIPSE']
 
-def get_kwargs_sourceSim(Sim,kwargs_source=None):
+def get_kwargs_sourceSim(Sim,kwargs_source=None,lens=None):
     if kwargs_source is None:
-        kwargs_source = kwargs_source_default
+        if lens is None:
+            kwargs_source = kwargs_source_default
+        else:
+            kwargs_source = lens.kwargs_source_def
+    if "abs_magnitude" in kwargs_source.keys():
+        # convert absolute magnitude in apparent
+        Mag = kwargs_source["abs_magnitude"]
+        dL  = lens.cosmo.luminosity_distance(lens.gallens.z_source)
+        m = Mag + 5*np.log10(dL.to("pc").value/10)
+        del kwargs_source["abs_magnitude"]
+        kwargs_source["magnitude"] = m
+        
     if "magnitude" in kwargs_source.keys():
         kwargs_source_list       = [kwargs_source]
         # the following only depends on -kwargs_source_params, -magnitude_0_point -source_model_list
