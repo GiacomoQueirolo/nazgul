@@ -23,7 +23,8 @@ def masking_thetaE(lens):
     return mask
 
 
-def mask_SEAGLE(lens,image=None,fwhm=.1,sig_clip=3.5,min_perc_not_masked=.55):
+def mask_SEAGLE(lens,image=None,fwhm=.3,sig_clip=3.5,min_perc_not_masked=.25):
+    # note : default parameters adapted for EAGLE RefL0050N0752
     """Mask the image following SEAGLE approach:
         SEAGLE_I, Section 3.5:
         "convolving the noisy lensed images with a
