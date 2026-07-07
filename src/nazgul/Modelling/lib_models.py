@@ -13,9 +13,9 @@ from scipy.ndimage import zoom
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+from lenstronomy.Util import util
 from lenstronomy.Plots import chain_plot
 from lenstronomy.Plots.model_plot import ModelPlot
-from lenstronomy.SimulationAPI.ObservationConfig.HST import HST
 
 from python_tools.read_fits import load_fits
 from python_tools.tools import mkdir,to_dimless
@@ -24,7 +24,7 @@ from python_tools.get_res import load_whatever
 from nazgul.plot_PL import plot_all
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
 from nazgul.masking import mask_SEAGLE,mask_max_dens,mask_bright_center,resize_mask
-from nazgul.mount_doom.cracks_of_doom import LoadLens,get_extents,band_HST
+from nazgul.mount_doom.cracks_of_doom import LoadLens,get_extents
 from nazgul.mount_doom.lens_system import LensSystem
 from nazgul.plot_PL import plot_kappamap
 from nazgul.stat_lenses import get_all_gallens
@@ -40,11 +40,11 @@ lens_model_list_def   = ['EPL']
 source_model_list_def = ["SERSIC"]
 model_res_base      = tmp_dir/"models/"
 #PSO
-n_it_std   = 2000
-n_part_std = 500
+n_it_std   = 1000
+n_part_std = 300
 #MCMC
-n_burn_std = 1000
-n_run_std  = 10000
+n_burn_std = 700
+n_run_std  = 7000
 
 def get_model_res_dir(lens,res_dir):
     res_dir = Path(f"{res_dir}/snap_{lens.gallens.Gal.snap}_{lens.name}")
@@ -63,7 +63,7 @@ def setup_lens(lens,res_dir,kwargs_source=None,
     # verify that no-one is working on it
     if check_if_workin_on_it:
         if is_someone_workin_on_it(lens.model_res_dir):
-            warnings.warn(f"This lens, {lens.name} is being worked on, skipping- if not, delete the {workin_on_it} file") 
+            warnings.warn(f"This lens, {lens.name} is being worked on, skipping- if not, delete the {workin_on_it} file:\n{lens.model_res_dir}/{workin_on_it}") 
             return None
         set_workin_on_it(lens.model_res_dir,wrk = True)
 
@@ -103,44 +103,95 @@ def setup_lens(lens,res_dir,kwargs_source=None,
     return lens
 
 
-def setup_sim_obs(lens, band_str="HST_F160W", pssf_effective=5):
-    if np.abs(int(pssf_effective)-pssf_effective)>1e-7:
-        raise RuntimeError("We should have an integer pssf_effective") 
+######################################
+# kwargs_of realistic HST observations used to simulate the "observed" images 
+kwargs_band_HST_camera = {
+    'read_noise': 2,                      # Readout noise
+    'pixel_scale':0.065,                  # F160W after drizzling (could also do 0.08 to be more conservative
+    'ccd_gain': 2.35,                     # averaged over the 4 amplifier (does not matter)
+}
+# inspired by F160W taken from idgc07c[nlpq]q_flt.fits 
+sky_count      = 0.11 # after drizzling, clip outliers and take median  (e-/sec)
+exp_time_1exp  = 550 # ~average over 4 exposures
+num_exposures  = 4   #  
+# taken from https://www.stsci.edu/hst/instrumentation/wfc3/data-analysis/photometric-calibration/ir-photometric-calibration
+# the following ZP computation is also correct, returns 25.937 and the error is 0.008 so it's consistent
+# PHOTFLAM is the inverse sensitivity at the infinite aperture, taken from
+#PHOTFLAM_f160w = 1.9429e-20 
+#PHOTPLAM_f160w = 15369.18
+#ZP_AB_f160w = -2.5*np.log10(PHOTFLAM_f160w) - 21.1 - 5*np.log10(PHOTPLAM_f160w) + 18.6921
+ZP_AB_f160w    = 25.941 
 
-    if band_str == "HST_F160W":
-        band = band_HST() 
-        
+sky_brightness = -np.log10(sky_count) * 2.5 + ZP_AB_f160w
+kwargs_band_HST_obs = {
+    'sky_brightness':sky_brightness,      # ~21.5 mag
+    'exposure_time':exp_time_1exp,        # average time for 1 exposure
+    'magnitude_zero_point':ZP_AB_f160w,   # ~25.9 mag
+    'num_exposures': num_exposures,       # stnd n* of exposures combined in drizzing
+    'psf_type':'PIXEL'                    # kernel to be provided later on
+}
+class band_HST():
+    """
+    Inspired by class HST in lenstronomy.SimulationAPI.ObservationConfig.py 
+    """
+    def __init__(self,
+                 kwargs_camera = kwargs_band_HST_camera,
+                 kwargs_obs    = kwargs_band_HST_obs):
+        self.camera = kwargs_camera
+        self.obs = kwargs_obs
         # obtained from https://www.stsci.edu/hst/instrumentation/wfc3/data-analysis/psf
-        psf_path = Path("./ObsData/HST/WFC3/F160W/PSFSTD_WFC3IR_F160W.fits")
+        self.psf_path =  Path("./ObsData/HST/WFC3/F160W/PSFSTD_WFC3IR_F160W.fits")
+    def kwargs_single_band(self):
+        """
+        :return: merged kwargs from camera and obs dicts
+        """
+        kwargs = util.merge_dicts(self.camera, self.obs)
+        return kwargs
+    def get_kwargs_psf(self,pssf_effective=5):
+        if np.abs(int(pssf_effective)-pssf_effective)>1e-7:
+            raise RuntimeError("We should have an integer pssf_effective") 
+        pssf_effective = int(pssf_effective)
+
+        psf_path = self.psf_path
         
         delta_pix_native = 0.128          # arcsec/pix, native F160W
         pssf_orig        = 4              # STScI PSF supersampling vs native
         delta_pix_psf    = delta_pix_native / pssf_orig   # = 0.032 arcsec/pix
 
-        delta_pix_band   = band.camera["pixel_scale"]     # = 0.08 arcsec/pix (lenstronomy target)
+        delta_pix_band   = self.camera["pixel_scale"]     # = 0.08 arcsec/pix (lenstronomy target)
         pssf_band        = delta_pix_native / delta_pix_band # = 1.6
         # pssf is the ratio of image pixel scale to PSF pixel scale,
         # as lenstronomy expects. The PSF must be zoomed to achieve this.
         # Current PSF pixel scale: delta_pix_psf = 0.032 "/pix
         # Target PSF pixel scale for given pssf: delta_pix_band / pssf
-        zoom_factor = pssf_effective*pssf_band/pssf_orig
+        zoom_factor = pssf_effective*pssf_band/pssf_orig        
+    
+        psf = load_fits(psf_path)[-2]
+        psf = _positivise_psf(psf)
+        
+        if zoom_factor<1:
+            warnings.warn("PSSF should be set s.t. zoom_factor>1")
+        
+        if not np.isclose(zoom_factor, 1):
+            psf = zoom(psf, zoom_factor, order=3)
+            psf = _positivise_psf(psf)
+            
+        kwargs_psf = {
+            "psf_type":"PIXEL",
+            "kernel_point_source_normalisation":True,
+            "kernel_point_source": psf,
+            "point_source_supersampling_factor": pssf_effective
+        }
+        return kwargs_psf
+        
+def setup_sim_obs(lens, band_str="HST_F160W", pssf_effective=5):
+    if band_str == "HST_F160W":
+        band = band_HST() 
     else:
         raise RuntimeError("Pragma no cover: to implement other bands and PSFs")
 
-    psf = load_fits(psf_path)[-2]
-    psf = _positivise_psf(psf)
-    
-    if zoom_factor<1:
-        warnings.warn("PSSF should be set s.t. zoom_factor>1")
-    
-    if not np.isclose(zoom_factor, 1):
-        psf = zoom(psf, zoom_factor, order=3)
-        psf = _positivise_psf(psf)
-        
-    kwargs_psf = {
-        "kernel_point_source": psf,
-        "point_source_supersampling_factor": pssf_effective
-    }
+    kwargs_psf = band.get_kwargs_psf(pssf_effective=pssf_effective)
+
     return lens.sim_multi_band_list(band=band, kwargs_psf=kwargs_psf)
     
 def _positivise_psf(psf):
