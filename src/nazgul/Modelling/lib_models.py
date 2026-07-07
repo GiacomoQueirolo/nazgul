@@ -31,14 +31,14 @@ from nazgul.stat_lenses import get_all_gallens
 
 
 from nazgul.lens_part_LOS import get_kw_los
-from nazgul.pathfinder import get_sim_dir,tmp_dir
+from nazgul.pathfinder import get_sim_dir,results_dir
 
 # WOI cross-machine lock
 from python_tools.tools_WOI import workin_on_it, set_workin_on_it, is_someone_workin_on_it
 
 lens_model_list_def   = ['EPL']
 source_model_list_def = ["SERSIC"]
-model_res_base      = tmp_dir/"models/"
+model_res_base      = results_dir/"models/"
 #PSO
 n_it_std   = 1000
 n_part_std = 300
@@ -47,7 +47,7 @@ n_burn_std = 700
 n_run_std  = 7000
 
 def get_model_res_dir(lens,res_dir):
-    res_dir = Path(f"{res_dir}/snap_{lens.gallens.Gal.snap}_{lens.name}")
+    res_dir = Path(f"{res_dir}/snap_{lens.gallens.Gal.snap}_{lens.name}/")
     return res_dir
     
 def get_link_lens_path(lens,res_dir):
