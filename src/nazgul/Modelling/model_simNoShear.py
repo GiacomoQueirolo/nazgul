@@ -19,11 +19,13 @@ from nazgul.Modelling.lib_models import save_data,plot_model_plot
 from nazgul.Modelling.lib_models import model_res_base,n_it_std,n_part_std,n_burn_std,n_run_std # default values
 
 # WOI cross-machine lock
+from python_tools.tools import mkdir
 from python_tools.tools_WOI import set_workin_on_it
 
 lens_model_list   = ['EPL','LOS_MINIMAL']
 source_model_list = ["SERSIC"]
 res_dir_base      = model_res_base/"simNoShear/"
+mkdir(res_dir_base)
 
 def get_kwargs_params(lens):
     # Params:
@@ -159,6 +161,7 @@ if __name__=="__main__":
 
     # picked by hand "bad" lenses ->
     lenses2skip = []
+    
     kw_get_all_gallens = {"sim":sim,
                           "subsim":subsim,
                            "simsuite":simsuite,
@@ -177,12 +180,13 @@ if __name__=="__main__":
     print("\nCatalogue of lenses 2 model obtained\n###################\n")
     
     for i,gal_lens in enumerate(gal_lenses): 
-        print("\nLoading lens "+gal_lens.name+"\n###############################")
+        print("\nLoading lens "+gal_lens.name)
         lens = LensSystem.from_GalLens(gal_lens)
-        lens = setup_lens(lens,res_dir=res_dir,check_if_workin_on_it=True)
+        lens = setup_lens(lens,res_dir=res_dir,
+                          check_if_workin_on_it=check_if_workin_on_it)
         if lens is None: #means that someone is workin on it
             continue
-            
+        print("\nModelling lens "+gal_lens.name+"\n###############################")   
         plot_kappamap(lens.gallens.kappa_map, 
                       extent_kpc=lens.gallens.kw_extents["extent_kpc"],
                       savename=f"{lens.model_res_dir}/kappa_gal.png")
