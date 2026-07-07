@@ -4,7 +4,9 @@ import argparse
 import warnings
 import numpy as np
 from glob import glob
+from pathlib import Path
 import matplotlib.pyplot as plt
+from collections import defaultdict
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from python_tools.tools import mkdir
@@ -36,7 +38,8 @@ def get_all_gallens_gen_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsi
     return gen_paths
 
 
-def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=std_subsim,data_dir=std_data_dir):
+def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=std_subsim,data_dir=std_data_dir,
+                         how2deal_with_doubles="take_latest"):
     """
     Loacate position of all computed lenses
     """
@@ -46,19 +49,58 @@ def get_all_gallens_paths(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=st
     if len(snaps)!=0:
         computed_gallenses = []
         for snap_dir in gen_paths:
-            print("WARNING - MONKEY PATCH - ")
             computed_gallenses = glob(f"{snap_dir}/Gn*/Sub/Sub_*Prj?_*.pkl")
-            gallenses = glob(f"{snap_dir}/Gn*/Sub/Sub_*Prj?.pkl")
-            computed_gallenses.extend(gallenses)
     else:
         sim_dir = gen_paths[0]
-        print("WARNING - MONKEY PATCH - ")
-        computed_gallenses = glob(f"{sim_dir}/*/Gn*/Sub/Sub_*Prj?.pkl")
-        computed_gallenses.extend(glob(f"{sim_dir}/*/Gn*/Sub/Sub_*Prj?_*.pkl"))
-        
+        computed_gallenses = glob(f"{sim_dir}/*/Gn*/Sub/Sub_*Prj?_*.pkl")
+    # there might be doubles, we have to deal with them in a way or another
+    computed_gallenses = deal_with_doubles(computed_gallenses,how2deal_with_doubles)
     if len(computed_gallenses)==0:
         raise RuntimeError("No computed gallenses found")
     return computed_gallenses
+
+
+def deduplicate_lens_paths(paths):
+    """
+    For paths that share the same name except the hash suffix (last _XXXXXX.pkl),
+    keep only the most recently modified file.
+    
+    Returns a deduplicated list of PosixPaths.
+    """
+    # group paths by their "base name" = everything before the last underscore
+    groups = defaultdict(list)
+    for p in paths:
+        p        = Path(p)
+        stem     = p.stem                        # e.g. Sub_Lens_Gn31SGn1_Prj1_iegUjX
+        base_key = "_".join(stem.split("_")[:-1]) # e.g. Sub_Lens_Gn31SGn1_Prj1
+        # include parent dir so paths from different galaxies don't collide
+        full_key = (p.parent, base_key)
+        groups[full_key].append(p)
+
+    result = []
+    for (parent, base_key), group in groups.items():
+        if len(group) == 1:
+            result.append(group[0])
+        else:
+            # keep the most recently modified file
+            newest = max(group, key=lambda p: p.stat().st_mtime)
+            discarded = [p for p in group if p != newest]
+            #print(f"Duplicates found for {base_key}:")
+            #for p in discarded:
+            #    print(f"  discarding: {p.name}")
+            #print(f"  keeping:    {newest.name}")
+            result.append(newest)
+
+    return result
+    
+def deal_with_doubles(gallenses_paths,how2deal_with_doubles="take_latest"):
+
+    if how2deal_with_doubles=="take_all":
+        return gallenses_paths
+    elif how2deal_with_doubles =="take_latest":
+        return deduplicate_lens_paths(gallenses_paths)
+    else:
+        raise RuntimeError(f"how2deal_with_doubles {how2deal_with_doubles} not implemented")
         
 def get_all_gallens(snaps=[27],sim=std_sim,simsuite=std_simsuite,subsim=None,data_dir=std_data_dir):
     lenses= []
