@@ -39,6 +39,7 @@ from nazgul.mount_doom.cracks_of_doom import source_model_list
 from nazgul.configurations import pixel_num,min_thetaE
 from nazgul.particle_lenses import default_kwlens_part_AS  as kwlens_part_AS
 from nazgul.mount_doom.cracks_of_doom import kwargs_band_sim,kw_prior_z_source_stnd
+from nazgul.mount_doom.cracks_of_doom import kwargs_source_default,get_kwargs_sourceSim
 
 verbose = True
 empty_kwargs_add_lenses = {"lens_model_list":[],"kwargs_lens":[]}
@@ -85,6 +86,7 @@ class LensSystem(BasicGal):
         self.kwargs_band_sim     = kwargs_band_sim
         # We assume that the cosmology has to be the same as the galaxy:
         self.cosmo               = self.gallens.cosmo
+        self.kwargs_source_def   = kwargs_source_default
         mkdir(self.savedir)
 
 
@@ -111,7 +113,7 @@ class LensSystem(BasicGal):
                              Sim=Sim,verbose=verbose)
             if update_source_pos:
                 self.sample_source_pos(update=update_source_pos,rnd_seed=rnd_seed)
-            elif self.kwargs_source["center_x"]==0 and self.kwargs_source["center_y"]==0:
+            elif self.kwargs_source_def["center_x"]==0 and self.kwargs_source_def["center_y"]==0:
                 warnings.warn("Source is still positioned at 0,0 but I was instructed not to resample its position.")
             # store the results
             self.store()
@@ -175,6 +177,7 @@ class LensSystem(BasicGal):
         obj.kwargs_add_lenses   = kwargs_lenssystem.get("kwargs_add_lenses",empty_kwargs_add_lenses)
         # observational params
         obj.kwargs_band_sim     = kwargs_lenssystem.get("kwargs_band_sim",kwargs_band_sim)
+        obj.kwargs_source_def   = kwargs_lenssystem.get("kwargs_source",kwargs_source_default)
         return obj
         
     #############################
@@ -197,7 +200,7 @@ class LensSystem(BasicGal):
     def store(self):
         store_lens(self)
         
-    def setup_dataclasses(self,Sim=None,kwargs_source=None,verbose=True):
+    def setup_dataclasses(self,Sim=None,verbose=True):
         """
         Define all classes not dependent on lensing
         Handled by SimAPI
@@ -206,7 +209,7 @@ class LensSystem(BasicGal):
             Sim = self.get_Sim()
         if verbose:
             print("Setting up data classes ...")
-        self.data_class,self.psf_class,self.source_model_class,self.kwargs_numerics,self.kwargs_source = cod.get_dataclasses(Sim,kwargs_source = kwargs_source)
+        self.data_class,self.psf_class,self.source_model_class,self.kwargs_numerics = cod.get_dataclasses(Sim)
         if verbose:
             print("... Data classes set up")
         return 0
@@ -513,8 +516,8 @@ class LensSystem(BasicGal):
     #########
     def update_source_position(self,ra_source,dec_source):
         # useful if we want to put it in the center of the caustic
-        self.kwargs_source["center_x"] = ra_source
-        self.kwargs_source["center_y"] = dec_source
+        self.kwargs_source_def["center_x"] = ra_source
+        self.kwargs_source_def["center_y"] = dec_source
         return 0
         
     def sample_source_pos(self,update=False,_radec=None,rnd_seed=None,recompute=False):
@@ -544,7 +547,7 @@ class LensSystem(BasicGal):
                 dill.dump(kw_sampled_source_pos,f)
             print("Stored computed source position")
             
-        if self.kwargs_source["center_x"]==0 and self.kwargs_source["center_x"]==0 and not update:
+        if self.kwargs_source_def["center_x"]==0 and self.kwargs_source_def["center_x"]==0 and not update:
             print("Source position has to be sampled a first time")
             update=True
         if update:
@@ -592,7 +595,8 @@ class LensSystem(BasicGal):
         
         if kwargs_source is None:
             #note: the following should be the standard use
-            kwargs_source = self.kwargs_source
+            kwargs_source = self.kwargs_source_def
+        kwargs_source = get_kwargs_sourceSim(Sim,kwargs_source)
         kwargs_source_list            = [kwargs_source]
         # note: following is in flux/arcsec^2 -> has to be converted into flux/pix eventually
         source_light                  = sourceModel.surface_brightness(x_source_plane, y_source_plane, 
@@ -608,7 +612,7 @@ class LensSystem(BasicGal):
     # Simulating observations
     #########################
     def get_imageNumerics(self,Sim,return_sourceModel=False):    
-        data_class,psf_class,sourceModel,kwargs_numerics,_ = cod.get_dataclasses(Sim)
+        data_class,psf_class,sourceModel,kwargs_numerics = cod.get_dataclasses(Sim)
         imageNumerics = NumericsSubFrame(pixel_grid=data_class,
                                          psf=psf_class, 
                                          **kwargs_numerics)
@@ -637,9 +641,6 @@ class LensSystem(BasicGal):
         else:
             kwargs_single_band = band.kwargs_single_band()
             if kwargs_psf is not None:
-                if not kwargs_psf.keys() == {"kernel_point_source":[],
-                                             "point_source_supersampling_factor":[]}.keys():
-                    raise RuntimeError(f"kwargs_psf has to have only kernel_point_source and point_source_supersampling_factor, not {kwargs_psf.keys()}")
                 kwargs_single_band.update(kwargs_psf)
             # must recompute pixel_num in order to covert to ~ the same aperture,
             # but with the new resolution 
@@ -652,13 +653,18 @@ class LensSystem(BasicGal):
                 )
         return Sim
 
-    def sim_image(self,SimObs,kwargs_source=None,noisy=False):
+    def sim_image(self,SimObs,kwargs_source=None,noisy=False,rnd_seed=None):
         """Obtain simulated images given SimObs
         """
         image_SimObs     = self.get_lensed_image(Sim=SimObs,
                                                  kwargs_source=kwargs_source,
                                                  unconvolved=False)
         if noisy:
+            if rnd_seed is None:
+                rnd_seed = self._rnd_seed
+            # fixing seed for reproducibility            
+            print(f"Fixing seed to {rnd_seed}")
+            np.random.seed(rnd_seed)
             image_SimObsnoisy  = image_SimObs + SimObs.noise_for_model(model=image_SimObs)
             error_SimObs       = SimObs.estimate_noise(image_SimObsnoisy) # NOT variance
             return image_SimObsnoisy,error_SimObs
