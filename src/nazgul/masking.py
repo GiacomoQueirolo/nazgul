@@ -23,7 +23,7 @@ def masking_thetaE(lens):
     return mask
 
 
-def mask_SEAGLE(lens,image=None,fwhm=.3,sig_clip=3.5,min_perc_not_masked=.25):
+def mask_SEAGLE_old(lens,image=None,fwhm=.3,sig_clip=3.5,min_perc_not_masked=.25):
     # note : default parameters adapted for EAGLE RefL0050N0752
     """Mask the image following SEAGLE approach:
         SEAGLE_I, Section 3.5:
@@ -39,6 +39,44 @@ def mask_SEAGLE(lens,image=None,fwhm=.3,sig_clip=3.5,min_perc_not_masked=.25):
     if image is None:
         image = lens.image_sim
     fwhm_pix = to_dimless(fwhm)/to_dimless(lens.deltaPix)
+    filt_img = gaussian_filter(image,sigma=fwhm_pix)
+    # compute the threshold from the noise
+    sgc = sigma_clip(image,sigma=sig_clip)        
+    msk_sky = np.invert(sgc.mask)
+    # optimise the noise threshold
+    Npix = np.shape(image)[0]*np.shape(image)[1]
+    for threshold_scale in np.linspace(5,1,30):
+        threshold = threshold_scale*np.median(msk_sky*image)
+    
+        mask     = np.ones_like(image)
+        mask[np.where(filt_img<threshold)] = 0
+    
+        perc_not_masked = np.sum(mask)/Npix
+        if perc_not_masked>min_perc_not_masked:
+            break
+    if perc_not_masked==0:
+        raise RuntimeError("mask_SEAGLE: Masking everything")
+    elif perc_not_masked==1:
+        warnings.warn("mask_SEAGLE: Masking nothing")
+    return mask
+
+def mask_SEAGLE(lens,image=None,fwhm_pix_perc=5,sig_clip=3.5,min_perc_not_masked=.25):
+    # note : default parameters adapted for EAGLE RefL0050N0752
+    # yet another approach - fwhm is adapted to the image size
+    """Mask the image following SEAGLE approach:
+        SEAGLE_I, Section 3.5:
+        "convolving the noisy lensed images with a
+        Gaussian with a FWHM of 0.25 arcsec to reduce the noise
+        and smear the images to a slightly larger footprint. We then
+        set a surface brightness threshold for the mask being a fac-
+        tor of typically 2.5–5 below the original noise. Pixels above
+        the threshold are set to one and all others to zero."
+        We don't define the threshold, but the minimum percentage of unmasked
+        pixels, min_perc_not_masked, and loop over a range of reasonable thresholds
+    """
+    if image is None:
+        image = lens.image_sim
+    fwhm_pix = image.shape[0]*fwhm_pix_perc/100
     filt_img = gaussian_filter(image,sigma=fwhm_pix)
     # compute the threshold from the noise
     sgc = sigma_clip(image,sigma=sig_clip)        
