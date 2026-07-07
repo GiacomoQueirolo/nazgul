@@ -1,7 +1,9 @@
 """Plotting functions for the Particle Lenses
 """
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
+from astropy.stats import sigma_clip
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from nazgul.pathfinder import tmp_dir
@@ -44,11 +46,17 @@ def plot_caustics(Model,savename=tmp_dir/"test_caustics.png",kw_extents=None):
     return _plot_caustics(kw_crit,savename=savename,kw_extents=kw_extents)
 
 
-def plot_kappamap(kappa1,extent_kpc,title1="",savename="kappa.png",cmap="hot",label_clb=r'$\kappa$'):
+def plot_kappamap(kappa_map,extent_kpc,title1="",savename="kappa.png",cmap="hot",label_clb=r'$\kappa$',
+                  to_sigma_clip=True,sigma=10):
+    if to_sigma_clip:
+        warnings.warn("Sigma clipping kappa map")
+        sgc = sigma_clip(kappa_map,sigma=sigma)        
+        msk_sgc = np.invert(sgc.mask)
+        kappa_map *= msk_sgc
     fig,axes = plt.subplots(2,figsize=(8,16))
 
     ax  = axes[0]
-    im0 = ax.imshow(kappa1,origin="lower",extent=extent_kpc,cmap=cmap)
+    im0 = ax.imshow(kappa_map,origin="lower",extent=extent_kpc,cmap=cmap)
     ax.set_xlabel("X [kpc]")
     ax.set_ylabel("Y [kpc]")
     ax.set_title(title1) 
@@ -58,7 +66,7 @@ def plot_kappamap(kappa1,extent_kpc,title1="",savename="kappa.png",cmap="hot",la
 
 
     # take advantage of the circular simmetry and obtain the projection
-    k1_proj = kappa1[int(len(kappa1)/2)]
+    k1_proj = kappa_map[int(len(kappa_map)/2)]
     x = np.linspace(extent_kpc[0],extent_kpc[1],len(k1_proj))
     _xcnt = np.median(x)
     ax = axes[1]
