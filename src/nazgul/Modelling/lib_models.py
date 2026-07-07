@@ -31,7 +31,7 @@ from nazgul.stat_lenses import get_all_gallens
 
 
 from nazgul.lens_part_LOS import get_kw_los
-from nazgul.pathfinder import get_sim_dir,results_dir
+from nazgul.pathfinder import get_sim_dir,results_dir,path_nazgul
 
 # WOI cross-machine lock
 from python_tools.tools_WOI import workin_on_it, set_workin_on_it, is_someone_workin_on_it
@@ -140,7 +140,7 @@ class band_HST():
         self.camera = kwargs_camera
         self.obs = kwargs_obs
         # obtained from https://www.stsci.edu/hst/instrumentation/wfc3/data-analysis/psf
-        self.psf_path =  Path("./ObsData/HST/WFC3/F160W/PSFSTD_WFC3IR_F160W.fits")
+        self.psf_path =  Path(f"{path_nazgul}/ObsData/HST/WFC3/F160W/PSFSTD_WFC3IR_F160W.fits")
     def kwargs_single_band(self):
         """
         :return: merged kwargs from camera and obs dicts
