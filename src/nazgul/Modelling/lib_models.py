@@ -107,7 +107,7 @@ def setup_lens(lens,res_dir,kwargs_source=None,
 # kwargs_of realistic HST observations used to simulate the "observed" images 
 kwargs_band_HST_camera = {
     'read_noise': 2,                      # Readout noise
-    'pixel_scale':0.065,                  # F160W after drizzling (could also do 0.08 to be more conservative
+    'pixel_scale':0.065,                  # 0.065 F160W after drizzling (could also do 0.08 to be more conservative
     'ccd_gain': 2.35,                     # averaged over the 4 amplifier (does not matter)
 }
 # inspired by F160W taken from idgc07c[nlpq]q_flt.fits 

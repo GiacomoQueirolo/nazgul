@@ -174,7 +174,7 @@ if __name__=="__main__":
     gal_lenses  = get_lenses2model(res_dir=res_dir,
                                    reload=True,
                                    kw_get_all_gallens=kw_get_all_gallens,
-                                   n_lenses=n_lenses,
+                                   n_lenses=np.nan, # has to load all of them anyway
                                    min_thetaE=min_thetaE,
                                    skip_lenses=lenses2skip)
     print("\nCatalogue of lenses 2 model obtained\n###################\n")

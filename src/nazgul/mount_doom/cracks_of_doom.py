@@ -88,7 +88,7 @@ kwargs_sersic_ellipse_basic = {'R_sersic': .1, 'n_sersic': 3,
                             'e2': 0.0}
 kwargs_sersic_ellipse         = {'amp': 100.}|kwargs_sersic_ellipse_basic
 kwargs_sersic_ellipse_mag     = {'magnitude':24.}|kwargs_sersic_ellipse_basic
-kwargs_sersic_ellipse_abs_mag = {'abs_magnitude':-22}|kwargs_sersic_ellipse_basic
+kwargs_sersic_ellipse_abs_mag = {'abs_magnitude':-21}|kwargs_sersic_ellipse_basic
 
 kwargs_source_default     = kwargs_sersic_ellipse_abs_mag
 source_model_list         = ['SERSIC_ELLIPSE']

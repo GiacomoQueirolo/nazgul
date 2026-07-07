@@ -596,8 +596,8 @@ class LensSystem(BasicGal):
         if kwargs_source is None:
             #note: the following should be the standard use
             kwargs_source = self.kwargs_source_def
-        kwargs_source = get_kwargs_sourceSim(Sim,kwargs_source,lens=self)
-        kwargs_source_list            = [kwargs_source]
+        _kwargs_source = get_kwargs_sourceSim(Sim,kwargs_source,lens=self)
+        kwargs_source_list            = [_kwargs_source]
         # note: following is in flux/arcsec^2 -> has to be converted into flux/pix eventually
         source_light                  = sourceModel.surface_brightness(x_source_plane, y_source_plane, 
                                                                        kwargs_source_list, k=None)
