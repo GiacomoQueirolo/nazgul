@@ -111,6 +111,7 @@ if __name__=="__main__":
     parser.add_argument('-rt','--run_type',type=int,dest="run_type",default=0,help= f"""Type of run: 
         0 = standard, PSO_it = {n_it_std} PSO_prt = {n_part_std} MCMCb = {n_burn_std} MCMCr = {n_run_std}  
         1 = test run  PSO_it = 3      PSO_prt = 3      MCMCb = 1     MCMCr = 2 
+        2 = test run (longer)  PSO_it = 100      PSO_prt = 20      MCMCb = 100     MCMCr = 200 
        (PSO_it: PSO iterations, PSO_prt: PSO particles, MCMCr: MCMC run steps, MCMCb: MCMC burn in steps)\n""")
     parser.add_argument('-nl','--n_lenses',type=int,dest="n_lenses",default=5,help=f"Number of lenses to model")
     parser.add_argument('-mtE','--min_thetaE',type=float,dest="min_thetaE",default=None,help=f"Min theta_E for the gal to be considered a lens")
@@ -128,6 +129,7 @@ if __name__=="__main__":
     subsim     = args.subsim
     simsuite   = args.simsuite
 
+    check_if_workin_on_it = True
     if run_type==0:
         n_iterations = int(n_it_std) #number of iteration of the PSO run
         n_particles  = int(n_part_std) #number of particles in PSO run
@@ -142,6 +144,16 @@ if __name__=="__main__":
         if n_lenses>3:
             print("Resetting n_lenses to 3 because test")
             n_lenses = 3
+    elif run_type ==2:
+        print("Test Run - longer")
+        check_if_workin_on_it = False
+        n_iterations = int(100) #number of iteration of the PSO run
+        n_particles  = int(20) #number of particles in PSO run
+        n_run  = int(200) #MCMC total steps 
+        n_burn = int(100) #MCMC burn in steps
+        if n_lenses>1:
+            print("Resetting n_lenses to 1 because test")
+            n_lenses = 1
     else:
         raise RuntimeError("Give a valid run_type or implement it your own")
 
@@ -152,14 +164,14 @@ if __name__=="__main__":
                            "simsuite":simsuite,
                             "snaps":snaps}
     res_dir = res_dir_base
-    if run_type==1:
+    if run_type>1:
         res_dir = res_dir_base/"test"
 
     print("\nGetting catalogue of lenses 2 model\n###################\n")
     gal_lenses  = get_lenses2model(res_dir=res_dir,
                                    reload=True,
                                    kw_get_all_gallens=kw_get_all_gallens,
-                                   n_lenses=np.nan,
+                                   n_lenses=n_lenses,
                                    min_thetaE=min_thetaE,
                                    skip_lenses=lenses2skip)
     print("\nCatalogue of lenses 2 model obtained\n###################\n")
