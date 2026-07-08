@@ -12,7 +12,8 @@ from nazgul.plot_PL import plot_kappamap
 from nazgul.mount_doom.lens_system import LensSystem
 
 from nazgul.Translator import std_sim,std_simsuite,std_subsim
-from nazgul.Modelling.lib_models import setup_lens,setup_sim_obs,get_kwargs_likelihood,get_lenses2model,get_lens_mask
+from nazgul.Modelling.lib_models import setup_lens,setup_sim_obs,get_kwargs_likelihood,get_lens_mask#,get_lenses2model
+from nazgul.stat_lenses import get_all_gallens
 from nazgul.Modelling.lib_models import model_res_base
 
 from nazgul.plot_image_pair import _limits,plot_image_pairs_pdf
@@ -44,13 +45,15 @@ if __name__=="__main__":
                           "subsim":subsim,
                            "simsuite":simsuite,
                             "snaps":snaps}
+
     res_dir = res_dir_base
-    gal_lenses  = get_lenses2model(res_dir=res_dir,
-                                   reload=True,
+    gal_lenses  = get_all_gallens(**kw_get_all_gallens)
+    """get_lenses2model(res_dir=res_dir,
+                                   reload=False,
                                    kw_get_all_gallens=kw_get_all_gallens,
                                    n_lenses=n_lenses,
                                    min_thetaE=min_thetaE,
-                                   skip_lenses=lenses2skip)
+                                   skip_lenses=lenses2skip)"""
 
     sim_images = []
     obs_images = []
@@ -59,7 +62,10 @@ if __name__=="__main__":
     limits     = []
     err_fail   = []
     N_gallenses = len(gal_lenses)
-    for i,gal_lens in enumerate(gal_lenses): 
+    if np.isnan(n_lenses):
+        n_lenses=N_gallenses
+    
+    for i,gal_lens in enumerate(gal_lenses[:n_lenses]): 
         print("\n     Loading lens "+gal_lens.name+\
               "\n####################################################\n")
         lens = LensSystem.from_GalLens(gal_lens)
@@ -115,12 +121,20 @@ if __name__=="__main__":
     with open("tmp/del_fail.dll","wb") as f:
         dill.dump(err_fail,f)
     print("N fails:",len(err_fail),"\n% fails:",np.round((len(err_fail)/N_gallenses)*100,1))
+    sim_subsim = sim
+    if subsim is not None:
+        sim_subsim += "_"+subsim
+    if len(snaps)==1:
+        snap_str = "snap_"+str(snaps[0])
+    else:
+        snap_str = f"snaps{'_'.join(snaps)}"
+    output_pdf = f"tmp/all_sim_lenses_{sim_subsim}_{simsuite}_{snap_str}.pdf"
     plot_image_pairs_pdf(images1 = sim_images,
                          images2 = obs_images,
                          names   = nms_lenses,
                          extents = extents,
                          limits  = limits,
-                         output_pdf = "tmp/all_sim_lenses.pdf",
+                         output_pdf = output_pdf,
                          cmap1 = "gist_heat",
                          cmap2 = "gist_heat",
                          log_scale1 = True,
