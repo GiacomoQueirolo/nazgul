@@ -171,7 +171,8 @@ class SimPartGal(BasicPartGal):
         #self.kw_Gal     = kw_Gal
         self.soap_index  = kw_Gal["soap_index"] #self.swift_gal.halo_catalogue.soap_index
         self.z,self.snap = get_z_snap(z=kw_Gal.get("z",None),
-                            snap=kw_Gal.get("snap",None))
+                            snap=kw_Gal.get("snap",None),
+                                     sim=sim,subsim=subsim)
         
         self.sim         = Path(sim)
         self.subsim      = Path(subsim)
@@ -367,7 +368,7 @@ def get_rnd_SPG(sim=std_sim,subsim=std_subsim,
     kw_Gal = {"soap_index":kw_swiftgal["soap_index"],
               "snap":kw_swiftgal["snap"]}
     """
-    kw_Gal = get_rnd_kw_gal(sim=std_sim,subsim=std_subsim,
+    kw_Gal = get_rnd_kw_gal(sim=sim,subsim=subsim,
                            kw_criteria= kw_criteria,
                            min_z=min_z,
                            max_z=max_z,
@@ -386,7 +387,7 @@ def get_all_SPG(sim=std_sim,subsim=std_subsim,
                ):
     """Get all possible galaxies in the range"""
     all_SPG = []
-    all_kw_Gal = get_all_kw_gal(sim=std_sim,subsim=std_subsim,
+    all_kw_Gal = get_all_kw_gal(sim=sim,subsim=subsim,
                            kw_criteria= kw_criteria,
                            min_z=min_z,
                            max_z=max_z,

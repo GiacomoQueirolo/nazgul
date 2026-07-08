@@ -377,7 +377,6 @@ def get_all_kw_gal(sim=std_sim,
     """
     min_z = float(min_z)
     max_z = float(max_z)
-
     all_snap = get_all_snap(sim=sim,
                             subsim=subsim,
                             max_z=max_z,
