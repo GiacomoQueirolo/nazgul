@@ -40,8 +40,16 @@ analogous    = ['#a0c3db', '#dbb7a0']
 warm         = ['#fdcc8a', '#fc8d59', '#d7301f']
 cool         = ['#41b6c4', '#2c7fb8', '#253494']
 
+colors_Nat = {"green":green,
+              "purple":purple,
+              "analogous":analogous,
+              "warm":warm,
+              "cool":cool}
+
 #plt.style.use('sanglier')
 plt.rcParams.update({'font.size': 10})
+# scale of figure
+scale_fig = 7
 
 def shear_stdev(gamma, gamma1, gamma2, covmat):
     '''
@@ -638,7 +646,6 @@ if __name__=="__main__":
         columns_ttl[-1] = columns_ttl[-1].replace("LOS", "Shear")
 
     ncols = len(columns_ttl)
-    scl   = 8
 
     # accumulators for plot_los_outVsin, only needed if model=="allLOS"
     lenses_for_los = []
@@ -651,7 +658,7 @@ if __name__=="__main__":
             page_slice  = lens_resdir_paths[page_start : page_start + lines_per_page]
             nrows_page  = len(page_slice)
             fig, axes = plt.subplots(nrows_page, ncols,
-                                     figsize=(scl * ncols, scl * nrows_page),
+                                     figsize=(scale_fig * ncols, scale_fig * nrows_page),
                                      squeeze=False)
             log_memory("after subplots instantiation")
             for i_row, model_res_dir in enumerate(page_slice):
@@ -666,7 +673,7 @@ if __name__=="__main__":
                 # ── single-lens PDF ────────────────────────────────────────
                 nm_single = f"{model_res_dir}/single_result.pdf"
                 fig_s, axes_s = plt.subplots(1, ncols,
-                                             figsize=(scl * ncols, scl),
+                                             figsize=(scale_fig * ncols, scale_fig),
                                              squeeze=False)
                 log_memory("before plot_result_line 1")
                 plot_result_line(model, lens, axes_s, 0, 1,

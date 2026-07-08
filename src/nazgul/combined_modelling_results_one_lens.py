@@ -2,37 +2,14 @@
 import sys
 import argparse
 import numpy as np
-import pandas as pd
-from glob import glob
-from pathlib import Path
-from copy import copy,deepcopy
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-from chainconsumer import Chain, ChainConsumer
-from chainconsumer.plotting import plot_contour,plot_truths,plot_dist
-
-from lenstronomy.Plots.model_plot import ModelPlot
-
-from python_tools.tools import short_SciNot
-from python_tools.get_res import load_whatever
-
-from nazgul.lens_part_LOS import get_kw_los
-from nazgul.mount_doom.cracks_of_doom import LoadLens
-
-
-# thank you Nat!
-green        = ['#a6dba0','#5aae61','#1b7837']
-purple       = ['#c2a5cf', '#9970ab', '#762a83']
-analogous    = ['#a0c3db', '#dbb7a0']
-warm         = ['#fdcc8a', '#fc8d59', '#d7301f']
-cool         = ['#41b6c4', '#2c7fb8', '#253494']
 
 #plt.style.use('sanglier')
 plt.rcParams.update({'font.size': 20})
 
 from nazgul.combined_modelling_results import plot_result_line,_convert_shear2LOS,get_all_lens_models,name_models,get_res_dir,get_model_title
-c = ChainConsumer()
+
+
 import warnings
 warnings.filterwarnings("ignore")
 if __name__=="__main__":
@@ -64,8 +41,7 @@ if __name__=="__main__":
     
     ncols  = len(columns_ttl)
     for i_lens,lens_name in enumerate(name_lenses):
-        scl = 8
-        fig, axes = plt.subplots(nrows, ncols, figsize=(scl*ncols,scl*nrows))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(scale_fig*ncols,scale_fig*nrows))
         for i_row,model in enumerate(name_models):
             lenses = kw_lenses_modelled[model]
             for lens in lenses:
@@ -92,6 +68,8 @@ if __name__=="__main__":
         print(f"Saved {nm_mod_comb}")
 
 """
+from chainconsumer import Chain, ChainConsumer
+c = ChainConsumer()
 if model!="noLOS":
     gamma1_full = c.analysis.get_parameter_summary(chain=Chain(samples=full_chain, name='lenstronomy_mcmc_emcee'),column=r"gamma1_los_lens1")
     gamma2_full = c.analysis.get_parameter_summary(chain=Chain(samples=full_chain, name='lenstronomy_mcmc_emcee'),column=r'gamma2_los_lens1')

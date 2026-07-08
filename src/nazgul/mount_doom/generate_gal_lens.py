@@ -419,7 +419,10 @@ def wrapper_forge_all_lenses(reload=True,
             print(f'RUNTIME ERROR FOR THIS GALAXY:\n{RE}\nMOVING TO NEXT')
             kw_lenspart["projection_index"] = 0
         finally:
-            Gal.slim_down()
+            try:
+                Gal.slim_down()
+            except:
+                pass
             try:
                 del mod_LP
                 gc.collect()
