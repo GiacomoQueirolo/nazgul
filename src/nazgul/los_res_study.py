@@ -86,9 +86,13 @@ if __name__=="__main__":
                         dest="model_name",help="Name of the directory with the model results")
     parser.add_argument('-nr','--no_reload',dest="no_reload",
                         default=False,action="store_true",help=f"Do not reload prev. results")
+    parser.add_argument('-mc','--min_chi2',dest="min_chi2",
+                        default=None,type=float,help=f"Minimum chi^2 threshold")
     args       = parser.parse_args()
     model_name = Path(args.model_name)
+    
     reload     = not args.no_reload
+    min_chi2   = args.min_chi2
     print(f"LOS shear results for model {model_name}")
     
     lenses2ignore= [""]
@@ -98,6 +102,16 @@ if __name__=="__main__":
     kw_glos_tot  = get_g1g2(path_lenses,nm_g1g2_data,lenses2ignore=lenses2ignore,reload=reload)
     chi2             = kw_glos_tot["chi2"]
     g1,g2,sg1,sg2    = kw_glos_tot["g1g2"]
+    glos,s_glos = kw_glos_tot["glos"]
+
+    if min_chi2 is not None:
+        g1  = g1[chi2<min_chi2]
+        g2  = g2[chi2<min_chi2]
+        sg1 = sg1[chi2<min_chi2]
+        sg2 = sg2[chi2<min_chi2]
+        glos = glos[chi2<min_chi2]
+        s_glos = s_glos[chi2<min_chi2]
+        chi2 = chi2[chi2<min_chi2]
     fig_g1g2,ax_g1g2 = plt.subplots(1)
     ax_g1g2.errorbar(g1,g2,xerr= sg1,yerr=sg2,fmt='',marker='',mew=0,ls="",
                            ecolor="k",elinewidth=.8,label=r"N$_{\rm{models}}$="+str(len(g1)))
@@ -117,12 +131,11 @@ if __name__=="__main__":
 
     ax_g1g2.set_title(r"Scatter of $\gamma_{\rm{LOS}}$ components for "+str(model_name) )  
     nm_g1g2_fig = res_dir/"g1g2_scatter.png"
-    fig_g1g2.legend()
+    fig_g1g2.legend(loc=(0.64,0.765))
     fig_g1g2.savefig(nm_g1g2_fig)
     print(f"Saving {nm_g1g2_fig}")
     plt.close(fig_g1g2)
 
-    glos,s_glos = kw_glos_tot["glos"]
     
     plt.hist(glos,label=r"N$_{\rm{models}}$="+str(len(g1)),bins=24)
     plt.xlabel(r"$\gamma_{\rm{LOS}}$")
