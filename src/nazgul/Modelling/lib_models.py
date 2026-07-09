@@ -389,7 +389,11 @@ def load_kwargs_result(res_dir):
     nm_res = f"{res_dir}/kw_res.dll"   
     kwargs_result = load_whatever(nm_res)
     return kwargs_result
-
+def load_kwargs_input(res_dir):
+    nm_res = f"{res_dir}/kw_input.dll"   
+    kwargs_result = load_whatever(nm_res)
+    return kwargs_result
+    
 def get_model_plot(res_dir,
                    multi_band_list_out = None,
                    kw_input= None,
