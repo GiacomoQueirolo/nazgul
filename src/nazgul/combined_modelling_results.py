@@ -431,7 +431,7 @@ def load_kw_data(model,lens):
                    modelPlot=modelPlot)
     return kw_data
 
-def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3,overlay_ellipticity=False):
+def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3,overlay_ellipticity=False,no_thetaE=False):
     fig       = axes.flatten()[0].get_figure()
     lens_name = lens.name.replace("Sub_","")
     if kw_data is None:    
@@ -492,26 +492,30 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3
     ax.text(x_txt,y_txt,s=r"$\chi^2_{red.}$="+str(np.round(reduced_chi2,2)),color="k",backgroundcolor="w")
         
     # Posterior Theta_E
-    ax = axes[i_row][3]
-    if i_row ==0:
-        ax.set_title(columns_ttl[3])
-    if i_row==nrows-1:
-        ax.set_xlabel(r"$\theta_E$")
-    thetaE = full_chain["theta_E_lens0"].to_numpy() 
-    plot_dist(ax, Chain(samples=full_chain, name=lens_name, shade=True, color='#2c7fb8', smooth=20, bins=10,
-                                   shade_gradient = 0.4, linewidth=3.0), px="theta_E_lens0",)
-    lbl_tE_meas = r"$\theta_{\rm{E}}=$"+str(np.round(np.median(thetaE),_rnd))+"+-"+str(np.round(np.std(thetaE),_rnd))+'"'
-    ax.axvline(np.median(thetaE),ls="-.",color="k",label=lbl_tE_meas)
-    lbl_tE_true = r"$\theta_{\rm{E, True}}=$"+short_SciNot(lens.thetaE.value)+'"'
-    ax.axvline(lens.thetaE.value,ls="-",color="r",label=lbl_tE_true)
-    ax.legend(loc="upper right")
+    if not no_thetaE:
+        ax = axes[i_row][3]
+        if i_row ==0:
+            ax.set_title(columns_ttl[3])
+        if i_row==nrows-1:
+            ax.set_xlabel(r"$\theta_E$")
+        thetaE = full_chain["theta_E_lens0"].to_numpy() 
+        plot_dist(ax, Chain(samples=full_chain, name=lens_name, shade=True, color='#2c7fb8', smooth=20, bins=10,
+                                       shade_gradient = 0.4, linewidth=3.0), px="theta_E_lens0",)
+        lbl_tE_meas = r"$\theta_{\rm{E}}=$"+str(np.round(np.median(thetaE),_rnd))+"+-"+str(np.round(np.std(thetaE),_rnd))+'"'
+        ax.axvline(np.median(thetaE),ls="-.",color="k",label=lbl_tE_meas)
+        lbl_tE_true = r"$\theta_{\rm{E, True}}=$"+short_SciNot(lens.thetaE.value)+'"'
+        ax.axvline(lens.thetaE.value,ls="-",color="r",label=lbl_tE_true)
+        ax.legend(loc="upper right")
     
     # Posterior gamma_ext
-    ax = axes[i_row][4]
+    index = 4
+    if no_thetaE:
+        index = 3
+    ax = axes[i_row][index]
     chain4plotcont = Chain(samples=full_chain, name=lens_name, shade=True, 
                            color=warm[1], shade_gradient = 0.8, linewidth=3.0)
     if i_row ==0:
-        ax.set_title(columns_ttl[4])
+        ax.set_title(columns_ttl[index])
     plot_contour(ax, chain4plotcont, px="gamma1_los_lens1", py="gamma2_los_lens1")
     if overlay_ellipticity:
         plot_contour(ax, chain4plotcont, px="e1_lens0", py="e2_lens0")
@@ -578,13 +582,15 @@ def plot_result_line(model,lens,axes,i_row,nrows,columns_ttl,kw_data=None,_rnd=3
     ax.axvline(gamma_los1_true,ls="-",label="Truth "+clmns[0]+f"= {np.round(gamma_los1_true,_rnd)}",c="r")
     ax.axhline(gamma_los2_true,ls="-",label="Truth "+clmns[1]+f"= {np.round(gamma_los2_true,_rnd)}",c="r")
         
-    ax.legend(loc="upper left")
-    #ax.legend()
-    
+    #ax.legend(loc="lower left",framealpha=1)
+    leg = ax.legend(framealpha=1)
+    leg.set_zorder(1000)
     # free memory:
     del modelPlot
-    del full_chain,
-    del g12e12,thetaE
+    del full_chain
+    del g12e12
+    if not no_thetaE:
+        del thetaE
     gc.collect()
     return axes
     
