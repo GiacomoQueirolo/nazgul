@@ -131,7 +131,7 @@ if __name__=="__main__":
 
     ax_g1g2.set_title(r"Scatter of $\gamma_{\rm{LOS}}$ components for "+str(model_name) )  
     nm_g1g2_fig = res_dir/"g1g2_scatter.png"
-    fig_g1g2.legend(loc=(0.64,0.765))
+    ax_g1g2.legend()
     fig_g1g2.savefig(nm_g1g2_fig)
     print(f"Saving {nm_g1g2_fig}")
     plt.close(fig_g1g2)
