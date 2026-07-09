@@ -1,6 +1,7 @@
 import numpy as np
 from glob import glob
-from los_res_study import get_model_plot,load_kwargs_result,get_red_chi2
+from los_res_study import get_model_plot,load_kwargs_result
+from Modelling.lib_models  import get_red_chi2
 from pathlib import Path
 
 chi2 = []

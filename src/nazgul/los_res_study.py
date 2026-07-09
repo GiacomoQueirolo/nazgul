@@ -91,8 +91,11 @@ if __name__=="__main__":
     args       = parser.parse_args()
     model_name = Path(args.model_name)
     
-    reload     = not args.no_reload
-    min_chi2   = args.min_chi2
+    reload       = not args.no_reload
+    min_chi2     = args.min_chi2
+    min_chi2_str = ""
+    if min_chi2 is not None:
+        min_chi2_str = f"_minX2_{int(min_chi2)}"
     print(f"LOS shear results for model {model_name}")
     
     lenses2ignore= [""]
@@ -130,7 +133,7 @@ if __name__=="__main__":
     ax_g1g2.set_ylabel(r"$\gamma_{\rm{LOS, 2}}$")
 
     ax_g1g2.set_title(r"Scatter of $\gamma_{\rm{LOS}}$ components for "+str(model_name) )  
-    nm_g1g2_fig = res_dir/"g1g2_scatter.png"
+    nm_g1g2_fig = res_dir/f"g1g2_scatter{min_chi2_str}.png"
     ax_g1g2.legend()
     fig_g1g2.savefig(nm_g1g2_fig)
     print(f"Saving {nm_g1g2_fig}")
@@ -141,7 +144,7 @@ if __name__=="__main__":
     plt.xlabel(r"$\gamma_{\rm{LOS}}$")
     plt.title(r"Histogram of $\gamma_{\rm{LOS}}$ for "+str(model_name))  
     plt.legend()
-    nm_glos_fig = res_dir/"glos_hist.png"
+    nm_glos_fig = res_dir/f"glos_hist{min_chi2_str}.png"
     plt.savefig(nm_glos_fig)
     print(f"Saving {nm_glos_fig}")
     plt.close()
@@ -151,7 +154,7 @@ if __name__=="__main__":
     plt.xlabel(r"$\chi^2{\rm{red.}}$")
     plt.ylabel(r"$\gamma_{\rm{LOS}}$")
     
-    nm_glosChi2_fig = res_dir/"glosVschi2.png"
+    nm_glosChi2_fig = res_dir/f"glosVschi2{min_chi2_str}.png"
     plt.savefig(nm_glosChi2_fig)
     print(f"Saving {nm_glosChi2_fig}")
     plt.close()
