@@ -4,8 +4,9 @@
 import os
 import warnings
 import argparse
+import importlib
 import numpy as np
-import sys,json,dill
+import sys,dill
 from pathlib import Path
 from corner import corner
 from copy import copy,deepcopy
@@ -46,8 +47,25 @@ n_part_std = 300
 n_burn_std = 700
 n_run_std  = 7000
 
+def _get_sim_dir(gal):
+    try:
+        simsuite_code =  str(gal.simsuite_code)
+    except AttributeError:
+        # MONKEY PATCH
+        simsuite = gal.simsuite
+        simsuite_module = importlib.import_module(f'.{simsuite}',"nazgul.Translator")
+        simsuite_code = simsuite_module.simsuite_short_name
+    sim = str(gal.sim)
+    sim_dir = f"{simsuite_code}_{sim}"
+    subsim = getattr(gal,"subsim",False)
+    if subsim:
+        sim_dir +=f"_{str(subsim)}"
+    return sim_dir
+        
 def get_model_res_dir(lens,res_dir):
-    res_dir = Path(f"{res_dir}/snap_{lens.gallens.Gal.snap}_{lens.name}/")
+    gal = lens.gallens.Gal
+    sim_dir = _get_sim_dir(gal)
+    res_dir = Path(f"{res_dir}/{sim_dir}/snap_{gal.snap}_{lens.name}/")
     return res_dir
     
 def get_link_lens_path(lens,res_dir):

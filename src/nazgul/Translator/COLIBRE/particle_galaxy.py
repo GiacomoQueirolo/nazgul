@@ -15,7 +15,7 @@ from python_tools.get_res import LoadClass,load_whatever
 
 from nazgul.pathfinder import get_gal_dir,path_nazgul
 from nazgul.Translator.particle_galaxy import BasicPartGal,store_class
-from nazgul.Translator.COLIBRE import simsuite_name,part_type_list,check_part_type
+from nazgul.Translator.COLIBRE import simsuite_name,simsuite_short_name,part_type_list,check_part_type
 
 from nazgul.Translator.COLIBRE.get_Gal import get_swiftgal,get_snap,get_z_snap
 from nazgul.Translator.COLIBRE.get_Gal import std_sim,std_subsim,colibre_base_path
@@ -166,6 +166,8 @@ class SimPartGal(BasicPartGal):
     _large_attributes_unpack = []
     
     simsuite = simsuite_name
+    simsuite_code = simsuite_short_name
+ 
     def __init__(self,kw_Gal,sim=std_sim,subsim=std_subsim):
         #kw_Gal: soap_index,snap and/or z
         #self.kw_Gal     = kw_Gal
@@ -237,11 +239,16 @@ class SimPartGal(BasicPartGal):
         # again using dynamical masses for BH
         if not hasattr(self,"M_bh"):
             self.M_bh        = np.sum(self.black_holes.dynamical_masses.to_physical().in_units(u.Msun))
+        if not hasattr(self,"N_stars"):
+            self.N_stars = len(sg.stars.particle_ids)
+        if not hasattr(self,"N_gas"):
+            self.N_gas = len(sg.gas.particle_ids)
+        if not hasattr(self,"N_dm"):
+            self.N_dm = len(sg.dark_matter.particle_ids)
+        if not hasattr(self,"N_bh"):
+            self.N_bh = len(sg.black_holes.particle_ids)
         if not hasattr(self,"N_part"):
-            self.N_part = len(sg.gas.particle_ids) +\
-                 len(sg.dark_matter.particle_ids) +\
-                 len(sg.stars.particle_ids) +\
-                 len(sg.black_holes.particle_ids) 
+            self.N_part = self.N_star + self.N_gas + self.N_dm + self.N_bh
         if not hasattr(self,"M"):
             self.M = self.M_stars + self.M_gas + self.M_dm + self.M_bh 
         return 0

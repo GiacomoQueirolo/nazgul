@@ -1,6 +1,9 @@
 simsuite_name ="COLIBRE"
-sim   = ["L0025N0752"]
-subsim = {"L0025N0752":["THERMAL_AGN_m5"]}
+simsuite_short_name ="CLB" 
+sim   = ["L0025N0752"] # L0050N0752, L0050N1504
+subsim = {"L0025N0752":["THERMAL_AGN_m5"],
+          "L0050N0752":["THERMAL_AGN_m6"],
+         "L0050N1504":["THERMAL_AGN_m5"]}
 
 # Define name of accepted particles
 plural_part_type_list = ["stars","gas","dark_matter","black_holes"]
